@@ -18,6 +18,31 @@
 
 ---
 
+## 2026-10-11 19:30 — 実装に必要な詳細設計ドキュメント一式を作成（要件書 v0.3・基本設計 v0.2）
+
+- **変更ファイル**（すべて `projects/docs/`）: 新規 `README.md`（目次）, `local_llm_protocol.md`, `local_llm_data_model.md`,
+  `local_llm_api.md`, `local_llm_ui_spec.md`, `local_llm_prompts.md`, `local_llm_test_spec.md`, `local_llm_dev_guide.md`,
+  `local_llm_impl_plan.md`, `local_llm_traceability.md`, `local_llm_adr/`（README＋001〜008）, `local_llm_ops/server_setup.md`。
+  更新 `local_llm.md`（v0.3）, `local_llm_design.md`（v0.2）
+- **やったこと**:
+  - ユーザーの回答に沿って作成した。サーバーOSは未定（Ubuntu を主手順、WSL2 を付録）、ログインは独自アカウントで開始（ADR-008）、
+    設計提案 R3/R4/R8/R10/R12 はすべて採用、開発環境はこのPCと検証機（接続可）。
+  - プロトコル仕様（全47ツールの引数と戻り値・エラーコード・承認・Runtime と preload のメッセージ）、データモデル（SQLite/PostgreSQL の DDL）、
+    API、プロンプトの雛形、開発ガイド、実装計画（T-01〜T-67）は自分で書いた。画面・試験・構築手順・ADR とトレーサビリティ表はサブエージェント（fork）で並行して作り、レビューして統合した。
+  - 整合を取るために次を直した: 画面仕様の未決3点（`waiting_question` の追加、実行中の会話への追加指示、`main:*` API）をプロトコル仕様に反映。
+    認証の食い違い（ロック回数5回・EdDSA・`external_id`）を統一。試験用フックを本番ビルドから除去することを明記。
+  - 要件書を v0.3 に更新した（R1〜R12 の反映、確認事項への回答、改訂履歴）。
+- **理由/背景**: 「あなたが実装するので、必要なドキュメントを作成して」というユーザーの依頼。
+- **E2Eテスト**: N/A（ドキュメントだけの変更で、起動できるアプリはまだない）。代わりに `check-divisions.sh` **PASSED(17)**、
+  `check-tools.sh` **PASSED(15)**。文書どうしの整合を機械的に検査した: ほかの文書が参照するツール名37個はすべてプロトコル仕様に定義あり、
+  エラーコードの未定義0件、run.state の値は UI 仕様と一致。
+- **結果/確認**: 設計ドキュメントは計約4,600行。目次は `projects/docs/README.md`。
+- **次にやること / 申し送り**:
+  - 実装は `local_llm_impl_plan.md` の「直近の着手順」に従う: **T-01 雛形 → T-02 protocol → T-05 モック Gateway** から始める。
+  - LibreOffice が開発PCに入っていない（`winget install TheDocumentFoundation.LibreOffice`。T-12 までに必要）。
+  - 検証機の接続情報（ホスト名・SSH ユーザー）を `projects/.env` に記入してもらう必要がある（M0 の着手時）。
+  - 構築手順書の社内アドレス帯 `192.168.0.0/16` は仮の値。
+
 ## 2026-10-11 18:20 — 設計ドキュメントの置き場所を projects/docs/ に統一
 
 - **変更ファイル**: `projects/docs/local_llm_design.md`, `projects/README.md`, `.claude/agents/*.md`（9件）

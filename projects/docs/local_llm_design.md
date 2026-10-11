@@ -1,6 +1,6 @@
 # ローカルLLMデスクトップエージェント 基本設計書
 
-2026年10月11日 · 設計 v0.1（要件定義書 v0.2 対応）
+2026年10月11日 · 設計 v0.2（要件定義書 v0.3 対応）
 
 要件定義書 `projects/docs/local_llm.md`（以下「要件書」）を実装可能な形に落とし込む基本設計。要件ID（APP-01 等）で要件書と対応づける。技術選定は「POCで確定」とされていたものに推奨案を置き、根拠と代替案を併記する。確定は PHASE 1（2027年1〜2月）で行う。
 
@@ -22,6 +22,8 @@
 ---
 
 ## 1. 要件書のレビュー結果（設計に入る前の指摘）
+
+> **2026-10-11 決定**: R1〜R12 の扱いはすべてユーザーの承認を得て採用し、要件書 v0.3 に反映した。
 
 設計中に見つかった矛盾・不足と、本設計での扱い。要件書 v0.3 への反映を提案する。
 
@@ -582,22 +584,39 @@ POC合格判定（9.2）の材料は `eval/harness` の出力で作る。
 
 ---
 
-## 13. 設計判断の記録（ADR の候補）
+## 13. 設計判断の記録（ADR）
 
-確定した ADR は `projects/docs/local_llm_adr/NNN-*.md` に1件1ファイルで書く。
+ADR は `projects/docs/local_llm_adr/NNN-*.md` に1件1ファイルで書く（一覧は `local_llm_adr/README.md`）。
 
 | ADR | 決めたこと | 代替案 | 状態 |
 | --- | --- | --- | --- |
-| 001 | Electron＋React（Runtime は utilityProcess） | Tauri 2 ＋ Node SEA を別に同梱 | 提案 |
-| 002 | 独自のアクションプロトコル＋ guided_json | vLLM のツールパーサー（モデル依存） | 提案 |
-| 003 | Gateway は自作の FastAPI＋PostgreSQL | LiteLLM＋Redis | 提案 |
-| 004 | PDF は pypdfium2＋pdfplumber（PyMuPDF は使わない） | PyMuPDF の商用ライセンス | 提案 |
-| 005 | 再計算・変換に LibreOffice を同梱 | formulas/pycel（再現性が低い） | 提案 |
-| 006 | OCR はサーバーの GPU で処理 | クライアントの CPU で処理 | 要合意（R8） |
-| 007 | キューに依頼本文を一時的に暗号化して置く | 再起動時はクライアントが再投入（キューを残さない） | 要合意（R4） |
+| 001 | Electron＋React（Runtime は utilityProcess） | Tauri 2 ＋ Node SEA を別に同梱 | 承認済み |
+| 002 | 独自のアクションプロトコル＋ guided_json | vLLM のツールパーサー（モデル依存） | 承認済み |
+| 003 | Gateway は自作の FastAPI＋PostgreSQL | LiteLLM＋Redis | 承認済み |
+| 004 | PDF は pypdfium2＋pdfplumber（PyMuPDF は使わない） | PyMuPDF の商用ライセンス | 承認済み |
+| 005 | 再計算・変換に LibreOffice を同梱 | formulas/pycel（再現性が低い） | 承認済み |
+| 006 | OCR はサーバーの GPU で処理 | クライアントの CPU で処理 | 承認済み（R8） |
+| 007 | キューに依頼本文を一時的に暗号化して置く | 再起動時はクライアントが再投入（キューを残さない） | 承認済み（R4） |
+| 008 | ログインは独自アカウントで開始（argon2id・EdDSA JWT・認証プロバイダの抽象化） | 最初から Entra ID / AD 連携 | 承認済み |
 
-## 14. 残っている確認事項（要件書 11.2 に追加）
+## 14. 残っている確認事項
 
-- R3（検証機で昇格できない）・R4（SEC-06 の例外）・R8（OCRをサーバーで処理）・R10（汚染の期間）・R12（別名保存を完了に含めるか）の合意
-- LibreOffice をクライアントに同梱してよいか（容量 約400MB。クライアントPCの「空き2GB」の条件内）
+- 要件書 11.2 の未回答の項目（本番機の型番、同時利用のピーク、対象文書の量、NAS を作業フォルダにしてよいか、監査ログの保存期間、検索 API の選定、機密語リストの担当 など）
+- サーバー OS の最終決定（構築手順は Ubuntu と WSL2 の両方を用意済み）
 - 社内CA（TLS 証明書）を発行・配布する担当
+- 社内アドレス帯（構築手順書では仮に `192.168.0.0/16` としている）
+
+## 15. 詳細仕様の一覧
+
+| 文書 | 内容 |
+| --- | --- |
+| `local_llm_protocol.md` | アクション・ツール定義・エラーの分類・Main と Runtime の間のメッセージ |
+| `local_llm_data_model.md` | Run Store（SQLite）と PostgreSQL のテーブル、Qdrant のペイロード |
+| `local_llm_api.md` | Gateway の HTTP API |
+| `local_llm_ui_spec.md` | 画面・状態の表示・文言 |
+| `local_llm_prompts.md` | プロンプトの雛形 |
+| `local_llm_test_spec.md` | 試験の階層・モック Gateway・評価セット・障害注入 |
+| `local_llm_dev_guide.md` | 開発環境・規約・作業の進め方 |
+| `local_llm_impl_plan.md` | タスクの分解と着手順 |
+| `local_llm_traceability.md` | 要件ID → 仕様・実装・試験 |
+| `local_llm_ops/server_setup.md` | サーバーの構築手順 |
