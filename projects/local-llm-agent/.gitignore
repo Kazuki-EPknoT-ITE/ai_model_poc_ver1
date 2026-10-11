@@ -13,3 +13,4 @@ requests.jsonl
 release/
 # 評価ハーネスの結果（モデル名・実測値。実データの値は含めないが、共有は台帳で行う）
 eval/harness/results/
+eval/fault-injection/results/

@@ -18,6 +18,44 @@
 
 ---
 
+## 2026-10-12 00:20 — 障害注入試験（T-51）を実装。FI 9件を3回ずつ全合格、試験で見つけた Runtime の不具合2件を修正
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `packages/agent-runtime`:
+    - `src/testhooks.ts`（新規。`AGENT_TEST_HOOKS=1` のときだけ働く）
+    - `src/agent/intents.ts`（注入点 `intent.prepared`・`intent.replaced`、**再開時の二重書き込みの防止**）
+    - `src/gateway/client.ts`（注入点 `infer.submitted`）
+    - `src/runtime.ts`（**承認済み・未反映の操作を残したまま完了しない**）
+    - `src/store/store.ts`（`intentsForStep`）、`test/foundation.test.ts`（回帰試験1件）
+  - `apps/desktop/scripts/build.mjs`: 配布物から試験フックを除去（define＋minifySyntax、sourcesContent なし）。`AGENT_TEST_HOOK` の文字列が残っていればビルドを失敗させる。
+  - `eval/fault-injection`（新規）:
+    - `src/host.ts`（Runtime の子プロセス）、`src/run.ts`（シナリオと判定）
+    - `scenarios/*.yaml`（モック Gateway の手順）、`tools/lockfile.ps1`（BOM 付き）、`package.json`・`tsconfig.json`
+  - `eval/sets/resilience`（新規。FI-01〜20。未自動化のものは理由を `note` に記録）
+  - ルート: `pnpm-workspace.yaml`、`package.json`（`pnpm fi`）、`.gitignore`（`eval/fault-injection/results/`）
+  - 設計ドキュメント: test_spec §4（実装の説明）、data_model §3.4（再開時の書き込み）、dev_guide §1.4、impl_plan（T-51 一部完了）
+- **やったこと**:
+  - 本物のプロセスで障害を注入する: Runtime の子プロセスを `taskkill /F /T` で落として再起動する、モック Gateway を落として同じポートで再起動する、出力先を FileShare.None でロックする。
+  - 判定は試験仕様 §4 の共通判定: `end_reason=final`、同じ `(path, op_digest)` の committed が2回ない、未確定の意図記録が残らない、成果物の中身が正しい。
+- **試験で見つけて直した不具合**:
+  1. **FI-13**（置き換えの後・committed の記録の前に落ちる）: 再開時に意図記録は committed に直るが、手順そのものを再実行して同じ書き込みをもう一度していた（重複 1件）。追記のような操作なら二重転記になる。同じ手順・同じ操作の committed の記録があれば、ツールを呼ばずに記録から結果を返すようにした。
+  2. **FI-19**（承認待ち2件）: 推論中に2件目が承認されると、承認済みで未実行のまま完了していた（2件目のコピーが実行されない）。完了の前に、未反映の承認・回答を先に実行するようにした。
+  - 試験側の不具合も直した:
+    - `lockfile.ps1` が UTF-8（BOM なし）だと PowerShell 5.1 で param が壊れ、ロックできないのに `locked` と出していた。最初の FI-15 の合格は偽物だった。BOM 付きにし、`$ErrorActionPreference=Stop` にした。
+    - FI-03 は注入が1回しか起きていなかった。推論の投入回数を確認する判定を足して発見し、3回注入するように直した。
+- **E2Eテスト**: **合格**。
+  - 障害注入 `pnpm fi --repeat 3`: FI-03・05・06・11・12・13・15・16・19 の **9シナリオ × 3回、すべて合格・重複 0件**。
+  - 集計 `pnpm eval --set resilience`: 実行したものの完了率 1.0、重複 0。全体の完了率は 0.45（11件が未実行）なので総合は「未達」で、意図どおり。
+  - Runtime の結合試験 9件合格。デスクトップ E2E 8件合格（本物の Gateway を含む）。
+  - 配布用ビルドに試験フックが残っていないことを確認した（`testHook` の出現 0）。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（vitest: runtime 18、protocol 198、desktop 3。mypy 102ファイル。pytest 487件成功・47件スキップ）。
+  - 秘密情報の grep で該当なし。
+- **次にやること / 申し送り**:
+  - FI の残り: FI-01（時計の早送り）、02、04（昇格先ありのモック）、07（本物の Gateway の再起動）、17、18、20。08・09・14 は試験機で手動。
+  - 評価結果を台帳へ直接登録する `--register`。
+  - PostgreSQL での試験、実モデルでの評価、T-45 の一本通し。
+
 ## 2026-10-11 22:40 — 評価ハーネス（T-50）を統合し、全体チェック合格。チェックポイント作成（直下のエントリと合わせて1つの時点）
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

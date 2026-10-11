@@ -2,3 +2,4 @@ packages:
   - "packages/*"
   - "apps/*"
   - "eval/harness"
+  - "eval/fault-injection"

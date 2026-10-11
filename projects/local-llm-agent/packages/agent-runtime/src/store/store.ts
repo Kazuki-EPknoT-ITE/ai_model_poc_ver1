@@ -334,6 +334,9 @@ export class RunStore {
   openIntents(): IntentRow[] {
     return this.all(`SELECT * FROM intents WHERE status IN ('prepared','staged') ORDER BY created_at`);
   }
+  intentsForStep(stepId: string): IntentRow[] {
+    return this.all(`SELECT * FROM intents WHERE step_id = @stepId ORDER BY created_at, rowid`, { stepId });
+  }
   intentsForRun(runId: string): IntentRow[] {
     return this.all(`SELECT * FROM intents WHERE step_id LIKE @p ORDER BY created_at, rowid`, { p: `${runId}:%` });
   }

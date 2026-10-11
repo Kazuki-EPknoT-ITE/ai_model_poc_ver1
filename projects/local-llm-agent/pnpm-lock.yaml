@@ -110,6 +110,22 @@ importers:
         specifier: 6.4.4
         version: 6.4.4(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1)
 
+  eval/fault-injection:
+    dependencies:
+      '@lla/agent-runtime':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime
+      '@lla/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+    devDependencies:
+      '@types/node':
+        specifier: 20.19.43
+        version: 20.19.43
+      vite-node:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1)
+
   eval/harness:
     dependencies:
       '@lla/agent-runtime':

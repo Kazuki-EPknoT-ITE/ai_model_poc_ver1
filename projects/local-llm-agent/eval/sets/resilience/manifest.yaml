@@ -1,0 +1,18 @@
+# 継続実行（9.1）: 障害注入試験 FI-01〜20 の結果（eval/fault-injection）を集計する。
+# 先に `pnpm fi --repeat 3` を実行し、そのあと `pnpm eval --set resilience`。
+# 自動化していない FI は「未実行」として完了に数えない（completion_rate が 1.0 になるまで未達）。
+name: resilience
+version: 1
+description: 障害注入試験の完了率と重複書き込みの件数
+requirement_ids: [RUN-01, RUN-02, RUN-03, RUN-05, RUN-09, "9.1 継続実行"]
+data_root: fixtures
+split: eval
+runner: fault_injection
+scorer: resilience
+model_targets: [fast]
+metrics:
+  - { name: completion_rate, target: ">= 1.0" }
+  - { name: completion_rate_executed, target: ">= 1.0" }
+  - { name: duplicate_writes, target: "== 0" }
+timeout_per_item_s: 600
+repeat: 1

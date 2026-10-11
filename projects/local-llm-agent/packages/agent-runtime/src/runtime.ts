@@ -549,6 +549,16 @@ export class AgentRuntime {
           }
           return;
         }
+        // 推論の間に届いた承認・回答がまだ反映されていない → 先に実行してから、改めて完了させる
+        // （承認済みの操作を実行しないまま終わらないように。試験仕様 §4 FI-19）
+        const undelivered = this.store.undeliveredApprovals(run.id).length + this.store.undeliveredAnswers(run.id).length;
+        if (undelivered > 0) {
+          this.store.tx(() => {
+            this.store.updateStep(step.id, { phase: "committed", ended_at: nowIso() });
+            this.note(run, `[event] 完了の前に、届いた承認・回答（${undelivered} 件）を反映します。結果を確認してから完了してください。`, step.id);
+          });
+          return;
+        }
         this.store.tx(() => {
           this.store.updateStep(step.id, { phase: "committed", ended_at: nowIso() });
           this.store.updateRun(run.id, { ended_at: nowIso(), end_reason: "final", final_action: JSON.stringify(action) });

@@ -1,0 +1,15 @@
+# 書き込み2回 → 完了。直前のツール結果で次の手を決めるので、モック Gateway を再起動しても続きから進む
+# （FI-06・FI-11・FI-12・FI-13・FI-15・FI-16 で共用）
+name: fi-write
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { last_tool_result_contains: "C-OUT.txt" }
+    repeat: true
+    action: { type: final, summary: "2件のコピーが終わりました。", outputs: [{ path: "out/B-OUT.txt", description: "B" }, { path: "out/C-OUT.txt", description: "C" }], failures: [], needs_review: [] }
+  - match: { last_tool_result_contains: "B-OUT.txt" }
+    repeat: true
+    latency_ms: 1500
+    action: { type: tool_call, tool: fs.copy, args: { src: "a.txt", dst: "out/C-OUT.txt" } }
+  - match: { purpose: agent }
+    repeat: true
+    action: { type: tool_call, tool: fs.copy, args: { src: "a.txt", dst: "out/B-OUT.txt" } }

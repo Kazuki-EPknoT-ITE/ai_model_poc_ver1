@@ -434,6 +434,7 @@ CREATE TABLE instructions (
 - 配列型（`text[]`）は、SQLite でも同じコードで動くよう JSON 型で持つ。
 - RAG の索引の BM25 は tantivy ではなく JSON の小さな索引にした（利用者に見える文書だけで統計を計算するため。100万チャンクを超えたら見直す。T-60）。Qdrant のペイロードに `path_prefixes`（親フォルダの一覧）と `updated_ts` を追加。
 - `dlp_terms.readings` はマイグレーション `0002_dlp_readings` で追加（JSON の配列。既定 `[]`）。Web Relay は `GET /internal/v1/net-policy`（API §9.2）で語・読み・サイトを取り込む。
+- 再開時の書き込み（§2.4）: `resumeOpen` で committed に直した手順を再実行するときは、同じ `(step_id, op_digest, batch_item_id)` の committed／conflict の意図記録が対象のパスすべてにあれば、ツールを呼ばずに記録から結果を返す（追記のような操作の二重実行を防ぐ。FI-13 で発見）。
 - `model_registry.serve_config` に `{ "slot": 枠（設定の models[].id）, "lora_path": サーバー上の LoRA の場所 }` を入れる。本番版は枠ごとに1つ。切り戻しは同じ枠で `promoted_at` が最も新しい retired の版に戻す。
 
 ## 4. RAG（Qdrant）のペイロード

@@ -1,0 +1,11 @@
+# FI-05: 同じ操作の繰り返し → 立て直し2回 → （昇格先なし）stalled → 低優先度で続け、モックが解消したら完了（R3）
+name: fi-stall
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action: { type: plan_update, plan: [{ id: t1, title: 確認, status: doing }] }
+  - match: { purpose: agent }
+    repeat: 9
+    action: { type: tool_call, tool: fs.stat, args: { path: "a.txt" } }
+  - match: { purpose: agent }
+    action: { type: final, summary: "終了", outputs: [], failures: [], needs_review: [] }

@@ -13,6 +13,7 @@ import type { ResolvedPath } from "../policy/policy.js";
 import type { IntentRow, RunStore } from "../store/store.js";
 import { fileHash, pointerSet, sha256, sleep, stableStringify, ulid } from "../util.js";
 import { errResult, okResult, type ToolContext } from "../tools/types.js";
+import { testHook } from "../testhooks.js";
 
 export interface WriteOptions {
   appDataDir: string;
@@ -54,6 +55,28 @@ export class WriteCoordinator {
     if (targets.length === 0) return invoke(args);
 
     const opDigest = sha256(tool.name + stableStringify(args));
+    // 再開: この手の書き込みが前回の実行で終わっていた（resumeOpen が committed / conflict にした）なら、
+    // やり直さない。追記のような操作を2回行わないため（試験仕様 §4 FI-13「重複 0件」）
+    const prior = this.store
+      .intentsForStep(ctx.stepId)
+      .filter((i) => i.op_digest === opDigest && i.batch_item_id === batchItemId && (i.status === "committed" || i.status === "conflict"));
+    if (prior.length && targets.every((t) => prior.some((i) => i.path === t.real_path))) {
+      const artifacts: Artifact[] = targets.map((t) => {
+        const i = prior.filter((x) => x.path === t.real_path).pop()!;
+        const final = i.final_path ?? i.path;
+        return {
+          path: final === i.path ? t.path : final,
+          op: i.op,
+          ...(i.pre_hash ? { pre_hash: i.pre_hash } : {}),
+          post_hash: i.post_hash ?? "",
+          ...(i.backup_path ? { backup_path: i.backup_path } : {}),
+          ...(final !== i.path ? { renamed_from: t.path } : {}),
+        };
+      });
+      const warnings = ["前回の実行（中断前）で書き込みを終えていたため、やり直していません"];
+      for (const i of prior.filter((x) => x.status === "conflict")) warnings.push(`${basename(i.path)} は他で変更されていたため、AIの変更を ${basename(i.final_path ?? "")} に保存しました`);
+      return okResult({ resumed: true }, { artifacts, warnings });
+    }
     const staged: { intent: IntentRow; target: ResolvedPath }[] = [];
     const newArgs = structuredClone(args);
     for (const t of targets) {
@@ -80,6 +103,7 @@ export class WriteCoordinator {
       });
       staged.push({ intent, target: t });
       pointerSet(newArgs, t.pointer, staging);
+      testHook("intent.prepared", { path: basename(t.real_path) });
     }
 
     let result: ToolResult;
@@ -138,6 +162,7 @@ export class WriteCoordinator {
     for (;;) {
       try {
         await rename(staging, intent.path);
+        testHook("intent.replaced", { path: basename(intent.path) });
         this.store.updateIntent(intent.id, { status: "committed", committed_at: new Date().toISOString() });
         return intent.path;
       } catch (e) {

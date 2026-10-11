@@ -200,6 +200,12 @@ temperature: 0
 - `sleep_resume.ps1`: `rundll32 powrprof.dll,SetSuspendState` は試験機でのみ使う。CI では「Runtime を強制終了 → 起動時に再開」で模擬する。
 - トリガー: Runtime の試験用フック（`AGENT_TEST_HOOKS=1` のときだけ有効）が、`step` イベントの種類と回数に応じて注入スクリプトを呼ぶ（例: 「2件目の `intents` が prepared になった直後」）。 試験用フックは**本番ビルドには含めない**（ビルド時のフラグで除去し、配布物に `AGENT_TEST_HOOKS` を読むコードが残っていないことを CI で検査する）。
 
+**実装（T-51、`eval/fault-injection`）**: `pnpm fi [--only FI-11,FI-12] [--repeat 3]` → `eval/fault-injection/results/latest.json` → `pnpm eval --set resilience` で集計する。
+- Runtime は子プロセス（`src/host.ts`）で動かし、強制終了（`taskkill /F /T`）と再起動で異常終了を模擬する。推論はモック Gateway（停止・同じポートでの再起動も行う）。
+- 試験フックは `packages/agent-runtime/src/testhooks.ts`（`AGENT_TEST_HOOKS=1`）。注入点は `infer.submitted`・`intent.prepared`・`intent.replaced`。`AGENT_TEST_HOOK_FREEZE=<point>:<n>[:<ms>]` で n 回目に止める（ms を省くと止まったまま）。配布物のビルド（`apps/desktop/scripts/build.mjs`）で取り除き、文字列が残っていないことをビルド時に検査する。
+- ロックは `tools/lockfile.ps1`（UTF-8 BOM 付き。Windows PowerShell 5.1 が文字化けしないように）。
+- 自動化済み: FI-03・05・06・11・12・13・15・16・19（時間は短縮: ロック待ち 30秒/4秒、応答なし 3秒など）。手動・未実装の FI は評価セット `eval/sets/resilience/items.jsonl` の `note` に理由がある。
+
 | ID | 対応する 5.4 の原因 | シナリオ・注入方法 | 期待結果 |
 | --- | --- | --- | --- |
 | FI-01 | 手順数・時間の上限 | 300手を要する依頼（ファイル150件を個別に処理するよう誘導）を、モデルの上限なしで流す。時計を早送りする試験フックで2時間超を模擬する | 手順数で止まらず完了する。2時間の時点で `notify: long_run` が1回出る |

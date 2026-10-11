@@ -1,0 +1,14 @@
+# FI-03: 不正な JSON を3回続けて返す → 差し戻しで回復して完了
+name: fi-format
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { last_user: "形式が不正" }
+    repeat: true
+    action: { type: final, summary: "回復しました。", outputs: [], failures: [], needs_review: [] }
+fallback:
+  action: { type: final, summary: "回復しました。", outputs: [], failures: [], needs_review: [] }
+faults:
+  # 差し戻しのたびに新しい推論になるので、0・1・2 番目の推論それぞれに注入する
+  - { kind: raw, output: '{"type":"tool_call","tool":', at: { step_index: 0 } }
+  - { kind: raw, output: '{"type": "final", "summary": 1}', at: { step_index: 1 } }
+  - { kind: raw, output: 'ここは JSON ではありません', at: { step_index: 2 } }

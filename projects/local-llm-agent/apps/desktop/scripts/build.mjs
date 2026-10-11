@@ -1,5 +1,6 @@
 // main / preload / runtime-host を esbuild でまとめる（renderer は vite）。
 import { build } from "esbuild";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,6 +18,14 @@ await Promise.all([
     format: "esm",
     external: ["better-sqlite3-multiple-ciphers"],
     banner: { js: "import { createRequire as __cr } from 'node:module'; const require = __cr(import.meta.url);" },
+    // 障害注入試験のフック（packages/agent-runtime/src/testhooks.ts）を配布物から取り除く
+    define: { "process.env.AGENT_TEST_HOOKS": '"0"' },
+    minifySyntax: true,
+    sourcesContent: false,
   }),
 ]);
+// 試験仕様 §4: 配布物に試験フックを読むコードが残っていないこと
+for (const f of ["dist/runtime-host/host.mjs", "dist/runtime-host/host.mjs.map"]) {
+  if (readFileSync(join(root, f), "utf8").includes("AGENT_TEST_HOOK")) throw new Error(`${f} に試験フックが残っています`);
+}
 console.log("built main / preload / runtime-host");

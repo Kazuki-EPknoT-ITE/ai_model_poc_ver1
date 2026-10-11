@@ -1,6 +1,7 @@
 // Gateway クライアント（local_llm_api.md）。一時的な失敗は TransientError として上位の再試行に任せる。
 import type { NetLevel } from "../policy/policy.js";
 import { sleep } from "../util.js";
+import { testHook } from "../testhooks.js";
 
 export interface TokenProvider {
   accessToken(): Promise<string>;
@@ -171,6 +172,7 @@ export class GatewayClient {
     if (!res.ok) await this.raise(res);
     const job = (await res.json()) as { job_id: string; position?: number; eta_seconds?: number };
     cb.onJob?.(job.job_id);
+    testHook("infer.submitted", { job_id: job.job_id });
     return this.follow(job.job_id, cb);
   }
 

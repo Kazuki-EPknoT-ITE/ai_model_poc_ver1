@@ -223,6 +223,36 @@ describe("WriteCoordinator", () => {
     expect(store.openIntents()).toHaveLength(0);
   });
 
+  it("does not write again when resuming a step whose write was already committed (FI-13)", async () => {
+    const c = tctx();
+    const wc = new WriteCoordinator(store, { appDataDir: appData });
+    const t = tool("csv.write");
+    const args = { path: "once.csv", rows: [["x"]] };
+    let calls = 0;
+    const append = async (a: Record<string, unknown>) => {
+      calls++;
+      writeFileSync(String(a.path), "row\n", { flag: "a" });
+      return okResult({});
+    };
+    // 置き換えの後、committed を記録する前に落ちた状態を作る
+    const first = await wc.execute(t, args, resolvePaths(t, args, ws), c, append);
+    const intent = store.intentsForRun(c.runId)[0]!;
+    store.updateIntent(intent.id, { status: "staged" });
+    await wc.resumeOpen();
+    expect(store.getIntent(intent.id)!.status).toBe("committed");
+    // 同じ手順を再実行しても、ツールは呼ばれない
+    const again = await wc.execute(t, args, resolvePaths(t, args, ws), c, append);
+    expect(calls).toBe(1);
+    expect(readFileSync(join(ws, "once.csv"), "utf8")).toBe("row\n");
+    expect(again.ok).toBe(true);
+    expect(again.warnings?.join()).toContain("やり直していません");
+    expect(again.artifacts?.[0]).toMatchObject({ path: "once.csv", post_hash: first.artifacts![0]!.post_hash });
+    // 別の手順なら、同じ操作でも実行する
+    const c2 = tctx();
+    await wc.execute(t, args, resolvePaths(t, args, ws), c2, append);
+    expect(calls).toBe(2);
+  });
+
   it("delete moves the file to the backup area and can be undone", async () => {
     writeFileSync(join(ws, "x.txt"), "x");
     const c = tctx();
