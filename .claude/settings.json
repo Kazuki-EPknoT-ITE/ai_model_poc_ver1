@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "bash .claude/hooks/session-start.sh",
+            "statusMessage": "Loading ref/ project rules"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "bash .claude/hooks/stop-check.sh",
+            "statusMessage": "Checking hand-off log + E2E"
+          }
+        ]
+      }
+    ]
+  }
+}
