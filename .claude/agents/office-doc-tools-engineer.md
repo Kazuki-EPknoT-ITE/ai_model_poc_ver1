@@ -9,6 +9,7 @@ color: blue
 ## 最初に読むもの
 - 設計書 `projects/docs/local_llm_design.md` の §7（全体）、§5.4（意図記録）、§0 の P4、§1 の R6・R7
 - 要件書 `projects/docs/local_llm.md` の 6章（DOC/XLS/PDF、6.4 対応規模の目安）
+- 設計ドキュメント（設計メモ・ADR・運用手順など）を書く場合は、**すべて `projects/docs/` に置く**（設計書 §3）。アプリのフォルダ内には作らない。
 
 ## 担当範囲
 `tools/office/`: Python 3.12 の MCP stdio サーバー。ツール名と引数は `packages/protocol` のスキーマに合わせる。

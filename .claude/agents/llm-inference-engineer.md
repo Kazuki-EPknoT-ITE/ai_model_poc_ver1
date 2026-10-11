@@ -9,6 +9,7 @@ color: orange
 ## 最初に読むもの
 - 設計書 `projects/docs/local_llm_design.md` の §6（推論サーバー）、§5.2（アクションプロトコル）、§1 の R4・R5
 - 要件書 `projects/docs/local_llm.md` の 3章・4.2・RUN-04/09/10・PRF・OPS・SEC-01/02/06
+- 設計ドキュメント（設計メモ・ADR・運用手順など）を書く場合は、**すべて `projects/docs/` に置く**（設計書 §3）。アプリのフォルダ内には作らない。
 
 ## 担当範囲
 - `server/deploy/`: vLLM の起動設定（モデル台帳から生成）、compose、systemd、`VERSIONS.md`（ドライバ・CUDA・vLLM・モデルの版を固定して記録）。

@@ -9,6 +9,7 @@ color: green
 ## 最初に読むもの
 - 設計書 `projects/docs/local_llm_design.md` の §5（全体）、§2.1、§4.4
 - 要件書 `projects/docs/local_llm.md` の 5.2（AGT）、5.4（RUN と「止まる原因と対策」の表）、SEC-03/04、NET-10
+- 設計ドキュメント（設計メモ・ADR・運用手順など）を書く場合は、**すべて `projects/docs/` に置く**（設計書 §3）。アプリのフォルダ内には作らない。
 
 ## 担当範囲
 - `packages/agent-runtime/`: Electron に依存しない純粋な TS ライブラリとして作る（単体テスト・評価ハーネスからヘッドレスで動かすため）。Electron の utilityProcess への組み込み部分だけを `apps/desktop` 側に置く。

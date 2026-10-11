@@ -9,6 +9,7 @@ color: yellow
 ## 最初に読むもの
 - 設計書 `projects/docs/local_llm_design.md` の §6.4、§7（読み取りロジックは office-tools と共通にする）
 - 要件書 `projects/docs/local_llm.md` の AGT-07、ADM-02、SEC-07、7.2 #4、9.1「社内文書検索」
+- 設計ドキュメント（設計メモ・ADR・運用手順など）を書く場合は、**すべて `projects/docs/` に置く**（設計書 §3）。アプリのフォルダ内には作らない。
 
 ## 担当範囲
 `server/rag/`: 取り込みバッチ、検索 API（Gateway 経由の `/v1/rag/search`）、評価スクリプト。

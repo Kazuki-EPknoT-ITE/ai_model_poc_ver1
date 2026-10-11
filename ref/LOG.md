@@ -18,6 +18,18 @@
 
 ---
 
+## 2026-10-11 18:20 — 設計ドキュメントの置き場所を projects/docs/ に統一
+
+- **変更ファイル**: `projects/docs/local_llm_design.md`, `projects/README.md`, `.claude/agents/*.md`（9件）
+- **やったこと**: ユーザーの指示（「設計書はすべて projects/docs に入れる」）を反映した。
+  - 設計書 §3: モノレポ構成から `docs/` を外し、「設計ドキュメントの置き場所」の節を追加した（要件書・設計書・`local_llm_traceability.md`・`local_llm_adr/`・`local_llm_ops/` をすべて `projects/docs/` に置く）。§13 にも ADR の置き場所を明記した。
+  - `llm-agent-architect`: ADR とトレーサビリティ表の出力先を `projects/docs/` に変更した。ほかの8体には「設計ドキュメントは `projects/docs/` に置く」というルールを1行追加した。
+  - `projects/README.md` の構成図に `docs/` を追記した。
+- **理由/背景**: ユーザーの指示。既存の設計書（`local_llm.md` / `local_llm_design.md`）はもともと `projects/docs/` にあったので、ファイルの移動はしていない。
+- **E2Eテスト**: N/A（起動できるアプリがない。ドキュメントとエージェント定義だけの変更）。代わりに `check-divisions.sh` **PASSED(17)**、`check-tools.sh` **PASSED(15)**。古いパス（`local-llm-agent/docs` など）が残っていないことも grep で確認した。
+- **結果/確認**: `projects/docs/` の外に設計ドキュメントはない。
+- **次にやること / 申し送り**: 今後の ADR・運用手順も `projects/docs/` に作る。push の 403 対策は直前の 18:05 のエントリを参照。
+
 ## 2026-10-11 18:05 — GitHub（ai_model_poc_ver1）へ初回 push
 
 - **変更ファイル**: `ref/LOG.md`（本エントリ）のみ

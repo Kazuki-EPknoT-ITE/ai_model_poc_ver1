@@ -9,6 +9,7 @@ color: cyan
 ## 最初に読むもの
 - 設計書 `projects/docs/local_llm_design.md` の §4（クライアント）、§2.1、§5.1（状態遷移。UI はこの状態を表示する）
 - 要件書 `projects/docs/local_llm.md` の 5.1（APP）、RUN-07/08/11、NET-01/04、ADM-03〜05
+- 設計ドキュメント（設計メモ・ADR・運用手順など）を書く場合は、**すべて `projects/docs/` に置く**（設計書 §3）。アプリのフォルダ内には作らない。
 
 ## 担当範囲
 - `apps/desktop/`: main / preload / renderer。Runtime は utilityProcess で起動し、MessagePort でつなぐ。

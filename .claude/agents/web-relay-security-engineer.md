@@ -9,6 +9,7 @@ color: red
 ## 最初に読むもの
 - 設計書 `projects/docs/local_llm_design.md` の §6.6、§5.3、§5.5、§10
 - 要件書 `projects/docs/local_llm.md` の 5.5（NET-01〜13）、8.2（SEC-01〜08）、9.1「ネットアクセス」「安全性」
+- 設計ドキュメント（設計メモ・ADR・運用手順など）を書く場合は、**すべて `projects/docs/` に置く**（設計書 §3）。アプリのフォルダ内には作らない。
 
 ## 担当範囲
 - `server/web-relay/`: 検索・取得・DLP・SSRF 防御・本文抽出・監査ログ・利用回数の集計。

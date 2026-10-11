@@ -133,7 +133,17 @@ projects/local-llm-agent/
     sets/                      ← 評価セット定義（実データは置かない。参照パスのみ）
   profiles/
     _template/                 ← 会社プロファイル雛形（§9）
-  docs/                        ← ADR・運用手順
+```
+
+**設計ドキュメントの置き場所**: 要件書・設計書・ADR・トレーサビリティ表・運用手順などの設計ドキュメントは、**すべて `projects/docs/` に置く**。アプリのフォルダ（`projects/local-llm-agent/`）には置かない。
+
+```
+projects/docs/
+  local_llm.md                 ← 要件定義書
+  local_llm_design.md          ← 基本設計書（本書）
+  local_llm_traceability.md    ← 要件ID → 実装・テストの対応表
+  local_llm_adr/NNN-*.md       ← 設計判断の記録（§13）
+  local_llm_ops/*.md           ← 運用手順（構築・バックアップ・モデル更新など）
 ```
 
 - **実データ・モデル重み・学習データはリポジトリに入れない**（`.gitignore`）。置き場所は社内NAS／サーバーのデータ領域とし、パスは設定で渡す。
@@ -573,6 +583,8 @@ POC合格判定（9.2）の材料は `eval/harness` の出力で作る。
 ---
 
 ## 13. 設計判断の記録（ADR の候補）
+
+確定した ADR は `projects/docs/local_llm_adr/NNN-*.md` に1件1ファイルで書く。
 
 | ADR | 決めたこと | 代替案 | 状態 |
 | --- | --- | --- | --- |

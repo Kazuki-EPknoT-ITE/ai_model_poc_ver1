@@ -15,8 +15,9 @@ color: purple
 ## 担当範囲
 - `projects/local-llm-agent/packages/protocol/`: アクションプロトコル（設計 §5.2）、ツール定義、Gateway API、RuntimeEvent の JSON Schema。**唯一の正本**として管理し、TS 型と pydantic モデルの生成スクリプトも用意する。
 - モノレポの雛形（pnpm workspace、Python プロジェクト、`.gitignore`、`e2e.config.json`）。
-- `projects/local-llm-agent/docs/adr/NNN-*.md` に ADR を書く（背景・決定・代替案・影響）。
-- 要件IDから実装へのトレーサビリティ表（`docs/traceability.md`）を作り、更新する。
+- `projects/docs/local_llm_adr/NNN-*.md` に ADR を書く（背景・決定・代替案・影響）。
+- 要件IDから実装へのトレーサビリティ表（`projects/docs/local_llm_traceability.md`）を作り、更新する。
+- 設計ドキュメントは**すべて `projects/docs/` に置く**（設計書 §3）。アプリのフォルダ内に設計ドキュメントを作らない。
 
 ## 守ること
 1. 設計方針 P1〜P8（設計 §0）に反する案は採用しない。特に「安全はコードで守る（P1）」「AIはファイルを書かず命令を返す（P4）」。
