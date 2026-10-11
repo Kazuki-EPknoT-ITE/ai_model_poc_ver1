@@ -43,8 +43,10 @@
   `---` 2つ）を検証済みで、設計書の担当表の名前とすべて一致する。
 - **結果/確認**: 設計書は約600行。要件IDとの対応は各節に記載した。
 - **次にやること / 申し送り**:
-  - **フォルダが git リポジトリでなくなっている**（`.git` がない）。このため `scripts/checkpoint.sh` を実行できない。
-    リモート `Kazuki-EPknoT-ITE/agency-agents-main` から履歴を復旧するか、`git init` するかをユーザーに確認すること。
+  - **【解決済み】git**: ユーザーの指示で、新しいリモート
+    `https://github.com/Kazuki-EPknoT-ITE/ai_model_poc_ver1.git`（空のリポジトリ）を `origin` にして
+    `git init -b main` し、最初のチェックポイント `6d985a7` を作った（**push はまだしていない**）。
+    git の復旧後は `check-divisions.sh` も **PASSED(17)**。旧リモート `agency-agents-main` とはつないでいない。
   - 設計書 §1（R3/R4/R8/R10/R12）と §14 の合意事項を、要件書 v0.3 に反映する。
   - 実装の着手順は M0（検証機で vLLM＋12B）→ M1（`packages/protocol` と雛形。llm-agent-architect が担当）。
 
