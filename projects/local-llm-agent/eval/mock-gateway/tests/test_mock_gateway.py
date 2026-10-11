@@ -254,3 +254,21 @@ def test_requests_are_recorded_without_bodies(tmp_path: Path) -> None:
     recs = [json.loads(x) for x in lines]
     assert any(r["idempotency_key"] == "k-rec" and r["status"] == 202 for r in recs)
     assert "機密の本文" not in "\n".join(lines)
+
+
+def test_admin_api_requires_admin_and_never_returns_terms() -> None:
+    with make_client({}) as c:
+        assert c.get("/admin/v1/users", headers=login(c)).status_code == 403  # dev は利用者
+        r = c.post("/v1/auth/login", json={"login": "admin", "password": "admin"})
+        h = {"Authorization": f"Bearer {r.json()['access_token']}"}
+        add = c.post(
+            "/admin/v1/dlp/terms",
+            json={"terms": [{"term": "平井丸", "category": "vessel"}, {"term": "平井丸"}]},
+            headers=h,
+        )
+        assert add.json() == {"added": 1, "skipped": 1}
+        listed = c.get("/admin/v1/dlp/terms", headers=h).text
+        assert "平井丸" not in listed and "平井*" in listed
+        csv = c.get("/admin/v1/audit?format=csv", headers=h)
+        assert csv.headers["content-type"].startswith("text/csv") and "admin.dlp.add" in csv.text
+        assert "平井丸" not in csv.text

@@ -18,6 +18,57 @@
 
 ---
 
+## 2026-10-12 04:30 — Gateway・Web Relay・RAG・OCR を統合し、本物の Gateway で E2E 合格（M4〜M6 の主要部品がそろった）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `server/gateway`（新規。サブエージェントが実装。統合時に `admin_api.py`、上流への内部トークン、管理画面の配信、`scripts/dev_server.py`、試験 `test_gw_admin.py` を追加・修正）
+  - `server/rag`（新規。サブエージェント）、`server/web-relay`（新規。サブエージェント）、`server/ocr`、`server/deploy`
+  - `apps/admin-web`（新規）、`apps/desktop`（差分・添付・定型作業・設定、配布物の作成、本物の Gateway の E2E）
+  - `packages/agent-runtime`（`artifact.diff`・`config.get`・`settings.get`、`retryable:false` の扱い）、`packages/protocol`（コマンド3つ）
+  - `tools/office/packaging`（exe 化）、`tools/office/tests` と `server/rag/tests`（conftest を testkit に分割）
+  - ルートの `pyproject.toml`（workspace に gateway・web-relay・ocr・rag）、`package.json`、`eslint.config.js`
+  - 設計ドキュメント: api（§9.1 管理 API の形、エラーコード、内部トークン、Web の判定順）、data_model（§3.4 実装差分、機密語の読み・サイトの会社 ID）、protocol（コマンド）、dev_guide、impl_plan
+- **統合で直したこと**（別々のサブエージェントが作った部品の食い違い）:
+  - Gateway → Web Relay: 宛先 `/search`・`/fetch`、本文に `user_id`・`org_id`・`level`、`X-Relay-Secret`。検索回数は Gateway だけが数える。
+  - Gateway → OCR・RAG: `X-Internal-Token`。値は環境変数 `LLMGW_*_SECRET` かファイルのパスで渡す。
+  - クライアント: `retryable:false` の 5xx（`FEATURE_UNAVAILABLE` など）を再試行しない。
+  - Gateway に管理 API の残り（部門・ネット・機密語・共通指示・監査）を追加し、ダッシュボードに §9.1 の項目を足した。`from __future__ import annotations` があると、関数内で作った依存性を FastAPI が解決できない問題も直した。
+  - pytest を全体で回すと conftest が衝突する問題: 部品を `office_testkit.py` / `rag_testkit.py` に分けた。
+- **E2Eテスト**: **合格**。
+  - デスクトップ 8件。新しく追加した **本物の Gateway**（argon2・EdDSA の JWT・永続キュー・暗号化・SSE。推論は FakeEngine）を相手にした1件を含む。
+  - 管理画面 2件を、モックと本物の Gateway の両方で実施。
+  - モック Gateway の E2E 3件、Runtime の結合試験 9件、Gateway と TS クライアントの互換性試験 4件。
+  - 証跡は scratchpad の `e2e-final/`・`e2e-real/`・`e2e-admin-real/`。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（eslint、tsc、生成物の差分、vitest 218件、ruff、mypy strict 94ファイル、pytest **468件成功・44件スキップ**）。
+  - スキップの内訳: PostgreSQL 版 41件（Docker が起動していない）、LibreOffice 3件。
+  - 変更したファイルに秘密情報が含まれていないことを grep で確認した。
+- **次にやること / 申し送り**:
+  - **未検証のもの**: PostgreSQL での Gateway の試験（`LLA_TEST_PG_URL`）、LibreOffice での再計算と変換、実モデル（vLLM/Gemma 4）・実 OCR エンジン・実際の埋め込みモデル。いずれも M0（検証機）と Docker・LibreOffice の導入待ち。
+  - **管理画面で変えた機密語・サイトを Web Relay に反映する仕組みがまだない**（Relay は自分の YAML を読む。`PolicyStore.load()` はある）。Gateway の DB から配る方法を決める必要がある。
+  - **RAG の取り込み**は YAML の ACL 表だけに対応している。NAS の権限を書き出す手順が必要。
+  - 残りのタスク: モデル台帳の画面と API、評価ハーネス（T-50）と障害注入（T-51）、自動更新と署名（T-46 の残り）、推論エンジンの M0 作業。
+
+## 2026-10-12 02:00 — （途中経過）画面の残り・OCR・配置・exe 化・インストーラ・管理画面。Gateway と RAG はサブエージェントで作業中
+
+- **状態**: Gateway（T-40）と RAG（T-60）のサブエージェントがまだ作業中のため、**チェックポイントはまだ作っていない**（`checkpoint.sh` は `git add -A` で作業途中のファイルまで含めてしまうため）。両方が終わったら統合し、まとめて試験してからチェックポイントを作る。
+- **このセッションで完了したもの**（`projects/local-llm-agent/`）:
+  - 画面の残り（T-32/T-33）: 差分プレビュー（Word=段落、Excel=セル、テキスト=行。Runtime コマンド `artifact.diff`）、添付（📎 とドラッグ＆ドロップ。preload で `webUtils.getPathForFile`）、定型作業（`/` で候補。`config.get` の `macros`）、設定画面（`settings.get`）
+  - OCR サービス（T-41、`server/ocr`。エンジンは PaddleOCR / VLM / 試験用の差し替え。画素数の上限で解凍爆弾を拒否）
+  - サーバー配置一式（`server/deploy`。compose・3系統のネットワーク・共通 Dockerfile・Prometheus・systemd・DOCKER-USER のスクリプト。`docker compose config` で検査済み）
+  - office-tools の exe 化（T-19、90MB）、インストーラ（T-46、NSIS 183MB。Node 22.23.3・Runtime・office-tools を同梱。署名なし）
+  - 管理画面（T-62、`apps/admin-web`）とモック Gateway の管理 API、API 仕様 §9.1（要求・応答の形）
+  - Web Relay（T-61、`server/web-relay`。サブエージェントが完了。試験 174 件）
+- **E2Eテスト**: **合格**。
+  - デスクトップ 7件（E-01/02、E-04/14、E-07/08、T-35、E-03/13（添付・定型作業）、E-06（差分）、設定）
+  - 配布物（release/win-unpacked）での E-01・T-35・E-06 の3件
+  - PyInstaller 版 office-tools での T-35・E-06
+  - 管理画面 2件（Chromium）
+- **結果/確認**: Runtime の単体試験 17 件、モック Gateway 16 件、OCR 7 件、Web Relay 174 件が成功。
+- **次にやること / 申し送り**:
+  - Gateway・RAG の完了を待って統合する（ルートの workspace に web-relay・ocr・rag を登録、Gateway から Relay・RAG・OCR への中継の結線、Gateway で管理画面を配る、本物の Gateway（FakeEngine）を相手にしたデスクトップの E2E）。
+  - その後に `pnpm check` を全体で回し、チェックポイントを作る。
+
 ## 2026-10-11 23:30 — M2〜M4 実装: office-tools・Runtime 中核・デスクトップアプリ（縦の一本通しまで）
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

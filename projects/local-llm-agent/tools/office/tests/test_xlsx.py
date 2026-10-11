@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from conftest import Runner, needs_libreoffice
 from office_fixtures import VBA_BYTES, make_xlsm, make_xlsx
+from office_testkit import Runner, needs_libreoffice
 from openpyxl import Workbook, load_workbook
 
 from office_tools.fsutil import sha256_file

@@ -790,6 +790,36 @@ backup_path?: string
 renamed_from?: string
 }
 /**
+ * 差分プレビュー（AGT-03, UI 仕様の差分画面）。kind ごとに changes の形が違う
+ * 
+ * This interface was referenced by `LocalLlmAgentProtocol`'s JSON-Schema
+ * via the `definition` "ArtifactDiff".
+ */
+export interface ArtifactDiff {
+kind: ("docx" | "xlsx" | "text" | "binary")
+path: string
+op: ("create" | "overwrite" | "delete" | "move" | "copy")
+changes: {
+kind?: ("insert" | "delete" | "modify" | "add" | "remove" | "equal")
+/**
+ * docx: ブロックID / xlsx: Sheet!A1 / text: 行番号
+ */
+location?: string
+before?: (string | null)
+after?: (string | null)
+}[]
+truncated: boolean
+note?: string
+}
+/**
+ * This interface was referenced by `LocalLlmAgentProtocol`'s JSON-Schema
+ * via the `definition` "ArtifactDiffPayload".
+ */
+export interface ArtifactDiffPayload {
+run_id: string
+path: string
+}
+/**
  * This interface was referenced by `LocalLlmAgentProtocol`'s JSON-Schema
  * via the `definition` "ArtifactEvent".
  */
@@ -1703,7 +1733,7 @@ detail?: {
 export interface RuntimeCommand {
 v: 1
 id: string
-type: ("run.start" | "run.pause" | "run.resume" | "run.stop" | "approval.decide" | "question.answer" | "undo.run" | "events.since" | "settings.update" | "conversation.list" | "conversation.get" | "conversation.search" | "conversation.delete")
+type: ("run.start" | "run.pause" | "run.resume" | "run.stop" | "approval.decide" | "question.answer" | "undo.run" | "events.since" | "settings.update" | "settings.get" | "config.get" | "artifact.diff" | "conversation.list" | "conversation.get" | "conversation.search" | "conversation.delete")
 payload: {
 [k: string]: unknown | undefined
 }

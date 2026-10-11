@@ -1,0 +1,12 @@
+# 会社プロファイルの例（design §9）。/v1/config でクライアントへ配る。
+org: { id: example, name: 例示海運 }
+instructions: { version: 1, file: instructions.md } # 共通指示（AGT-10）
+escalation_target: local-26b # 昇格先がない検証機では null
+net: { level_cap: search, monthly_search_limit: 300 } # 全社の既定（net_policies の org 行があればそちらを優先）
+invoice_schemas: [invoice.v1]
+features: { rag: true, ocr: true, web: true } # false にすると上流があっても使わせない
+macros: # 定型作業（APP-09）。macros_dir の *.yaml も読み込む
+  - name: 請求書の読み取り
+    description: フォルダ内の請求書PDFから送金明細を作る
+    prompt: このフォルダの請求書PDFをすべて読み取り、送金明細.xlsx にまとめてください。
+macros_dir: macros

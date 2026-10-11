@@ -1,0 +1,14 @@
+# 開発用（GPU なし・Docker なし）: FakeEngine と SQLite で動かす
+#   uv run llm-gateway keygen --out-dir .llmgw-keys
+#   set LLMGW_JWT_PRIVATE_KEY_FILE / LLMGW_PAYLOAD_KEYS_FILE（.llmgw-keys 内のファイル）
+#   LLMGW_NEW_PASSWORD=... uv run llm-gateway create-user --config server/gateway/examples/gateway.dev.yaml --login dev --role admin
+#   uv run llm-gateway serve --config server/gateway/examples/gateway.dev.yaml
+server: { host: 127.0.0.1, port: 8788 }
+database: { url: "sqlite+aiosqlite:///./llmgw-dev.db" }
+profile: profile/profile.yaml
+models:
+  - id: local-12b
+    label: 高速
+    context_budget: 32768
+    engine: { kind: fake, fake_token_delay_s: 0.01 }
+upstreams: {}

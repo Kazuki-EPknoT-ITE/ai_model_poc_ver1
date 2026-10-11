@@ -12,6 +12,7 @@ import { resolveRealPath } from "../src/policy/paths.js";
 import { WriteCoordinator } from "../src/agent/intents.js";
 import { buildActionSchema } from "../src/agent/grammar.js";
 import { globToRegExp } from "../src/tools/glob.js";
+import { lineDiff } from "../src/agent/diff.js";
 import { okResult, type ToolContext } from "../src/tools/types.js";
 import { fileHash } from "../src/util.js";
 
@@ -260,5 +261,17 @@ describe("glob", () => {
     expect(globToRegExp("**/*.xlsx").test("a/b/c.XLSX")).toBe(true);
     expect(globToRegExp("**/*.xlsx").test("c.xlsx")).toBe(true);
     expect(globToRegExp("INV-00?.pdf").test("INV-001.pdf")).toBe(true);
+  });
+});
+
+describe("lineDiff", () => {
+  it("reports inserted and deleted lines in order", () => {
+    const d = lineDiff(["a", "b", "c"], ["a", "B", "c", "d"]);
+    expect(d.changes).toEqual([
+      { kind: "delete", location: "2行目", before: "b", after: null },
+      { kind: "insert", location: "2行目", before: null, after: "B" },
+      { kind: "insert", location: "4行目", before: null, after: "d" },
+    ]);
+    expect(lineDiff(["x"], ["x"]).changes).toEqual([]);
   });
 });

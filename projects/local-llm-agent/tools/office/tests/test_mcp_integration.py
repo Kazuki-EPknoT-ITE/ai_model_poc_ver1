@@ -10,10 +10,10 @@ from typing import Any
 
 import anyio
 import mcp.types as types
-from conftest import check_envelope
 from mcp import ClientSession, StdioServerParameters, stdio_client
 from mcp.shared.memory import create_connected_server_and_client_session
 from office_fixtures import make_invoice_pdf, make_pdf, make_xlsx
+from office_testkit import check_envelope
 from test_invoice import GOOD
 
 import lla_protocol

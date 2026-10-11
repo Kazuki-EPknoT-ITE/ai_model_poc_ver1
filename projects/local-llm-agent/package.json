@@ -15,7 +15,7 @@
     "mock:gateway": "uv run mock-gateway --scenario eval/mock-gateway/scenarios/smoke.yaml --port 8787",
     "test:e2e": "playwright test -c e2e/playwright.config.ts",
     "typecheck": "tsc --noEmit -p e2e && pnpm -r typecheck",
-    "check": "pnpm lint && pnpm typecheck && pnpm protocol:check && pnpm test && uv run ruff check . && uv run ruff format --check . && uv run mypy eval/mock-gateway/src packages/protocol/python/src tools/office/src && uv run pytest -q",
+    "check": "pnpm lint && pnpm typecheck && pnpm protocol:check && pnpm test && uv run ruff check . && uv run ruff format --check . && uv run mypy eval/mock-gateway/src packages/protocol/python/src tools/office/src server/gateway/src server/web-relay/src server/ocr/src server/rag/src && uv run pytest -q",
     "test:integration": "pnpm --filter @lla/agent-runtime test:integration",
     "test:e2e:desktop": "pnpm --filter @lla/desktop e2e"
   },

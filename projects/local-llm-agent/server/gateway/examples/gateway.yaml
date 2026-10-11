@@ -1,0 +1,44 @@
+# llm-gateway の設定例（`llm-gateway serve --config server/gateway/examples/gateway.yaml`）
+# 秘密情報はここに書かない。環境変数で渡す:
+#   LLMGW_DATABASE_URL          postgresql+asyncpg://llmgw:<password>@db:5432/llmgw
+#   LLMGW_JWT_PRIVATE_KEY_FILE  /run/secrets/llmgw/jwt_ed25519.pem     （llm-gateway keygen で作る）
+#   LLMGW_PAYLOAD_KEYS_FILE     /run/secrets/llmgw/payload_keys.json
+server:
+  host: 0.0.0.0
+  port: 8443
+  tls_cert_file: /etc/llmgw/tls/server.crt # 社内CAの証明書
+  tls_key_file: /etc/llmgw/tls/server.key
+database:
+  url: postgresql+asyncpg://llmgw@db:5432/llmgw # LLMGW_DATABASE_URL があればそちらを使う
+  auto_migrate: true
+profile: profile/profile.yaml # 会社プロファイル（この設定ファイルからの相対）
+models:
+  - id: local-12b
+    label: 高速
+    context_budget: 32768
+    engine:
+      kind: vllm
+      base_url: http://vllm-12b:8000
+      served_model: gemma4-12b-qat-int4
+      guided_mode: guided_json # vLLM の版で guided_json / json_schema / structured_outputs を切り替える
+  - id: local-26b
+    label: 高精度
+    context_budget: 65536
+    engine: { kind: vllm, base_url: http://vllm-26b:8000, served_model: gemma4-26b-a4b, guided_mode: guided_json }
+scheduler:
+  max_concurrent: 5 # vLLM の max_num_seqs に合わせる
+  interactive_max_input_tokens: 4096
+  max_queued_per_user: 50
+jobs:
+  result_ttl_s: 600 # 応答は完了から10分で消す（R4）
+  ping_interval_s: 15
+auth:
+  access_ttl_s: 900
+  refresh_ttl_days: 30
+  argon2: { memory_kib: 65536, time_cost: 3, parallelism: 1 }
+upstreams: # 未設定の機能は 503 FEATURE_UNAVAILABLE（/v1/config の features も false）
+  rag_url: http://rag:8100
+  web_relay_url: http://web-relay:8200
+  ocr_url: http://ocr:8300
+metrics:
+  allow_cidrs: [127.0.0.0/8, 10.0.0.0/8]

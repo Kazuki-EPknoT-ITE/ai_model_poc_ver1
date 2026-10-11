@@ -1,0 +1,34 @@
+[project]
+name = "llm-gateway"
+version = "0.1.0"
+description = "local-llm-agent Gateway: auth, persistent fair queue, encrypted payloads, SSE (local_llm_api.md, ADR-003/007/008)"
+requires-python = ">=3.12"
+dependencies = [
+  "lla-protocol",
+  "fastapi>=0.115",
+  "uvicorn>=0.32",
+  "pyyaml>=6.0",
+  "python-multipart>=0.0.12",
+  "httpx>=0.27",
+  "sqlalchemy[asyncio]>=2.0.36",
+  "alembic>=1.14",
+  "aiosqlite>=0.20",
+  "asyncpg>=0.30",
+  "argon2-cffi>=23.1",
+  "pyjwt[crypto]>=2.9",
+  "cryptography>=43",
+  "pydantic>=2.9",
+]
+
+[project.scripts]
+llm-gateway = "llm_gateway.cli:main"
+
+[tool.uv.sources]
+lla-protocol = { workspace = true }
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llm_gateway"]

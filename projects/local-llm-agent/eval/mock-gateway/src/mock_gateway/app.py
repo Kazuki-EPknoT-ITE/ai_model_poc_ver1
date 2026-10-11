@@ -14,10 +14,16 @@ from typing import Any
 from fastapi import FastAPI, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from .admin import AdminState, admin_router
 from .engine import HANG, Engine, GatewayError, Job
 from .scenario import Scenario
 
 PUBLIC_PATHS = {"/healthz", "/readyz", "/v1/auth/login", "/v1/auth/refresh", "/docs", "/openapi.json"}
+
+
+def is_public(path: str) -> bool:
+    # 管理画面の静的ファイルは公開（API は /admin/v1 で認証する）
+    return path in PUBLIC_PATHS or (path.startswith("/admin") and not path.startswith("/admin/v1"))
 
 
 class Recorder:
@@ -53,6 +59,8 @@ def create_app(
 
     app = FastAPI(title="local-llm-agent mock gateway", version="0.1.0")
     app.state.engine = engine
+    admin_state = AdminState(scenario)
+    app.state.admin = admin_state
 
     @app.exception_handler(GatewayError)
     async def _gateway_error(_req: Request, exc: GatewayError) -> JSONResponse:
@@ -72,7 +80,7 @@ def create_app(
             "net_level": request.headers.get("x-net-level"),
             "authorized": False,
         }
-        if request.url.path not in PUBLIC_PATHS:
+        if not is_public(request.url.path):
             auth = request.headers.get("authorization", "")
             token = auth.removeprefix("Bearer ").strip()
             if token not in tokens:
@@ -114,6 +122,17 @@ def create_app(
                 "department": u.department,
             },
         }
+
+    app.include_router(
+        admin_router(admin_state, lambda login: users.get(login) is not None and users[login].role == "admin")
+    )
+
+    # 管理画面（apps/admin-web のビルド結果）があれば /admin で配る（本物の Gateway と同じ配置）
+    admin_dist = Path(__file__).resolve().parents[4] / "apps" / "admin-web" / "dist"
+    if admin_dist.exists():
+        from fastapi.staticfiles import StaticFiles  # noqa: PLC0415
+
+        app.mount("/admin", StaticFiles(directory=admin_dist, html=True), name="admin")
 
     # ---- 認証 ----
     @app.post("/v1/auth/login")

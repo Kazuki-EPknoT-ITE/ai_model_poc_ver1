@@ -2,6 +2,7 @@
 import { extname } from "node:path";
 import { validateDef, type ApprovalRequest, type RuntimeCommand, type RuntimeEvent, type ToolCatalogEntry, type ToolResult } from "@lla/protocol";
 import { BatchRunner, substituteResultOf } from "./agent/batch.js";
+import { computeDiff, findIntent, type ArtifactDiff } from "./agent/diff.js";
 import { buildActionSchema } from "./agent/grammar.js";
 import { WriteCoordinator } from "./agent/intents.js";
 import { retryForever } from "./agent/retry.js";
@@ -159,6 +160,25 @@ export class AgentRuntime {
       case "settings.update":
         for (const [k, val] of Object.entries(p)) this.store.setSetting(k, val);
         return { ok: true };
+      case "settings.get":
+        return {
+          net_level: this.store.getSetting("net_level", "off"),
+          model_default: this.store.getSetting("model_default", "auto"),
+          notify_long_run_minutes: this.store.getSetting("notify_long_run_minutes", this.opts.longRunMinutes),
+        };
+      case "config.get": {
+        const c = this.config ?? (await this.refreshConfig());
+        return {
+          org: c.org,
+          models: c.models,
+          escalation_target: c.escalation_target,
+          net_level_cap: c.net.level_cap,
+          features: c.features,
+          macros: c.macros ?? [],
+        };
+      }
+      case "artifact.diff":
+        return this.diff(String(p.run_id), String(p.path));
       case "conversation.list":
         return this.store.listConversations();
       case "conversation.get":
@@ -173,6 +193,17 @@ export class AgentRuntime {
         return { ok: true };
     }
     return undefined;
+  }
+
+  /** 差分プレビュー（AGT-03）。 */
+  private async diff(runId: string, path: string): Promise<ArtifactDiff> {
+    const run = this.store.getRun(runId);
+    if (!run) throw new Error("作業が見つかりません");
+    const conv = this.store.getConversation(run.conversation_id)!;
+    const intent = findIntent(this.store, runId, path, conv.workspace);
+    if (!intent) throw new Error("このファイルの変更記録がありません");
+    const ctx: ToolContext = { workspace: conv.workspace, conversationId: conv.id, runId, stepId: `${runId}:diff` };
+    return computeDiff(intent, path, (name, args, c) => this.opts.router.call(name, args, c), ctx);
   }
 
   private startRun(p: { conversation_id: string; text: string; attachments: string[]; workspace: string; model: string }): { run_id: string; followup: boolean } {
@@ -383,7 +414,6 @@ export class AgentRuntime {
   private classify(e: unknown): { transient: boolean; cause: string; hintMs?: number } {
     if (e instanceof TransientError) return { transient: true, cause: e.code, ...(e.retryAfterMs ? { hintMs: e.retryAfterMs } : {}) };
     if (e instanceof JobExpiredError) return { transient: true, cause: "TIMEOUT" };
-    if (e instanceof GatewayError && e.status >= 500) return { transient: true, cause: "SERVER_BUSY" };
     return { transient: false, cause: "" };
   }
 
@@ -768,9 +798,10 @@ export class AgentRuntime {
 
   private checkLongRun(run: RunRow): void {
     if (run.long_run_notified_at) return;
-    if (Date.now() - Date.parse(run.started_at) < this.opts.longRunMinutes * 60_000) return;
+    const minutes = this.store.getSetting("notify_long_run_minutes", this.opts.longRunMinutes);
+    if (Date.now() - Date.parse(run.started_at) < minutes * 60_000) return;
     this.store.updateRun(run.id, { long_run_notified_at: nowIso() });
-    this.emit(run.conversation_id, "notify", { kind: "long_run", title: "作業が長時間続いています", body: `${this.opts.longRunMinutes}分を超えました。実行は続けています。` });
+    this.emit(run.conversation_id, "notify", { kind: "long_run", title: "作業が長時間続いています", body: `${minutes}分を超えました。実行は続けています。` });
   }
 
   private async maybeCompact(run: RunRow, workspace: string, h: RunHandle): Promise<void> {

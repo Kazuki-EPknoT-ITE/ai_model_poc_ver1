@@ -6,8 +6,8 @@ import math
 from pathlib import Path
 
 import pytest
-from conftest import Runner
 from office_fixtures import make_docx
+from office_testkit import Runner
 
 import lla_protocol
 from office_tools.envelope import (

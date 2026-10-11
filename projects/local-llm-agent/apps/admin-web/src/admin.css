@@ -1,0 +1,107 @@
+/* 管理画面だけのスタイル（基本の色・部品は base.css をデスクトップと共有） */
+.admin {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.admin-top {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+.tabs {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+.tabs button {
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+}
+.tabs button.active {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+.admin-main {
+  padding: 20px;
+  max-width: 1200px;
+  width: 100%;
+  margin: 0 auto;
+}
+.admin-main h2 {
+  margin-top: 24px;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+.tile {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: grid;
+  gap: 4px;
+}
+.tile strong {
+  font-size: 22px;
+}
+.tile.warn strong {
+  color: var(--warn);
+}
+.grid {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  margin-top: 8px;
+}
+.grid th,
+.grid td {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 10px;
+  text-align: left;
+}
+.grid th {
+  font-size: 12px;
+  color: var(--muted);
+}
+.grid input[type="number"] {
+  width: 70px;
+}
+.grid .row {
+  justify-content: flex-start;
+}
+.inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-end;
+  margin: 8px 0;
+}
+.inline-form textarea {
+  min-width: 320px;
+}
+.inline-form label {
+  display: grid;
+  gap: 2px;
+}
+textarea.big {
+  width: 100%;
+  min-height: 260px;
+  font: 13px/1.6 var(--mono);
+}
+.ok-msg {
+  color: var(--ok);
+}
+.mono {
+  font-family: var(--mono);
+}

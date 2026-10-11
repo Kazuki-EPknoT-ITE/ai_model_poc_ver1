@@ -72,7 +72,14 @@ pnpm exec playwright install chromium
 | `uv run eval --set <name> --target <gateway>` | 評価ハーネス |
 | `pnpm check` | lint・型・生成物の差分・TS/Python の単体試験をまとめて実行（コミット前に必ず） |
 | `pnpm test:integration` | Runtime の結合試験（モック Gateway・office-tools を実プロセスで起動） |
-| `pnpm test:e2e:desktop` | デスクトップアプリの E2E（Playwright `_electron`。モック Gateway・office-tools を起動） |
+| `pnpm test:e2e:desktop` | デスクトップアプリの E2E（Playwright `_electron`。モック Gateway・office-tools を起動）。`LLA_E2E_OFFICE_EXE` で PyInstaller 版の office-tools、`LLA_E2E_APP_EXE` で配布物（release/win-unpacked）を試験する |
+| `uv run --with pyinstaller python tools/office/packaging/build.py` | office-tools を exe にまとめ、MCP の tools/list で確認する（T-19） |
+| `pnpm --filter @lla/desktop package`（`package:dir`） | インストーラ（展開済みフォルダ）を作る。Node 22 LTS・Runtime・office-tools を resources に同梱（T-46） |
+| `docker compose --env-file <deploy.env> -f server/deploy/compose.yaml config` | サーバー構成の検査（`server/deploy`。値は deploy.env.example） |
+| `uv run python server/gateway/scripts/dev_server.py --port 8789` | 本物の Gateway を一時フォルダで起動（FakeEngine・SQLite・管理画面つき。利用者 dev / admin、パスワードは試験用の固定値） |
+| `ADMIN_E2E_REAL=1 pnpm --filter @lla/admin-web e2e` | 管理画面の E2E を本物の Gateway で回す（既定はモック） |
+| `pnpm exec vitest run --config server/gateway/tests/ts/vitest.config.ts` | Gateway と TS クライアント（agent-runtime）の互換性試験 |
+| `LLA_TEST_PG_URL=postgresql+asyncpg://... uv run pytest server/gateway` | Gateway の試験を PostgreSQL でも回す（**試験のたびに public スキーマを作り直す**ので専用の DB を使う） |
 
 ### 1.5 環境変数（`projects/.env`）
 

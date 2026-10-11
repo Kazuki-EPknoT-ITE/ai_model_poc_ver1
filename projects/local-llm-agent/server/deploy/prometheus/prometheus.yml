@@ -1,0 +1,13 @@
+# 監視（OPS-05, ADM-03）。サービス名で内部ネットワークから取得する
+global: { scrape_interval: 15s }
+scrape_configs:
+  - job_name: gateway
+    scheme: https
+    tls_config: { insecure_skip_verify: true } # 内部ネットワークのみ。社内CA を入れたら ca_file に替える
+    static_configs: [{ targets: ["gateway:8443"] }]
+  - job_name: vllm
+    static_configs: [{ targets: ["vllm-12b:8000", "vllm-26b:8000"] }]
+  - job_name: ocr
+    static_configs: [{ targets: ["ocr:8090"] }]
+  - job_name: dcgm
+    static_configs: [{ targets: ["dcgm-exporter:9400"] }]

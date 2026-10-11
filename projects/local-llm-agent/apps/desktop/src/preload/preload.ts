@@ -1,5 +1,5 @@
 // Renderer に公開する型付き API（プロトコル §5.3）。Node の機能は渡さない。
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from "electron";
 import type { AppApi } from "../shared/ipc.js";
 
 const on = <T>(channel: string, cb: (v: T) => void) => {
@@ -20,6 +20,7 @@ const api: AppApi = {
     onStatus: (cb) => on("runtime:status", cb),
   },
   dialog: { pickFolder: () => ipcRenderer.invoke("dialog:pickFolder") },
+  files: { pathOf: (file) => webUtils.getPathForFile(file) },
   shell: { openPath: (p) => ipcRenderer.invoke("shell:openPath", p) },
   workspace: { list: (dir) => ipcRenderer.invoke("workspace:list", dir) },
   settings: {

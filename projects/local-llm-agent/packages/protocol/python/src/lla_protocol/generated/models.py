@@ -74,6 +74,50 @@ class Op(StrEnum):
     copy = "copy"
 
 
+class Kind(StrEnum):
+    docx = "docx"
+    xlsx = "xlsx"
+    text = "text"
+    binary = "binary"
+
+
+class Kind1(StrEnum):
+    insert = "insert"
+    delete = "delete"
+    modify = "modify"
+    add = "add"
+    remove = "remove"
+    equal = "equal"
+
+
+class Change(BaseModel):
+    kind: Kind1 | None = None
+    location: str | None = Field(None, description="docx: ブロックID / xlsx: Sheet!A1 / text: 行番号")
+    before: str | None = None
+    after: str | None = None
+
+
+class ArtifactDiff(BaseModel):
+    """
+    差分プレビュー（AGT-03, UI 仕様の差分画面）。kind ごとに changes の形が違う
+    """
+
+    kind: Kind
+    path: str
+    op: Op
+    changes: list[Change]
+    truncated: bool
+    note: str | None = None
+
+
+class ArtifactDiffPayload(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    run_id: str
+    path: str = Field(..., max_length=1024)
+
+
 class Choice(RootModel[str]):
     root: str = Field(..., max_length=100)
 
@@ -137,7 +181,7 @@ class BatchStatusResult(BaseModel):
     failed: int | None = None
 
 
-class Kind(StrEnum):
+class Kind2(StrEnum):
     file = "file"
     web = "web"
     rag = "rag"
@@ -147,7 +191,7 @@ class Citation(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    kind: Kind
+    kind: Kind2
     ref: str = Field(..., max_length=1024)
     location: str | None = Field(None, max_length=200)
 
@@ -236,7 +280,7 @@ class DocxOp2(BaseModel):
     count: int | None = Field(None, ge=1, le=100)
 
 
-class Op1(Enum):
+class Op2(Enum):
     insert_after = "insert_after"
     insert_before = "insert_before"
 
@@ -507,7 +551,7 @@ class NewBlock4(BaseModel):
     kind: Literal["page_break"]
 
 
-class Kind1(StrEnum):
+class Kind3(StrEnum):
     done = "done"
     approval = "approval"
     stalled = "stalled"
@@ -518,7 +562,7 @@ class NotifyEvent(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    kind: Kind1
+    kind: Kind3
     title: str = Field(..., max_length=100)
     body: str = Field(..., max_length=500)
 
@@ -770,6 +814,9 @@ class Type2(StrEnum):
     undo_run = "undo.run"
     events_since = "events.since"
     settings_update = "settings.update"
+    settings_get = "settings.get"
+    config_get = "config.get"
+    artifact_diff = "artifact.diff"
     conversation_list = "conversation.list"
     conversation_get = "conversation.get"
     conversation_search = "conversation.search"
@@ -1046,7 +1093,7 @@ class Step9(BaseModel):
     by: list[ColumnName] = Field(..., max_length=20, min_length=1)
 
 
-class Kind2(StrEnum):
+class Kind4(StrEnum):
     tool = "tool"
     plan = "plan"
     final = "final"
@@ -1067,7 +1114,7 @@ class StepEvent(BaseModel):
     )
     run_id: str
     step_id: str
-    kind: Kind2
+    kind: Kind4
     tool: str | None = None
     args_preview: str | None = Field(None, max_length=500)
     result_preview: str | None = Field(None, max_length=500)
@@ -1192,7 +1239,7 @@ class XlsxAddSheetArgs(BaseModel):
     position: int | None = Field(None, ge=0, le=255)
 
 
-class Kind3(StrEnum):
+class Kind5(StrEnum):
     bar = "bar"
     line = "line"
     pie = "pie"
@@ -1210,7 +1257,7 @@ class XlsxChartArgs(BaseModel):
         min_length=1,
     )
     sheet: str = Field(..., max_length=31, min_length=1)
-    kind: Kind3
+    kind: Kind5
     data_range: str = Field(..., description="Sheet1!A1:F200", max_length=160, min_length=2)
     title: str | None = Field(None, max_length=100)
     anchor: str = Field(..., pattern="^[A-Z]{1,3}[0-9]{1,7}$")
@@ -1679,7 +1726,7 @@ class DocxOp3(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    op: Op1
+    op: Op2
     block_id: str = Field(..., pattern="^(p|tbl|hdr|ftr|img|brk):[0-9]+(/r[0-9]+c[0-9]+)?$")
     blocks: list[NewBlock1 | NewBlock2 | NewBlock3 | NewBlock4] = Field(..., max_length=100, min_length=1)
 

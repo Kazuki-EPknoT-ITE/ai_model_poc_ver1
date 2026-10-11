@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RuntimeCommand, RuntimeEvent } from "@lla/protocol";
 import { applyEvent, emptyConversation, REASON_LABEL, STATE_LABEL, TOOL_LABEL, type ConversationView } from "./state.js";
+import { Composer, type Macro } from "./components/Composer.js";
+import { DiffDialog, type ArtifactDiff } from "./components/DiffDialog.js";
+import { SettingsDialog } from "./components/SettingsDialog.js";
 
 const api = window.app;
 let cmdSeq = 0;
@@ -85,8 +88,20 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
   const [warnings, setWarnings] = useState<string[]>([]);
   const [netLevel, setNetLevel] = useState<"off" | "search" | "browse">("off");
   const [model, setModel] = useState<"auto" | "fast" | "accurate">("auto");
+  const [macros, setMacros] = useState<Macro[]>([]);
+  const [netCap, setNetCap] = useState<"off" | "search" | "browse">("off");
+  const [showSettings, setShowSettings] = useState(false);
   const currentRef = useRef<string | null>(null);
   currentRef.current = current;
+
+  const loadConfig = useCallback(async () => {
+    const c = (await api.runtime.send(cmd("config.get", {}))) as { macros: Macro[]; net_level_cap: "off" | "search" | "browse" };
+    setMacros(c.macros);
+    setNetCap(c.net_level_cap);
+    const s = (await api.runtime.send(cmd("settings.get", {}))) as { net_level: "off" | "search" | "browse"; model_default: "auto" | "fast" | "accurate" };
+    setNetLevel(s.net_level);
+    setModel(s.model_default);
+  }, []);
 
   const loadConvs = useCallback(async () => {
     const list = (await api.runtime.send(cmd("conversation.list", {}))) as ConvRow[];
@@ -113,15 +128,21 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
       if (s.warnings?.length) setWarnings(s.warnings);
       if (s.state === "ready") {
         void loadConvs();
+        void loadConfig().catch(() => undefined);
         if (currentRef.current) void loadConversation(currentRef.current);
       }
     });
-    void loadConvs().then(() => setHostState("ready")).catch(() => undefined);
+    void loadConvs()
+      .then(() => {
+        setHostState("ready");
+        return loadConfig();
+      })
+      .catch(() => undefined);
     return () => {
       offEvent();
       offStatus();
     };
-  }, [loadConvs, loadConversation]);
+  }, [loadConvs, loadConversation, loadConfig]);
 
   const view = current ? (views[current] ?? emptyConversation()) : emptyConversation();
   const running = view.state !== null && !["done", "stopped"].includes(view.state);
@@ -144,11 +165,11 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
     await api.runtime.send(cmd("settings.update", { net_level: level }));
   };
 
-  const send = async (text: string) => {
+  const send = async (text: string, attachments: string[] = []) => {
     const id = current ?? `cv-${Date.now().toString(36)}`;
     if (!current) setCurrent(id);
     setMessages((m) => [...m, { id: `local-${Date.now()}`, role: "user", content: text, run_id: null }]);
-    await api.runtime.send(cmd("run.start", { conversation_id: id, text, attachments: [], workspace, model }));
+    await api.runtime.send(cmd("run.start", { conversation_id: id, text, attachments, workspace, model }));
     void loadConvs();
   };
 
@@ -174,6 +195,9 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
         {workspace && <FileTree root={workspace} refreshKey={view.artifacts.length} />}
         <div className="user-row">
           <span>{userName}</span>
+          <button className="link" onClick={() => setShowSettings(true)}>
+            設定
+          </button>
           <button
             className="link"
             onClick={async () => {
@@ -226,6 +250,7 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
         )}
         <Timeline view={view} messages={messages} />
         <Composer
+          macros={macros}
           disabled={!workspace || hostState !== "ready"}
           placeholder={workspace ? "依頼を入力（Ctrl+Enter で送信）" : "先に作業フォルダを選んでください"}
           running={running}
@@ -236,6 +261,17 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
         />
       </main>
 
+      {showSettings && (
+        <SettingsDialog
+          send={(type, payload) => api.runtime.send(cmd(type, payload))}
+          netCap={netCap}
+          onSaved={(st) => {
+            setNetLevel(st.net_level);
+            setModel(st.model_default);
+          }}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
       <aside className="panel" aria-label="計画と承認">
         <StatusCard view={view} />
         <Plan view={view} />
@@ -311,53 +347,6 @@ function Timeline({ view, messages }: { view: ConversationView; messages: Messag
       )}
       <div ref={end} />
     </section>
-  );
-}
-
-function Composer(p: {
-  disabled: boolean;
-  placeholder: string;
-  running: boolean;
-  paused: boolean;
-  onSend: (t: string) => void;
-  onPause: () => void;
-  onStop: () => void;
-}) {
-  const [text, setText] = useState("");
-  const submit = () => {
-    if (!text.trim() || p.disabled) return;
-    p.onSend(text.trim());
-    setText("");
-  };
-  return (
-    <div className="composer">
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        placeholder={p.placeholder}
-        disabled={p.disabled}
-        aria-label="依頼"
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
-            e.preventDefault();
-            submit();
-          }
-        }}
-      />
-      <div className="composer-actions">
-        {p.running && (
-          <>
-            <button onClick={p.onPause}>{p.paused ? "再開" : "一時停止"}</button>
-            <button className="danger" onClick={p.onStop}>
-              停止
-            </button>
-          </>
-        )}
-        <button className="primary" onClick={submit} disabled={p.disabled || !text.trim()}>
-          {p.running ? "追加の指示を送る" : "送信"}
-        </button>
-      </div>
-    </div>
   );
 }
 
@@ -489,6 +478,11 @@ function Questions({ view }: { view: ConversationView }) {
 
 function Changes({ view }: { view: ConversationView }) {
   const [msg, setMsg] = useState<string | null>(null);
+  const [diffOf, setDiffOf] = useState<{ run_id: string; path: string } | null>(null);
+  const loadDiff = useCallback(
+    () => api.runtime.send(cmd("artifact.diff", { run_id: diffOf!.run_id, path: diffOf!.path })) as Promise<ArtifactDiff>,
+    [diffOf],
+  );
   if (view.artifacts.length === 0) return null;
   const undo = async () => {
     if (!view.runId || !confirm("この作業で変更したファイルを、変更前の状態に戻します。よろしいですか？")) return;
@@ -506,11 +500,17 @@ function Changes({ view }: { view: ConversationView }) {
               {a.path.split(/[\\/]/).pop()}
             </button>
             {a.renamed_from && <span className="small warn">（使用中のため別名で保存）</span>}
+            {a.op !== "copy" && (
+              <button className="link small" onClick={() => setDiffOf({ run_id: a.run_id, path: a.path })}>
+                差分
+              </button>
+            )}
           </li>
         ))}
       </ul>
       <button onClick={undo}>この作業を元に戻す</button>
       {msg && <p className="small" role="status">{msg}</p>}
+      {diffOf && <DiffDialog path={diffOf.path} load={loadDiff} onClose={() => setDiffOf(null)} />}
     </section>
   );
 }

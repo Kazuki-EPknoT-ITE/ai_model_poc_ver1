@@ -160,6 +160,99 @@
         }
       }
     },
+    "ArtifactDiff": {
+      "description": "差分プレビュー（AGT-03, UI 仕様の差分画面）。kind ごとに changes の形が違う",
+      "type": "object",
+      "required": [
+        "kind",
+        "path",
+        "op",
+        "changes",
+        "truncated"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "docx",
+            "xlsx",
+            "text",
+            "binary"
+          ]
+        },
+        "path": {
+          "type": "string"
+        },
+        "op": {
+          "type": "string",
+          "enum": [
+            "create",
+            "overwrite",
+            "delete",
+            "move",
+            "copy"
+          ]
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "insert",
+                  "delete",
+                  "modify",
+                  "add",
+                  "remove",
+                  "equal"
+                ]
+              },
+              "location": {
+                "type": "string",
+                "description": "docx: ブロックID / xlsx: Sheet!A1 / text: 行番号"
+              },
+              "before": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "after": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            }
+          }
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "note": {
+          "type": "string"
+        }
+      }
+    },
+    "ArtifactDiffPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "path"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
     "ArtifactEvent": {
       "type": "object",
       "additionalProperties": false,
@@ -2552,6 +2645,9 @@
             "undo.run",
             "events.since",
             "settings.update",
+            "settings.get",
+            "config.get",
+            "artifact.diff",
             "conversation.list",
             "conversation.get",
             "conversation.search",
@@ -2675,6 +2771,22 @@
             "properties": {
               "payload": {
                 "$ref": "#/$defs/SettingsPayload"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "artifact.diff"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/ArtifactDiffPayload"
               }
             }
           }

@@ -1,0 +1,258 @@
+"""管理 API のモック（local_llm_api.md §9.1）。メモリ上だけで持つ。管理画面（apps/admin-web）の試験用。"""
+
+from __future__ import annotations
+
+import csv
+import io
+import itertools
+import time
+from datetime import UTC, datetime
+from typing import Any
+
+from fastapi import APIRouter, Request, Response
+from fastapi.responses import JSONResponse
+
+from .engine import GatewayError
+from .scenario import Scenario
+
+LEVELS = ("off", "search", "browse")
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def _mask(term: str) -> str:
+    return term[:2] + "*" * max(2, len(term) - 2)
+
+
+class AdminState:
+    def __init__(self, scenario: Scenario):
+        self.seq = itertools.count(1)
+        self.users: dict[str, dict[str, Any]] = {}
+        for u in scenario.users:
+            self.users[f"u-{u.login}"] = {
+                "id": f"u-{u.login}",
+                "login": u.login,
+                "display_name": u.display_name,
+                "role": u.role,
+                "department_id": u.department,
+                "disabled": False,
+                "max_concurrent": 2,
+                "net_level_cap": "off",
+                "created_at": _now(),
+                "last_login_at": None,
+            }
+        self.passwords = {f"u-{u.login}": u.password for u in scenario.users}
+        self.departments: dict[str, dict[str, Any]] = {
+            "dev": {"id": "dev", "name": "開発", "acl_groups": ["dev"]}
+        }
+        self.policies: dict[str, dict[str, Any]] = {
+            "org": {"scope": "org", "level_cap": "search", "monthly_search_limit": 300}
+        }
+        self.sites: list[dict[str, str]] = [{"pattern": "*.go.jp", "kind": "trusted"}]
+        self.terms: dict[str, dict[str, Any]] = {}
+        self.instructions: list[dict[str, Any]] = []
+        self.audit: list[dict[str, Any]] = []
+        self.started = time.time()
+
+    def log(self, user: str, action: str, target: str) -> None:
+        self.audit.append(
+            {
+                "at": _now(),
+                "user": user,
+                "source": "admin",
+                "action": action,
+                "target": target,
+                "result": "ok",
+            }
+        )
+
+
+def admin_router(state: AdminState, is_admin: Any) -> APIRouter:
+    r = APIRouter(prefix="/admin/v1")
+
+    def require(request: Request) -> str:
+        login = getattr(request.state, "user", None)
+        if not login or not is_admin(login):
+            raise GatewayError(403, "FORBIDDEN", "管理者だけが使えます")
+        return str(login)
+
+    @r.get("/dashboard")
+    async def dashboard(request: Request) -> dict[str, Any]:
+        require(request)
+        return {
+            "jobs_today": 12,
+            "jobs_running": 1,
+            "queue_depth": 0,
+            "errors_today": 0,
+            "users_active_today": len(state.users),
+            "latency_ms": {"p50": 1200, "p95": 3400},
+            "gpu": [
+                {
+                    "name": "（モック）RTX 5080",
+                    "temp_c": 58,
+                    "util_pct": 42,
+                    "mem_used_mb": 9800,
+                    "mem_total_mb": 16303,
+                }
+            ],
+        }
+
+    @r.get("/users")
+    async def users(request: Request) -> dict[str, Any]:
+        require(request)
+        return {"users": list(state.users.values())}
+
+    @r.post("/users", status_code=201)
+    async def create_user(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+        who = require(request)
+        login = str(body.get("login", "")).strip()
+        if not login or not body.get("password"):
+            raise GatewayError(400, "INVALID_REQUEST", "ログインIDとパスワードが必要です")
+        if any(u["login"] == login for u in state.users.values()):
+            raise GatewayError(409, "CONFLICT", "そのログインIDは使われています")
+        uid = f"u-{login}"
+        state.users[uid] = {
+            "id": uid,
+            "login": login,
+            "display_name": body.get("display_name") or login,
+            "role": body.get("role", "user"),
+            "department_id": body.get("department_id"),
+            "disabled": False,
+            "max_concurrent": int(body.get("max_concurrent", 2)),
+            "net_level_cap": body.get("net_level_cap", "off"),
+            "created_at": _now(),
+            "last_login_at": None,
+        }
+        state.passwords[uid] = str(body["password"])
+        state.log(who, "admin.user.create", login)
+        return state.users[uid]
+
+    @r.patch("/users/{uid}")
+    async def patch_user(uid: str, request: Request, body: dict[str, Any]) -> dict[str, Any]:
+        who = require(request)
+        u = state.users.get(uid)
+        if u is None:
+            raise GatewayError(404, "NOT_FOUND", "利用者がいません")
+        if body.get("net_level_cap") not in (None, *LEVELS):
+            raise GatewayError(400, "INVALID_REQUEST", "net_level_cap が不正です")
+        for k in ("display_name", "role", "department_id", "disabled", "max_concurrent", "net_level_cap"):
+            if k in body:
+                u[k] = body[k]
+        if body.get("password"):
+            state.passwords[uid] = str(body["password"])
+        state.log(who, "admin.user.update", u["login"])
+        return u
+
+    @r.get("/departments")
+    async def departments(request: Request) -> dict[str, Any]:
+        require(request)
+        return {"departments": list(state.departments.values())}
+
+    @r.get("/net/policies")
+    async def policies(request: Request) -> dict[str, Any]:
+        require(request)
+        return {"policies": list(state.policies.values())}
+
+    @r.put("/net/policies")
+    async def put_policy(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+        who = require(request)
+        if body.get("level_cap") not in LEVELS:
+            raise GatewayError(400, "INVALID_REQUEST", "level_cap が不正です")
+        scope = str(body.get("scope", "org"))
+        state.policies[scope] = {
+            "scope": scope,
+            "level_cap": body["level_cap"],
+            "monthly_search_limit": body.get("monthly_search_limit"),
+        }
+        state.log(who, "admin.net.policy", scope)
+        return state.policies[scope]
+
+    @r.get("/net/sites")
+    async def sites(request: Request) -> dict[str, Any]:
+        require(request)
+        return {"sites": state.sites}
+
+    @r.put("/net/sites")
+    async def put_sites(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+        who = require(request)
+        state.sites = [{"pattern": str(s["pattern"]), "kind": str(s["kind"])} for s in body.get("sites", [])]
+        state.log(who, "admin.net.sites", str(len(state.sites)))
+        return {"sites": state.sites}
+
+    @r.get("/dlp/terms")
+    async def terms(request: Request) -> dict[str, Any]:
+        require(request)
+        return {"terms": [{k: v for k, v in t.items() if k != "term"} for t in state.terms.values()]}
+
+    @r.post("/dlp/terms")
+    async def add_terms(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+        who = require(request)
+        added = skipped = 0
+        existing = {t["term"] for t in state.terms.values()}
+        for t in body.get("terms", []):
+            term = str(t.get("term", "")).strip()
+            if not term or term in existing:
+                skipped += 1
+                continue
+            tid = f"t{next(state.seq)}"
+            state.terms[tid] = {
+                "id": tid,
+                "term": term,
+                "masked": _mask(term),
+                "category": t.get("category", "other"),
+                "updated_at": _now(),
+            }
+            existing.add(term)
+            added += 1
+        state.log(who, "admin.dlp.add", str(added))  # 語そのものは記録しない
+        return {"added": added, "skipped": skipped}
+
+    @r.delete("/dlp/terms/{tid}", status_code=204)
+    async def delete_term(tid: str, request: Request) -> Response:
+        who = require(request)
+        state.terms.pop(tid, None)
+        state.log(who, "admin.dlp.delete", tid)
+        return Response(status_code=204)
+
+    @r.get("/instructions")
+    async def instructions(request: Request) -> dict[str, Any]:
+        require(request)
+        cur = state.instructions[-1] if state.instructions else None
+        return {
+            "current": cur,
+            "history": [
+                {"version": i["version"], "published_at": i["published_at"]}
+                for i in reversed(state.instructions)
+            ],
+        }
+
+    @r.post("/instructions")
+    async def publish(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+        who = require(request)
+        text = str(body.get("body", ""))
+        if len(text) / 1.5 > 1500:
+            raise GatewayError(400, "INSTRUCTIONS_TOO_LONG", "共通指示は1,500トークン（約2,250字）までです")
+        version = len(state.instructions) + 1
+        state.instructions.append({"version": version, "body": text, "published_at": _now()})
+        state.log(who, "admin.instructions.publish", f"v{version}")
+        return {"version": version}
+
+    @r.get("/audit")
+    async def audit(request: Request, user: str = "", action: str = "", format: str = "json") -> Any:  # noqa: A002
+        require(request)
+        rows = [
+            e
+            for e in state.audit
+            if (not user or e["user"] == user) and (not action or action in e["action"])
+        ]
+        if format == "csv":
+            buf = io.StringIO()
+            w = csv.DictWriter(buf, fieldnames=["at", "user", "source", "action", "target", "result"])
+            w.writeheader()
+            w.writerows(rows)
+            return Response("﻿" + buf.getvalue(), media_type="text/csv; charset=utf-8")
+        return JSONResponse({"events": list(reversed(rows))})
+
+    return r

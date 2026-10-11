@@ -10,7 +10,9 @@
     "start": "electron .",
     "test": "vitest run",
     "e2e": "node scripts/build.mjs && vite build && playwright test -c e2e/playwright.config.ts",
-    "typecheck": "tsc --noEmit -p ."
+    "typecheck": "tsc --noEmit -p .",
+    "package": "pnpm build && cd ../.. && uv run python apps/desktop/scripts/package.py",
+    "package:dir": "pnpm build && cd ../.. && uv run python apps/desktop/scripts/package.py --dir"
   },
   "dependencies": {
     "@lla/agent-runtime": "workspace:*",
@@ -26,6 +28,7 @@
     "@types/react-dom": "18.3.7",
     "@vitejs/plugin-react": "4.7.0",
     "electron": "44.4.5",
+    "electron-builder": "26.16.1",
     "esbuild": "0.28.2",
     "vite": "6.4.4"
   }

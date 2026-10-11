@@ -9,8 +9,8 @@ from typing import Any
 
 import jsonschema
 import pytest
-from conftest import FakeSampler, Runner
 from office_fixtures import make_invoice_pdf
+from office_testkit import FakeSampler, Runner
 
 from office_tools.invoice.checks import PageText, evaluate
 from office_tools.invoice.schema import response_schema

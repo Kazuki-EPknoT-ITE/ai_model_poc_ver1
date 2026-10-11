@@ -9,10 +9,10 @@ from typing import Any
 
 import docx
 import pytest
-from conftest import FakeSampler, Runner
 from docx.shared import RGBColor
 from lxml import etree
 from office_fixtures import make_docx, make_dotx
+from office_testkit import FakeSampler, Runner
 
 from office_tools.fsutil import sha256_file
 

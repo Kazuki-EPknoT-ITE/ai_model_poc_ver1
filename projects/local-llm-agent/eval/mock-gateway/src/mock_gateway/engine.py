@@ -332,6 +332,16 @@ class Engine:
             "invoice_schemas": c.get("invoice_schemas", ["invoice.v1"]),
             "limits": {"max_concurrent": c.get("max_concurrent", 2), "max_tool_result_tokens": 6000},
             "features": c.get("features", {"rag": False, "ocr": True, "web": True}),
+            "macros": c.get(
+                "macros",
+                [
+                    {
+                        "name": "請求書取込",
+                        "description": "請求書フォルダの PDF を読み、送金明細の Excel にまとめる",
+                        "prompt": "請求書フォルダのPDFを読んで、送金明細をExcelにまとめて",
+                    }
+                ],
+            ),
         }
 
 

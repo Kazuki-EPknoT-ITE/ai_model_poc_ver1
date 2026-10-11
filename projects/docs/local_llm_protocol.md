@@ -416,6 +416,9 @@ type ApprovalDecision = { approval_id: string; decision: "approve" | "reject"; r
 | `undo.run` | `{ run_id, paths?: string[] }` | 元に戻す（AGT-03） |
 | `events.since` | `{ conversation_id, seq }` | 画面を開き直したときの取り直し |
 | `settings.update` | `{ net_level?, model_default?, notify_long_run_minutes? }` | 設定の変更 |
+| `settings.get` | `{}` | 作業の設定を返す（`{ net_level, model_default, notify_long_run_minutes }`） |
+| `config.get` | `{}` | サーバーの設定のうち画面が使うもの（`{ org, models, escalation_target, net_level_cap, features, macros }`。macros は定型作業 APP-09） |
+| `artifact.diff` | `{ run_id, path }` | 差分プレビュー（AGT-03）。変更前はバックアップ、変更後は現在のファイル。戻り値は `ArtifactDiff`（`kind: docx|xlsx|text|binary`、`changes[]` は段落・セル・行の単位）。§5.3 の `main:diff.get` はこれに置き換えた |
 | `conversation.list` / `.get` / `.search` / `.delete` | … | 履歴（APP-06） |
 
 ### 5.2 RuntimeEvent（Runtime → Main）
@@ -444,7 +447,7 @@ Runtime を経由しない操作は、preload が `window.app` として公開�
 | --- | --- |
 | `main:auth.login({ login, password, remember })` / `auth.logout()` / `auth.changePassword()` | Gateway の `/v1/auth/*` を呼び、トークンを `safeStorage` に保存する |
 | `main:runtime.send(cmd)` / `runtime.onEvent(cb)` | RuntimeCommand の送信と RuntimeEvent の購読（§5.1, §5.2 の中継） |
-| `main:diff.get(diff_ref)` | 差分プレビューのデータを取得する（Runtime が作った差分ファイルを読む） |
+| （差分の取得） | Runtime コマンド `artifact.diff` で取得する（§5.1）。当初の `main:diff.get` は実装時に廃止 |
 | `main:dialog.pickFolder()` / `shell.openPath(path)` | フォルダの選択、既定アプリで開く（作業フォルダ内に限る） |
 | `main:settings.get()` / `settings.set(patch)` | 端末の設定（サーバーURL・予備サーバーURL・自動起動など） |
 | `main:update.check()` / `update.install()` | 自動更新（ADM-05） |

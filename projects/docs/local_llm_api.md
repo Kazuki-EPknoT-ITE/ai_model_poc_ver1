@@ -35,7 +35,17 @@ Gateway（FastAPI）が提供する HTTP API を定める。OpenAPI 3.1 の定�
 | 429 | `QUEUE_LIMIT` / `QUOTA_EXCEEDED` | ○ / × | 同時実行数の上限 / 検索回数の上限 |
 | 503 | `ENGINE_UNAVAILABLE` / `MAINTENANCE` | ○ | 推論エンジンの停止・再起動中 |
 
-クライアントは `retryable: true` と 5xx・接続断を transient として扱い、無制限に再試行する（protocol §2.4）。
+| 501/503 | `FEATURE_UNAVAILABLE` | × | その機能（RAG・Web・OCR）がサーバーで有効になっていない。クライアントは `/v1/config` の `features` を見て呼ばない |
+| 503 | `UPSTREAM_UNAVAILABLE` | ○ | 上流（RAG・Web Relay・OCR）に接続できない |
+| 502 | `UPSTREAM_ERROR` / `ENGINE_ERROR` | ○ | 上流・推論エンジンのエラー |
+| 410 | `PAYLOAD_LOST` | × | 依頼本文が既に削除されている（保持期限切れ）。attempt を上げて投入し直す |
+| 413 | `PAYLOAD_TOO_LARGE` | × | 画像などが大きすぎる |
+| 409 | `CONFLICT` | × | 管理 API での重複（ログインID・部門 ID） |
+| 500 | `INTERNAL` | ○ | 想定外のエラー |
+
+クライアントは `retryable: true` と 5xx・接続断を transient として扱い、無制限に再試行する（protocol §2.4）。ただし **`retryable: false` が明示されたものは 5xx でも再試行しない**（`FEATURE_UNAVAILABLE` など。実装時に確定）。
+
+**上流との内部トークン**: Gateway は RAG・OCR には `X-Internal-Token`、Web Relay には `X-Relay-Secret` を付けて呼ぶ。値は環境変数 `LLMGW_RAG_SECRET` / `LLMGW_OCR_SECRET` / `LLMGW_WEB_RELAY_SECRET`（または設定の `*_secret_file`）で渡し、それぞれのサービスにも同じ値を渡す（`LLM_RAG_SECRET` / `LLM_OCR_SECRET` / `WEB_RELAY_SECRET`）。Web Relay には本文で `user_id`・`org_id`・実効の `level` を渡し、検索回数は Gateway が数える（Relay には `monthly_search_limit: null`）。
 
 ---
 
@@ -72,7 +82,8 @@ Gateway（FastAPI）が提供する HTTP API を定める。OpenAPI 3.1 の定�
   "instructions": { "version": 4, "body": "..." },      // AGT-10
   "invoice_schemas": ["invoice.v1"],
   "limits": { "max_concurrent": 2, "max_tool_result_tokens": 6000 },
-  "features": { "rag": false, "ocr": true, "web": true }
+  "features": { "rag": false, "ocr": true, "web": true },
+  "macros": [ { "name": "請求書取込", "description": "請求書フォルダの PDF を送金明細にまとめる", "prompt": "請求書フォルダのPDFを読んで、送金明細をExcelにまとめて" } ]   // 定型作業（APP-09）。会社プロファイルの macros/ から配る
 }
 ```
 
@@ -194,7 +205,8 @@ SSE を使わない場合のポーリング用。`{ state, position?, output?, u
 { "url": "...", "final_url": "...", "title": "...", "content_type": "text/html", "text": "...", "chars": 7999, "truncated": true }
 ```
 
-- 判定の順序: 認証 → 利用者の設定・部門・全社の上限（いちばん小さいもの。NET-02）→ 禁止サイト・社内アドレス（NET-08）→ DLP（NET-07）→ 実行 → 監査ログ（NET-11）。
+- 判定の順序: 認証 → 利用者の設定・部門・全社の上限（いちばん小さいもの。NET-02）→ DLP（NET-07）→ 禁止サイト・社内アドレス（NET-08）→ 回数の上限（NET-13）→ 実行 → 監査ログ（NET-11）。DLP を禁止サイトの判定より先にするのは、拒否した URL を監査ログに残すときに機密語が混ざらないようにするため（実装 T-61 で確定）。DLP で止めた依頼は、監査ログに検索語・URL を残さず `detail.redacted=true` だけを記録する。
+- Web Relay が上流（外部サイト・検索 API）の失敗を返すときは 502 で、`RESPONSE_TOO_LARGE` / `CONTENT_TYPE_NOT_ALLOWED` / `TOO_MANY_REDIRECTS` / `UPSTREAM_HTTP_ERROR` / `UPSTREAM_TIMEOUT` / `UPSTREAM_CONNECT_FAILED` / `UPSTREAM_DNS_FAILED` / `UPSTREAM_BAD_RESPONSE` / `UPSTREAM_UNSUPPORTED_ENCODING` / `EXTRACT_FAILED` / `SEARCH_UNAVAILABLE` のどれか。Gateway はそのまま返し、Runtime は `TOOL_FAILED`（permanent。モデルには「別の情報源を使って」と返す）として扱う（5.4 の表「ネット上のページが開けない」）。
 - クライアントは自分のネット設定を `X-Net-Level: off|search|browse` で送る。サーバーは上限との小さいほうを採用する。クライアントがオフにしていれば、サーバー側でも拒否する（二重の確認）。
 - DLP で検知した場合は `403 DLP_BLOCKED`。どの語に該当したかは返さない（辞書が漏れるのを防ぐため）。
 
@@ -223,6 +235,42 @@ SSE を使わない場合のポーリング用。`{ state, position?, output?, u
 | GET | `/admin/v1/audit?from&to&user&action` | 監査ログの検索（CSV 出力可） |
 | GET/POST | `/admin/v1/models`, `/admin/v1/models/{id}/promote`, `/rollback` | モデル台帳の参照・本番化・切り戻し（7.4） |
 | POST | `/admin/v1/runs/{user_id}/pause` | 長時間実行中の作業の一時停止を要求する（確認事項。クライアントは次の推論投入のときに受け取る） |
+
+### 9.1 要求・応答の形（管理画面 `apps/admin-web` が使う）
+
+```jsonc
+// GET /admin/v1/dashboard
+{ "jobs_today": 120, "jobs_running": 3, "queue_depth": 2, "errors_today": 1, "users_active_today": 9,
+  "latency_ms": { "p50": 1800, "p95": 5200 },
+  "gpu": [ { "name": "RTX 5080", "temp_c": 61, "util_pct": 78, "mem_used_mb": 14100, "mem_total_mb": 16303 } ] }   // GPU が取れなければ []
+
+// GET /admin/v1/users → { "users": [User] }
+// POST /admin/v1/users  { login, display_name, password, role, department_id?, max_concurrent?, net_level_cap? } → User（201）
+// PATCH /admin/v1/users/{id}  { display_name?, role?, department_id?, disabled?, max_concurrent?, net_level_cap?, password? } → User
+User = { "id", "login", "display_name", "role": "user|admin", "department_id": null, "disabled": false,
+         "max_concurrent": 2, "net_level_cap": "off|search|browse", "created_at", "last_login_at": null }
+
+// GET /admin/v1/departments → { "departments": [{ "id", "name", "acl_groups": [] }] }
+// POST /admin/v1/departments { id, name, acl_groups } / PATCH /admin/v1/departments/{id} { name?, acl_groups? }
+
+// GET /admin/v1/net/policies → { "policies": [{ "scope": "org" | "department:<id>", "level_cap", "monthly_search_limit": null }] }
+// PUT /admin/v1/net/policies { scope, level_cap, monthly_search_limit? }（scope ごとに上書き）
+// GET /admin/v1/net/sites → { "sites": [{ "pattern": "*.go.jp", "kind": "trusted|block" }] }
+// PUT /admin/v1/net/sites { "sites": [...] }（全件を置き換える）
+
+// GET /admin/v1/dlp/terms → { "terms": [{ "id", "masked": "平井**", "category": "client|vessel|project|other", "updated_at" }] }
+//   語そのものは返さない（一覧でも先頭2文字だけ見せる）
+// POST /admin/v1/dlp/terms { "terms": [{ "term", "category" }] } → { "added": 3, "skipped": 1 }（重複は skipped）
+// DELETE /admin/v1/dlp/terms/{id} → 204
+
+// GET /admin/v1/instructions → { "current": { "version", "body", "published_at" } | null, "history": [{ "version", "published_at" }] }
+// POST /admin/v1/instructions { body } → { "version" }（1,500 トークンを超えたら 400 INSTRUCTIONS_TOO_LONG）
+
+// GET /admin/v1/audit?from=&to=&user=&action=&limit=500 → { "events": [{ "at", "user", "source", "action", "target", "result" }] }
+//   &format=csv で text/csv（UTF-8 BOM 付き）
+```
+
+管理 API はすべて `role=admin` のトークンが必要（それ以外は 403 `FORBIDDEN`）。変更系の操作は監査ログに `source=admin` で残す。
 
 ---
 

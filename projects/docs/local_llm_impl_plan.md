@@ -61,7 +61,7 @@ flowchart LR
 | T-16 | docx 編集・作成 | `docx.edit`（全 op）/ `create`（テンプレート）。書式が保たれる試験 | DOC-02, 03 | 同上 | **完了** |
 | T-17 | invoice.extract（OCR なし版） | テキストPDFからの抽出（推論はモック）と検算 | PDF-04 | 同上 | **完了（sampling で推論を依頼）** |
 | T-18 | convert と変更履歴 | LibreOffice での変換、`track_changes`、`docx.diff` | DOC-04, 05, 08, 09 | 同上 | **完了（LibreOffice 未導入のため実機の変換は未検証）** |
-| T-19 | PyInstaller でのビルド | 1フォルダにまとめ、Electron から起動できること | — | 同上 | 未着手 |
+| T-19 | PyInstaller でのビルド | 1フォルダにまとめ、Electron から起動できること | — | 同上 | **完了（office-tools.exe 90MB。tools/office/packaging/build.py、exe で E2E 合格）** |
 
 ## M3: Runtime と継続実行
 
@@ -85,14 +85,14 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- |
 | T-30 | Electron の骨組み | main / preload / renderer、Runtime ホスト（Node の子プロセス）の起動、トレイ・通知・スリープ抑止 | RUN-07 | desktop-app-engineer | **完了（Runtime は Node の子プロセス。ADR-001 改訂）** |
 | T-31 | ログインと設定 | `main:auth.*`、トークンの safeStorage への保存、ネット設定 | ADM-01, NET-01 | 同上 | **完了（独自アカウント、safeStorage）** |
-| T-32 | 会話画面 | 逐次表示・手順カード・タスク一覧・添付・定型作業 | APP-01〜05, 09 | 同上 | **一部（会話・手順カード・計画。添付・定型作業は未）** |
-| T-33 | 承認・質問・差分・元に戻す | 承認ダイアログと承認一覧、差分プレビュー | AGT-02, 03, APP-07 | 同上 | **一部（承認・質問・変更一覧・元に戻す。差分プレビューは未）** |
+| T-32 | 会話画面 | 逐次表示・手順カード・タスク一覧・添付・定型作業 | APP-01〜05, 09 | 同上 | **完了（添付は📎とドラッグ＆ドロップ、定型作業は / で候補）** |
+| T-33 | 承認・質問・差分・元に戻す | 承認ダイアログと承認一覧、差分プレビュー | AGT-02, 03, APP-07 | 同上 | **完了（差分は Word=段落・Excel=セル・テキスト=行）** |
 | T-34 | 状態の表示 | run.state の全値、待ち順、再接続、サーバー停止 | APP-10, OPS-02 | 同上 | **完了** |
 | **T-35** | **縦の一本通し（モック）** | モック Gateway を相手に「請求書3件 → Excel」が画面から完了まで通る。途中で Runtime を kill しても再開できる。E2E を自動化する | 9.2-1 | desktop＋runtime＋qa | **完了（E2E 自動化済み）** |
-| T-40 | Gateway 本体 | 認証（ADR-008）・永続キュー・公平スケジューリング・暗号化ペイロード・SSE・`/v1/config` | RUN-09, 10, SEC-02, 06 | llm-inference-engineer | 未着手 |
-| T-41 | OCR サービス | `/v1/vision/ocr`。エンジンの比較を準備する | PDF-03 | 同上 | 未着手 |
+| T-40 | Gateway 本体 | 認証（ADR-008）・永続キュー・公平スケジューリング・暗号化ペイロード・SSE・`/v1/config` | RUN-09, 10, SEC-02, 06 | llm-inference-engineer | **完了（server/gateway。SQLite で試験 50件、PostgreSQL 版は Docker 起動後に要実行。管理 API・管理画面の配信・上流への内部トークンを統合時に追加）** |
+| T-41 | OCR サービス | `/v1/vision/ocr`。エンジンの比較を準備する | PDF-03 | 同上 | **完了（server/ocr。エンジンは PaddleOCR / VLM / 試験用を差し替え可。実エンジンの比較は M0〜M5）** |
 | T-45 | 実機での一本通し | 検証機の vLLM＋Gateway で T-35 のシナリオが通る | 9.2-1 | 全員 | 未着手 |
-| T-46 | インストーラと自動更新 | electron-builder（NSIS）・社内配布・自動更新 | ADM-05 | desktop-app-engineer | 未着手 |
+| T-46 | インストーラと自動更新 | electron-builder（NSIS）・社内配布・自動更新 | ADM-05 | desktop-app-engineer | **完了（Node 22.23.3 と office-tools を同梱した NSIS インストーラ 183MB。自動更新と署名は未）** |
 
 ## M5: POC（2027年3月）
 
@@ -107,16 +107,16 @@ flowchart LR
 
 ## M6: 本開発（2027年4〜6月）
 
-| ID | タスク | 要件 | 担当 |
-| --- | --- | --- | --- |
-| T-60 | RAG（取り込み・検索・ACL・評価） | AGT-07, SEC-07, ADM-02 | rag-search-engineer |
-| T-61 | Web Relay（検索・取得・DLP・SSRF・利用回数） | NET-01〜13 | web-relay-security-engineer |
-| T-62 | 管理画面 | ADM-02〜04, NET-02, 08 | desktop-app-engineer |
-| T-63 | 業務 LoRA | 7.2-3 | ml-finetuning-engineer |
-| T-64 | 本番機での 26B の評価と既定モデルの決定 | 7.1 | inference＋ml |
-| T-65 | 監視・バックアップ・予備機への切替 | OPS-03〜06 | llm-inference-engineer |
-| T-66 | Should / Could の残り（グラフ・コメント・画像説明・自動振り分けなど） | 各要件 | 各担当 |
-| T-67 | 安全性・ネットの評価セット | 9.1 | web-relay-security＋qa |
+| ID | タスク | 要件 | 担当 | 状態 |
+| --- | --- | --- | --- | --- |
+| T-60 | RAG（取り込み・検索・ACL・評価） | AGT-07, SEC-07, ADM-02 | rag-search-engineer | **完了（server/rag。ハイブリッド検索・ACL を検索条件に・差分取り込み。試験 53件。実モデル・実データでの評価は未）** |
+| T-61 | Web Relay（検索・取得・DLP・SSRF・利用回数） | NET-01〜13 | web-relay-security-engineer | **完了（server/web-relay。試験174件。DLP・SSRF・読み取り専用・本文抽出・回数・監査）** |
+| T-62 | 管理画面 | ADM-02〜04, NET-02, 08 | desktop-app-engineer | **完了（apps/admin-web。利用者・ネット・機密語・共通指示・監査・ダッシュボード。モデル台帳の画面は未）** |
+| T-63 | 業務 LoRA | 7.2-3 | ml-finetuning-engineer | 未着手 |
+| T-64 | 本番機での 26B の評価と既定モデルの決定 | 7.1 | inference＋ml | 未着手 |
+| T-65 | 監視・バックアップ・予備機への切替 | OPS-03〜06 | llm-inference-engineer | 未着手 |
+| T-66 | Should / Could の残り（グラフ・コメント・画像説明・自動振り分けなど） | 各要件 | 各担当 | 未着手 |
+| T-67 | 安全性・ネットの評価セット | 9.1 | web-relay-security＋qa | 未着手 |
 
 ---
 

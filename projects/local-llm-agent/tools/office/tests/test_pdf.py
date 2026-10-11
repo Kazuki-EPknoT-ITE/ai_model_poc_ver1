@@ -6,8 +6,8 @@ import json
 from pathlib import Path
 
 import pytest
-from conftest import FakeSampler, Runner
 from office_fixtures import make_pdf
+from office_testkit import FakeSampler, Runner
 
 from office_tools.registry import SamplingRequest
 

@@ -1,0 +1,134 @@
+# 推論サーバーの構成（local_llm_ops/server_setup.md §5、設計書 §6）
+#   docker compose --env-file /srv/llm/secrets/deploy.env up -d
+#   本番機（26B を常駐）: docker compose --env-file ... --profile prod up -d
+name: llm
+
+networks:
+  # 外へ出られない。推論・RAG・OCR・DB はここだけ（NET-12）
+  internal: { internal: true }
+  # ポート公開用（gateway / grafana）。外向きの新規接続は DOCKER-USER で落とす（scripts/firewall.sh）
+  frontend: { ipam: { config: [{ subnet: 172.30.0.0/24 }] } }
+  # 外に出られるのは web-relay だけ
+  egress: { ipam: { config: [{ subnet: 172.31.0.0/24 }] } }
+
+x-gpu: &gpu
+  deploy:
+    resources:
+      reservations:
+        devices: [{ driver: nvidia, count: all, capabilities: [gpu] }]
+
+x-app: &app
+  restart: unless-stopped
+  read_only: true
+  tmpfs: [/tmp]
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  logging: { driver: json-file, options: { max-size: "20m", max-file: "5" } }
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE}
+    env_file: /srv/llm/secrets/postgres.env
+    volumes: ["/srv/llm/data/postgres:/var/lib/postgresql/data"]
+    networks: [internal]
+    restart: unless-stopped
+    healthcheck: { test: ["CMD-SHELL", "pg_isready -U llm"], interval: 10s, retries: 5 }
+
+  vllm-12b:
+    image: ${VLLM_IMAGE}
+    <<: *gpu
+    ipc: host
+    environment: { HF_HUB_OFFLINE: "1" }
+    volumes: ["/srv/llm/models:/models:ro"]
+    networks: [internal]
+    restart: unless-stopped
+    command: >
+      --model /models/${MODEL_12B}
+      --served-model-name local-12b
+      --max-model-len ${MAX_MODEL_LEN}
+      --kv-cache-dtype fp8
+      --gpu-memory-utilization ${GPU_UTIL_12B}
+      --max-num-seqs ${MAX_NUM_SEQS}
+      --enable-lora --max-loras 4 --max-lora-rank 64
+      --enable-prefix-caching
+      ${GUIDED_DECODING_ARGS}
+      --port 8000
+    healthcheck: { test: ["CMD", "curl", "-fs", "http://localhost:8000/health"], interval: 15s, retries: 20, start_period: 300s }
+
+  vllm-26b:
+    profiles: [prod]
+    image: ${VLLM_IMAGE}
+    <<: *gpu
+    ipc: host
+    environment: { HF_HUB_OFFLINE: "1" }
+    volumes: ["/srv/llm/models:/models:ro"]
+    networks: [internal]
+    restart: unless-stopped
+    command: >
+      --model /models/${MODEL_26B}
+      --served-model-name local-26b
+      --max-model-len ${MAX_MODEL_LEN}
+      --kv-cache-dtype fp8
+      --gpu-memory-utilization ${GPU_UTIL_26B}
+      --max-num-seqs ${MAX_NUM_SEQS}
+      --enable-prefix-caching
+      ${GUIDED_DECODING_ARGS}
+      --port 8000
+    healthcheck: { test: ["CMD", "curl", "-fs", "http://localhost:8000/health"], interval: 15s, retries: 20, start_period: 600s }
+
+  gateway:
+    <<: *app
+    image: llm/gateway:${APP_TAG}
+    build: { context: ../../../.., dockerfile: projects/local-llm-agent/server/deploy/Dockerfile.python, args: { PACKAGE: llm-gateway } }
+    command: ["llm-gateway", "serve", "--config", "/profiles/gateway.yaml"]
+    env_file: /srv/llm/secrets/gateway.env
+    volumes: ["/srv/llm/secrets/tls:/tls:ro", "/srv/llm/secrets/keys:/keys:ro", "/srv/llm/profiles:/profiles:ro"]
+    ports: ["${SERVER_IP}:443:8443"]
+    networks: [frontend, internal]
+    depends_on:
+      postgres: { condition: service_healthy }
+      vllm-12b: { condition: service_started }
+
+  web-relay:
+    <<: *app
+    image: llm/web-relay:${APP_TAG}
+    build: { context: ../../../.., dockerfile: projects/local-llm-agent/server/deploy/Dockerfile.python, args: { PACKAGE: web-relay } }
+    env_file: /srv/llm/secrets/web-relay.env
+    networks: [internal, egress]
+
+  ocr:
+    <<: [*app, *gpu]
+    image: llm/ocr:${APP_TAG}
+    build: { context: ../../../.., dockerfile: projects/local-llm-agent/server/deploy/Dockerfile.python, args: { PACKAGE: llm-ocr, PACKAGE_DIR: server/ocr } }
+    command: ["llm-ocr", "serve", "--host", "0.0.0.0", "--port", "8090"]
+    env_file: /srv/llm/secrets/ocr.env
+    networks: [internal]
+
+  qdrant:
+    image: ${QDRANT_IMAGE}
+    volumes: ["/srv/llm/data/qdrant:/qdrant/storage"]
+    networks: [internal]
+    restart: unless-stopped
+
+  dcgm-exporter:
+    image: ${DCGM_IMAGE}
+    <<: *gpu
+    cap_add: [SYS_ADMIN]
+    networks: [internal]
+    restart: unless-stopped
+
+  prometheus:
+    image: ${PROMETHEUS_IMAGE}
+    volumes:
+      - "./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - "/srv/llm/data/prometheus:/prometheus"
+    networks: [internal]
+    restart: unless-stopped
+
+  grafana:
+    image: ${GRAFANA_IMAGE}
+    env_file: /srv/llm/secrets/grafana.env
+    volumes: ["/srv/llm/data/grafana:/var/lib/grafana"]
+    ports: ["${SERVER_IP}:3000:3000"]
+    networks: [frontend, internal]
+    restart: unless-stopped

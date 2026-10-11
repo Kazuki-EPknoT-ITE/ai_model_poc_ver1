@@ -1,6 +1,6 @@
 # uv workspace root (virtual: no [project] here)
 [tool.uv.workspace]
-members = ["packages/protocol/python", "eval/mock-gateway", "tools/office"]
+members = ["packages/protocol/python", "eval/mock-gateway", "tools/office", "server/gateway", "server/web-relay", "server/ocr", "server/rag"]
 
 [dependency-groups]
 dev = [
@@ -10,6 +10,8 @@ dev = [
   "datamodel-code-generator>=0.26",
   "types-PyYAML",
   "types-jsonschema",
+  "reportlab>=4.2",
+  "anyio>=4.4",
 ]
 
 [tool.ruff]
@@ -25,10 +27,13 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
+# 配布物を作るスクリプト: 固定の引数でビルドツールを呼び、公式の URL から取得する
+"apps/desktop/scripts/*.py" = ["S602", "S603", "S607", "S310"]
+"tools/office/packaging/*.py" = ["S603", "S607"]
 "**/generated/*.py" = ["E", "UP", "I", "S", "B"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["lla_protocol", "mock_gateway", "office_tools"]
+known-first-party = ["lla_protocol", "mock_gateway", "office_tools", "llm_gateway", "web_relay", "llm_ocr", "llm_rag"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -36,4 +41,12 @@ strict = true
 exclude = ["generated/"]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/protocol/python/tests", "eval/mock-gateway/tests", "tools/office/tests"]
+testpaths = [
+  "packages/protocol/python/tests",
+  "eval/mock-gateway/tests",
+  "tools/office/tests",
+  "server/gateway/tests",
+  "server/web-relay/tests",
+  "server/ocr/tests",
+  "server/rag/tests",
+]

@@ -1,0 +1,16 @@
+# /etc/systemd/system/llm-stack.service（server_setup.md §8.3）
+[Unit]
+Description=Local LLM agent server stack (docker compose)
+Requires=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/srv/llm/deploy/projects/local-llm-agent/server/deploy
+ExecStart=/usr/bin/docker compose --env-file /srv/llm/secrets/deploy.env up -d
+ExecStop=/usr/bin/docker compose --env-file /srv/llm/secrets/deploy.env down
+TimeoutStartSec=900
+
+[Install]
+WantedBy=multi-user.target

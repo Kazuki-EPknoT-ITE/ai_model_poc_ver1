@@ -1,0 +1,60 @@
+[project]
+name = "llm-rag"
+version = "0.1.0"
+description = "社内文書検索（RAG）サービス: 取り込みバッチ・ハイブリッド検索・評価。設計書 §6.4、local_llm_api.md §6、AGT-07 / SEC-07 / ADM-02"
+requires-python = ">=3.12"
+dependencies = [
+  # 読み取りロジックは office-tools と共通（設計書 §6.4・§7）
+  "office-tools",
+  "lla-protocol",
+  "fastapi>=0.115",
+  "uvicorn>=0.32",
+  "pydantic>=2.9",
+  "pyyaml>=6.0",
+  "qdrant-client>=1.12",
+]
+
+[project.optional-dependencies]
+# 推論サーバー（GPU）で入れる。モデル本体は事前に配置し、設定の model_path で指す（外向き通信はしない）
+embed = ["sentence-transformers>=3.2"]
+# 日本語の分かち書き（無ければ文字 bi-gram にフォールバックする）
+sudachi = ["sudachipy>=0.6.8", "sudachidict-core>=20240716"]
+
+[project.scripts]
+llm-rag = "llm_rag.cli:main"
+
+[tool.uv.sources]
+office-tools = { workspace = true }
+lla-protocol = { workspace = true }
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.7", "mypy>=1.13", "httpx>=0.27", "types-PyYAML", "reportlab>=4.0"]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llm_rag"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101", "E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["llm_rag", "office_tools", "lla_protocol"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["sentence_transformers.*", "sudachipy.*", "pypdfium2.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

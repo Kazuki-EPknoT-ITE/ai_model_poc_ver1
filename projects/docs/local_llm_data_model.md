@@ -367,13 +367,15 @@ CREATE TABLE net_policies (
   PRIMARY KEY (scope)
 );
 CREATE TABLE net_sites (
-  pattern     text PRIMARY KEY,             -- ドメインのワイルドカード '*.go.jp'
+  org_id      text,                         -- NULL なら全社共通（組合展開で会社ごとに持てる）
+  pattern     text NOT NULL,                -- ドメインのワイルドカード '*.go.jp'（go.jp 自体にも一致する）
   kind        text NOT NULL CHECK (kind IN ('block','trusted'))
 );
 CREATE TABLE dlp_terms (                    -- 機密語辞書（NET-07）。辞書の中身はログに出さない
   id          bigserial PRIMARY KEY,
   org_id      text NOT NULL REFERENCES orgs(id),
   term        text NOT NULL,
+  readings    text[] NOT NULL DEFAULT '{}', -- 読み（かな・ローマ字）。表記ゆれの検出に使う（T-61 の提案）
   category    text NOT NULL,                -- client | vessel | project | other
   updated_by  text, updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -421,6 +423,16 @@ CREATE TABLE instructions (
 | 鍵のローテーション | 90日 | `key_id` を新しくする（古い鍵は、その鍵で暗号化したペイロードが消えるまで保持する） |
 
 ---
+
+### 3.4 実装（T-40）で確定した差分
+
+- `sessions` に `family_id`（リフレッシュトークンの系列。再利用を検知したら系列ごと失効）と `revoked_reason` を追加。
+- `jobs` に `body_hash`（冪等キーの中身の照合）・`purpose`・`requeue_count` を追加。
+- `audit_events` に `client_id`（一意。`<user_id>:<クライアントの記録 ID>`。再送の重複除去）を追加。
+- `job_payloads.request_ct` は NULL 可（完了・取り消しで依頼本文を直ちに消すため。応答とイベントは 10 分後に消す）。
+- 暗号文は `key_id` と nonce を含む自己記述形式で、暗号化のたびに nonce を作り直す（同じ鍵で nonce を使い回さないため）。AAD は `job_id|用途`。
+- 配列型（`text[]`）は、SQLite でも同じコードで動くよう JSON 型で持つ。
+- RAG の索引の BM25 は tantivy ではなく JSON の小さな索引にした（利用者に見える文書だけで統計を計算するため。100万チャンクを超えたら見直す。T-60）。Qdrant のペイロードに `path_prefixes`（親フォルダの一覧）と `updated_ts` を追加。
 
 ## 4. RAG（Qdrant）のペイロード
 

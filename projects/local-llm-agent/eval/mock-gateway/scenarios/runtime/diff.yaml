@@ -1,0 +1,13 @@
+# 差分プレビュー（E-06）: 既存の CSV を上書きする → final
+name: rt-diff
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action:
+      type: tool_call
+      tool: csv.write
+      args: { path: "data.csv", header: ["品名", "金額"], rows: [["塗装", 1200], ["部品", 800]], encoding: utf-8-sig, overwrite: true }
+  - match: { step_index: 1 }
+    action: { type: final, summary: "data.csv を更新しました。", outputs: [{ path: "data.csv", description: "更新後" }], failures: [], needs_review: [] }
+fallback:
+  action: { type: final, summary: "（モック）想定外", outputs: [], failures: [], needs_review: [] }

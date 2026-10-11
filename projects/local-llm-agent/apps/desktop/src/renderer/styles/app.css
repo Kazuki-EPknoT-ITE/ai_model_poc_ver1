@@ -331,6 +331,8 @@ h2 {
   border: 1px solid var(--line);
 }
 .step {
+  align-self: flex-start;
+  width: min(90%, 900px);
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -480,4 +482,164 @@ h2 {
 }
 .op.delete {
   color: var(--err);
+}
+
+/* ダイアログ */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(0 0 0 / 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 10;
+}
+.dialog {
+  width: min(520px, 92vw);
+  max-height: 86vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.25);
+}
+.dialog.wide {
+  width: min(900px, 94vw);
+}
+.dialog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.dialog-head h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+}
+.dialog-body {
+  padding: 16px;
+  overflow: auto;
+}
+.settings {
+  display: grid;
+  gap: 14px;
+}
+.settings label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+.ok {
+  color: var(--ok);
+  align-self: center;
+}
+
+/* 差分 */
+.mono {
+  font-family: var(--mono);
+}
+.diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.diff-table th,
+.diff-table td {
+  border: 1px solid var(--line);
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.diff-table th {
+  background: var(--surface-2);
+}
+.diff-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.diff-list .badge {
+  justify-self: start;
+}
+.diff-list li {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 6px 10px;
+  display: grid;
+  gap: 2px;
+}
+.del {
+  color: var(--err);
+  background: var(--err-bg);
+  white-space: pre-wrap;
+}
+.ins {
+  color: var(--ok);
+  white-space: pre-wrap;
+}
+.badge.insert,
+.badge.add {
+  color: var(--ok);
+}
+.badge.delete,
+.badge.remove {
+  color: var(--err);
+}
+.badge.modify {
+  color: var(--warn);
+}
+
+/* 入力欄の追加部品 */
+.composer {
+  position: relative;
+}
+.composer.drag {
+  outline: 2px dashed var(--accent);
+  outline-offset: -6px;
+}
+.composer-actions .spacer {
+  flex: 1;
+}
+.suggest {
+  position: absolute;
+  bottom: 100%;
+  left: 12px;
+  right: 12px;
+  margin: 0 0 4px;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgb(0 0 0 / 0.15);
+}
+.suggest button {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: none;
+}
+.suggest button.active {
+  background: var(--surface-2);
+}
+.chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  font-size: 12px;
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 2px 6px 2px 10px;
+  display: flex;
+  gap: 4px;
+  align-items: center;
 }

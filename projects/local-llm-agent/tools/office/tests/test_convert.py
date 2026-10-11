@@ -8,8 +8,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from conftest import REAL_SOFFICE, Runner, needs_libreoffice
 from office_fixtures import make_docx, make_xlsx
+from office_testkit import REAL_SOFFICE, Runner, needs_libreoffice
 from openpyxl import load_workbook
 
 from office_tools import libreoffice

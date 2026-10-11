@@ -25,6 +25,8 @@ export interface GatewayConfig {
   invoice_schemas: string[];
   limits: { max_concurrent: number; max_tool_result_tokens: number };
   features: { rag: boolean; ocr: boolean; web: boolean };
+  /** 定型作業（APP-09）。会社プロファイルから配る */
+  macros?: { name: string; description: string; prompt: string }[];
 }
 
 export interface ChatMessage {
@@ -116,6 +118,8 @@ export class GatewayClient {
       /* 本文が JSON でない */
     }
     const err = body.error ?? {};
+    // サーバーが retryable: false を明示したもの（機能が無効・上限超過など）は、5xx でも再試行しない
+    if (err.retryable === false) throw new GatewayError(res.status, err.code ?? `HTTP_${res.status}`, err.message ?? `HTTP ${res.status}`);
     if (res.status >= 500 || res.status === 429 || err.retryable) {
       throw new TransientError(res.status === 429 ? "SERVER_BUSY" : "SERVER_BUSY", err.message ?? `HTTP ${res.status}`, err.retry_after_ms);
     }

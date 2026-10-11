@@ -4,7 +4,7 @@ import tseslint from "typescript-eslint";
 const nodeGlobals = { console: "readonly", process: "readonly", URL: "readonly", structuredClone: "readonly" };
 
 export default tseslint.config(
-  { ignores: ["**/dist/**", "**/generated/**", "**/node_modules/**", "**/.venv/**", "playwright-report/**", "test-results/**"] },
+  { ignores: ["**/dist/**", "**/release/**", "**/build-pyinstaller/**", "**/generated/**", "**/node_modules/**", "**/.venv/**", "playwright-report/**", "test-results/**"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

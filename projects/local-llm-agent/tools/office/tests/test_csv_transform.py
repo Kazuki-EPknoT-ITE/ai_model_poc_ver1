@@ -7,8 +7,8 @@ from decimal import Decimal
 from pathlib import Path
 
 import pytest
-from conftest import Runner
 from office_fixtures import make_xlsx
+from office_testkit import Runner
 from openpyxl import load_workbook
 
 from office_tools.errors import ToolFailure

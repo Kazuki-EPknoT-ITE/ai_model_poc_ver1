@@ -80,9 +80,15 @@ async function restoreSession(): Promise<boolean> {
 }
 
 // ------------------------------------------------------------------ Runtime ホスト
+// 配布版は resources に Node 本体・Runtime・office-tools を同梱する（ADR-001 改訂、T-46）
+const RES = process.resourcesPath;
+
 function officeCommand(): { command: string; args: string[]; cwd?: string } | null {
   const raw = process.env.LLA_OFFICE_COMMAND;
-  if (!raw) return null;
+  if (!raw) {
+    const bundled = join(RES, "office-tools", "office-tools.exe");
+    return app.isPackaged && existsSync(bundled) ? { command: bundled, args: [] } : null;
+  }
   try {
     return JSON.parse(raw) as { command: string; args: string[]; cwd?: string };
   } catch {
@@ -93,8 +99,8 @@ function officeCommand(): { command: string; args: string[]; cwd?: string } | nu
 async function startHost(): Promise<void> {
   if (!session || host) return;
   host = new RuntimeHost({
-    script: join(DIST, "runtime-host", "host.mjs"),
-    nodePath: process.env.LLA_NODE_PATH ?? "node",
+    script: app.isPackaged ? join(RES, "runtime", "host.mjs") : join(DIST, "runtime-host", "host.mjs"),
+    nodePath: process.env.LLA_NODE_PATH ?? (app.isPackaged ? join(RES, "node", "node.exe") : "node"),
     init: () => ({
       type: "init",
       gatewayUrl: settings.serverUrl,

@@ -1,0 +1,41 @@
+[project]
+name = "llm-ocr"
+version = "0.1.0"
+description = "画像読取サービス（OCR / 画像入力の VLM）。local_llm_api.md §5、ADR-006"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn>=0.32",
+  "python-multipart>=0.0.12",
+  "httpx>=0.27",
+  "pillow>=10.4",
+]
+
+[project.optional-dependencies]
+# GPU のサーバーで入れる（開発 PC では不要）
+paddle = ["paddleocr>=2.8"]
+
+[project.scripts]
+llm-ocr = "llm_ocr.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.3", "ruff>=0.7", "mypy>=1.13"]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/llm_ocr"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = ["S101", "E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true

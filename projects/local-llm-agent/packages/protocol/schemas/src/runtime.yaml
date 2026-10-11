@@ -55,7 +55,8 @@ $defs:
       type:
         type: string
         enum: [run.start, run.pause, run.resume, run.stop, approval.decide, question.answer, undo.run, events.since,
-               settings.update, conversation.list, conversation.get, conversation.search, conversation.delete]
+               settings.update, settings.get, config.get, artifact.diff, conversation.list, conversation.get, conversation.search,
+               conversation.delete]
       payload: { type: object }
     allOf:
       - if: { properties: { type: { const: run.start } } }
@@ -72,6 +73,8 @@ $defs:
         then: { properties: { payload: { $ref: "#/$defs/EventsSincePayload" } } }
       - if: { properties: { type: { const: settings.update } } }
         then: { properties: { payload: { $ref: "#/$defs/SettingsPayload" } } }
+      - if: { properties: { type: { const: artifact.diff } } }
+        then: { properties: { payload: { $ref: "#/$defs/ArtifactDiffPayload" } } }
   RunStartPayload:
     type: object
     additionalProperties: false
@@ -82,6 +85,32 @@ $defs:
       attachments: { type: array, items: { type: string } }
       workspace: { type: string }
       model: { $ref: "#/$defs/ModelPref" }
+  ArtifactDiffPayload:
+    type: object
+    additionalProperties: false
+    required: [run_id, path]
+    properties:
+      run_id: { type: string }
+      path: { type: string, maxLength: 1024 }
+  ArtifactDiff:
+    description: 差分プレビュー（AGT-03, UI 仕様の差分画面）。kind ごとに changes の形が違う
+    type: object
+    required: [kind, path, op, changes, truncated]
+    properties:
+      kind: { type: string, enum: [docx, xlsx, text, binary] }
+      path: { type: string }
+      op: { type: string, enum: [create, overwrite, delete, move, copy] }
+      changes:
+        type: array
+        items:
+          type: object
+          properties:
+            kind: { type: string, enum: [insert, delete, modify, add, remove, equal] }
+            location: { type: string, description: "docx: ブロックID / xlsx: Sheet!A1 / text: 行番号" }
+            before: { type: [string, "null"] }
+            after: { type: [string, "null"] }
+      truncated: { type: boolean }
+      note: { type: string }
   RunRefPayload:
     type: object
     additionalProperties: false

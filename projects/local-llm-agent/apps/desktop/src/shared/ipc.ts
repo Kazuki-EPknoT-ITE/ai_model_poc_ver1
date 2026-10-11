@@ -40,6 +40,8 @@ export interface AppApi {
     onStatus(cb: (s: { state: "starting" | "ready" | "restarting" | "stopped"; warnings?: string[] }) => void): () => void;
   };
   dialog: { pickFolder(): Promise<string | null> };
+  /** ドロップ・選択したファイルの実際のパス（sandbox の Renderer からは取れないため preload で取る） */
+  files: { pathOf(file: File): string };
   shell: { openPath(path: string): Promise<void> };
   workspace: { list(dir: string): Promise<{ name: string; path: string; dir: boolean }[]> };
   settings: {

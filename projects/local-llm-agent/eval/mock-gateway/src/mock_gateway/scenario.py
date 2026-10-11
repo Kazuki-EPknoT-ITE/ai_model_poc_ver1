@@ -107,7 +107,12 @@ class Scenario(_Strict):
     name: str
     protocol_version: str = lla_protocol.PROTOCOL_VERSION
     config: dict[str, Any] = Field(default_factory=dict)
-    users: list[User] = Field(default_factory=lambda: [User(login="dev", password="dev")])  # noqa: S106
+    users: list[User] = Field(
+        default_factory=lambda: [
+            User(login="dev", password="dev"),  # noqa: S106
+            User(login="admin", password="admin", display_name="管理者", role="admin"),  # noqa: S106
+        ]
+    )
     steps: list[Step] = Field(default_factory=list)
     faults: list[Fault] = Field(default_factory=list)
     fixtures: dict[str, Any] = Field(default_factory=dict)  # rag / web_search / web_fetch / ocr の応答
