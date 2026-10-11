@@ -84,6 +84,21 @@ export function resolvePaths(tool: ToolCatalogEntry, args: unknown, workspace: s
   return out;
 }
 
+/**
+ * 判定の後、実行の直前にもう一度実体パスを解決し、判定に使ったものと同じか確かめる（PX-08 TOCTOU）。
+ * 変わっていたらそのパス（引数の表記）を返す。同じなら null。
+ */
+export function verifyUnchanged(paths: ResolvedPath[], workspace: string): string | null {
+  for (const p of paths) {
+    try {
+      if (pathKey(resolveRealPath(p.path, workspace)) !== pathKey(p.real_path)) return p.path;
+    } catch {
+      return p.path;
+    }
+  }
+  return null;
+}
+
 export function decide(tool: ToolCatalogEntry, args: unknown, ctx: PolicyContext): Decision {
   if (tool.effect === "net") {
     const need = NET_NEEDED[tool.name] ?? "browse";

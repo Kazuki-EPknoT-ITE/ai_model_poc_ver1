@@ -9,7 +9,7 @@
 import { copyFile, mkdir, rename, rm, stat, unlink } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import type { Artifact, ToolCatalogEntry, ToolResult } from "@lla/protocol";
-import type { ResolvedPath } from "../policy/policy.js";
+import { verifyUnchanged, type ResolvedPath } from "../policy/policy.js";
 import type { IntentRow, RunStore } from "../store/store.js";
 import { fileHash, pointerSet, sha256, sleep, stableStringify, ulid } from "../util.js";
 import { errResult, okResult, type ToolContext } from "../tools/types.js";
@@ -116,6 +116,15 @@ export class WriteCoordinator {
     if (!result.ok) {
       await this.abandon(staged.map((s) => s.intent));
       return result;
+    }
+    // ツールが書いている間に、出力先のフォルダが差し替えられていないか（PX-08）。変わっていたら置き換えない
+    const changed = verifyUnchanged(
+      staged.map((s) => s.target),
+      ctx.workspace,
+    );
+    if (changed) {
+      await this.abandon(staged.map((s) => s.intent));
+      return errResult("FORBIDDEN_PATH", `書き込みの間に ${changed} の実体が変わったため、保存しませんでした`);
     }
 
     // staging の内容を記録してから置き換える

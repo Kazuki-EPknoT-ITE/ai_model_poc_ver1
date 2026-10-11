@@ -30,13 +30,13 @@ export function resolveRealPath(input: string, workspace: string): string {
   if (raw.length === 0) throw new PathError("パスが空です", "INVALID_ARGS");
   if (/^\\\\[?.]\\/.test(raw)) throw new PathError("デバイスパスは使えません", "FORBIDDEN_PATH");
   if (/[\0]/.test(raw)) throw new PathError("パスに使えない文字が含まれます", "INVALID_ARGS");
-  const abs = isAbsolute(raw) ? raw : join(workspace, raw);
+  const abs = isAbsolute(raw) ? stripTrailing(raw) : join(workspace, stripTrailing(raw));
   const normalized = IS_WIN ? win32.normalize(abs) : resolve(abs);
   // NTFS の代替データストリーム（file.txt:stream）を拒否する。ドライブ文字の ":" は除く。
   const withoutDrive = IS_WIN ? normalized.replace(/^[A-Za-z]:/, "") : normalized;
   if (withoutDrive.includes(":")) throw new PathError("代替データストリームは使えません", "FORBIDDEN_PATH");
   for (const seg of normalized.split(/[\\/]/)) {
-    if (RESERVED.test(seg)) throw new PathError(`予約されたデバイス名です: ${seg}`, "FORBIDDEN_PATH");
+    if (RESERVED.test(seg)) throw new PathError(`予約されたデバイス名です: ${seg}`, "INVALID_ARGS");
   }
   let existing = normalized;
   const rest: string[] = [];
@@ -51,6 +51,23 @@ export function resolveRealPath(input: string, workspace: string): string {
       existing = parent;
     }
   }
+}
+
+/**
+ * Windows は各部分の末尾のドット・空白を取り除いて扱う（`D:\ws.\x` は `D:\ws\x`）。判定の前に同じ正規化をする（PX-07）。
+ * ドットと空白だけの名前（`...` など）は使えない。
+ */
+function stripTrailing(p: string): string {
+  if (!IS_WIN) return p;
+  return p
+    .split("\\")
+    .map((seg, i) => {
+      if (seg === "" || seg === "." || seg === ".." || (i === 0 && /^[A-Za-z]:$/.test(seg))) return seg;
+      const s = seg.replace(/[. ]+$/, "");
+      if (s === "") throw new PathError(`ドットと空白だけの名前は使えません: ${seg}`, "INVALID_ARGS");
+      return s;
+    })
+    .join("\\");
 }
 
 export function isInside(real: string, root: string): boolean {

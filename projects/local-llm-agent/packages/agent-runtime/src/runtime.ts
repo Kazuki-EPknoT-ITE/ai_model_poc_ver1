@@ -15,7 +15,7 @@ import {
   type GatewayClient,
   type GatewayConfig,
 } from "./gateway/client.js";
-import { decide, rememberRuleFor, type ApprovalReason, type NetLevel, type PolicyContext, type ResolvedPath } from "./policy/policy.js";
+import { decide, rememberRuleFor, verifyUnchanged, type ApprovalReason, type NetLevel, type PolicyContext, type ResolvedPath } from "./policy/policy.js";
 import { buildMessages, compactionCandidates, mechanicalSummary, messagesTokens, renderToolResult } from "./prompt/builder.js";
 import { compactPrompt, replanBlock } from "./prompt/templates.js";
 import type { MessageRow, RunRow, RunStore, StepRow } from "./store/store.js";
@@ -656,6 +656,9 @@ export class AgentRuntime {
 
   /** ツールの実行（書き込みの調整・一時的な失敗の再試行込み）。 */
   private async execute(spec: ToolCatalogEntry, args: Record<string, unknown>, paths: ResolvedPath[], ctx: ToolContext, run: RunRow): Promise<ToolResult> {
+    // 判定（や承認待ち）の間にフォルダがジャンクションなどに差し替えられていないか（PX-08）
+    const changed = verifyUnchanged(paths, ctx.workspace);
+    if (changed) return errResult("FORBIDDEN_PATH", `判定の後に ${changed} の実体が変わったため、実行しませんでした。もう一度確認してください`);
     if (spec.name === "batch.run") {
       const runner = new BatchRunner(this.store, (name, a) => this.executeInternal(name, a, ctx, run), {
         onProgress: (batchId, done, total, failed) => this.emit(run.conversation_id, "batch_progress", { batch_id: batchId, done, total, failed }),
