@@ -8,9 +8,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 
 from fastapi import FastAPI, Request, Response
@@ -24,6 +26,7 @@ from .fetcher import Dialer, Fetcher
 from .models import FetchRequest, FetchResponse, SearchRequest, SearchResponse
 from .netguard import Resolver, SystemResolver, UrlGuard
 from .policy import PolicyStore
+from .policy_sync import PolicySync
 from .search import SearchProvider, build_provider
 from .service import Clock, RelayService, _utcnow
 from .usage import MemoryUsageStore, SqliteUsageStore, UsageStore
@@ -57,6 +60,7 @@ class Components:
     audit: AuditSink
     usage: UsageStore
     provider: SearchProvider
+    sync: PolicySync | None = None
 
 
 def build_components(
@@ -102,8 +106,33 @@ def create_app(settings: Settings, secret: str, components: Components | None = 
         raise ValueError("shared secret must be at least 16 characters")
     quiet_third_party_loggers()
     comps = components or build_components(settings)
+    if comps.sync is None and settings.policy_sync.gateway_url:
+        comps.sync = PolicySync(settings.policy, settings.policy_sync, comps.policy, secret)
+    sync = comps.sync
     secret_b = secret.encode("utf-8")
-    app = FastAPI(title="web-relay", version=__version__, docs_url=None, redoc_url=None, openapi_url=None)
+
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        if sync is None:
+            yield
+            return
+        stop = asyncio.Event()
+        task = asyncio.create_task(sync.run(stop))
+        try:
+            yield
+        finally:
+            stop.set()
+            await task
+            await sync.aclose()
+
+    app = FastAPI(
+        title="web-relay",
+        version=__version__,
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=lifespan,
+    )
     app.state.components = comps
 
     @app.middleware("http")
@@ -135,12 +164,18 @@ def create_app(settings: Settings, secret: str, components: Components | None = 
     async def healthz() -> dict[str, str]:
         return {"status": "ok", "version": __version__}
 
+    def require_policy() -> None:
+        if sync is not None and not sync.ready():
+            raise errors.policy_unavailable()
+
     @app.post("/search", response_model=SearchResponse)
     async def search(body: SearchRequest) -> SearchResponse:
+        require_policy()
         return await comps.service.search(body)
 
     @app.post("/fetch", response_model=FetchResponse)
     async def fetch(body: FetchRequest) -> FetchResponse:
+        require_policy()
         return await comps.service.fetch(body)
 
     return app

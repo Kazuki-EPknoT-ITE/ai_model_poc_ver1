@@ -51,7 +51,7 @@ test("dashboard, users, DLP, network, instructions and audit", async ({ page }) 
 
   // 機密語辞書: 登録すると一覧では伏せ字になる
   await page.getByRole("tab", { name: "機密語辞書" }).click();
-  await page.getByLabel("機密語", { exact: true }).fill(["平井丸", "HIRAI MARU,vessel", "平井丸"].join("\n"));
+  await page.getByLabel("機密語", { exact: true }).fill(["平井丸", "HIRAI MARU,vessel,ひらいまる/hirai maru", "平井丸"].join("\n"));
   await page.getByRole("button", { name: "登録" }).click();
   await expect(page.getByRole("status")).toContainText("2 件を登録しました（重複 1 件は飛ばしました）");
   await expect(page.getByTestId("dlp-term")).toHaveCount(2);
@@ -88,4 +88,45 @@ test("dashboard, users, DLP, network, instructions and audit", async ({ page }) 
   const csv = readFileSync((await dl.path())!, "utf8");
   expect(csv.replace(/^\uFEFF/, "").startsWith("at,user,source,action,target,result")).toBe(true);
   await page.screenshot({ path: join(ARTIFACTS, "admin-audit.png") });
+});
+
+test("model registry: evaluation gate, promote and rollback", async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.getByRole("tab", { name: "モデル" }).click();
+  const tag = Date.now().toString(36); // 本物の Gateway で作業フォルダを使い回しても衝突しないように
+  const [v1, v2] = [`lora-a-${tag}`, `lora-b-${tag}`];
+  const reg = page.getByRole("form", { name: "モデルを登録" });
+  for (const id of [v1, v2]) {
+    await reg.getByLabel("モデルID").fill(id);
+    await reg.getByLabel("基本モデル").fill("gemma-3-12b");
+    await reg.getByRole("button", { name: "登録" }).click();
+    await expect(page.getByRole("status")).toHaveText(`${id} を登録しました`);
+  }
+  const ev = page.getByRole("form", { name: "評価結果を記録" });
+  const record = async (id: string, value: string) => {
+    await ev.getByLabel("評価するモデル").selectOption(id);
+    await ev.getByLabel("評価セット").fill("office");
+    await ev.getByLabel("指標").fill("pass_rate");
+    await ev.getByLabel("値").fill(value);
+    await ev.getByRole("button", { name: "記録" }).click();
+    await expect(page.getByRole("status")).toHaveText("評価結果を記録しました");
+  };
+  // 評価結果がなければ本番にできない
+  await page.getByTestId(`model-${v1}`).getByRole("button", { name: "本番にする" }).click();
+  await expect(page.getByRole("alert")).toHaveText("評価結果のないモデルは本番化できません");
+  await record(v1, "0.8");
+  await page.getByTestId(`model-${v1}`).getByRole("button", { name: "本番にする" }).click();
+  await expect(page.getByTestId(`model-${v1}`)).toContainText("本番");
+  // 本番を下回る候補は弾かれ、下回った指標が表示される
+  await record(v2, "0.7");
+  await page.getByTestId(`model-${v2}`).getByRole("button", { name: "本番にする" }).click();
+  await expect(page.getByRole("alert")).toContainText("本番版を下回る");
+  await expect(page.getByRole("list", { name: "下回った指標" })).toContainText("office / pass_rate: 本番 0.8、候補 0.7");
+  await expect(page.getByTestId(`model-${v2}`)).toContainText("候補");
+  await page.screenshot({ path: join(ARTIFACTS, "admin-models.png") });
+  // 切り戻し
+  page.once("dialog", (d) => void d.accept());
+  await page.getByTestId(`model-${v1}`).getByRole("button", { name: "切り戻す" }).click();
+  await expect(page.getByRole("status")).toHaveText(`${v1} を切り戻しました`);
+  await expect(page.getByTestId(`model-${v1}`)).toContainText("退役");
 });

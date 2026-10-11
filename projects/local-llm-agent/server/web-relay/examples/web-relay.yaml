@@ -1,0 +1,19 @@
+# Web Relay の設定例（本番: /srv/llm/profiles/web-relay.yaml）
+# 共有シークレットは環境変数 WEB_RELAY_SECRET（Gateway の LLMGW_WEB_RELAY_SECRET と同じ値）で渡す。
+server: { host: 0.0.0.0, port: 8600 }
+search:
+  provider: searxng
+  base_url: http://searxng:8080
+  default_monthly_limit: 300
+audit: { kind: jsonl, path: /data/web-relay-audit.jsonl }
+usage: { kind: sqlite, path: /data/web-relay-usage.sqlite3 }
+policy:
+  # 社内ドメイン（サフィックス一致）。ここは設定ファイルで持つ
+  internal_domains: [local, localdomain, internal, intranet, lan, corp, home.arpa]
+  blocked_networks: []
+# 機密語（dlp_terms）とサイト（net_sites）は管理画面で編集し、Gateway から取り込む
+policy_sync:
+  gateway_url: https://gateway:8443
+  ca_file: /tls/ca.crt
+  interval_s: 60
+  max_stale_s: 3600

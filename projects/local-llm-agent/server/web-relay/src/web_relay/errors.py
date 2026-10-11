@@ -61,6 +61,13 @@ def quota_exceeded() -> RelayError:
     )
 
 
+def policy_unavailable() -> RelayError:
+    # Gateway からポリシーを取り込めていない（安全側に倒して断る）。時間をおけば直るので再試行可
+    return RelayError(
+        503, "UPSTREAM_UNAVAILABLE", "ネットのポリシーを読み込めていないため、今は使えません", retryable=True
+    )
+
+
 def upstream(code: str, message: str, *, retryable: bool = False) -> RelayError:
     """取得先・検索 API 側の問題（502）。code は UPSTREAM_* / CONTENT_TYPE_NOT_ALLOWED など。"""
     return RelayError(502, code, message, retryable=retryable)

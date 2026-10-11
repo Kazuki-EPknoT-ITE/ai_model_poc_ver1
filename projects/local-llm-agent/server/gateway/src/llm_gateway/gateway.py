@@ -89,6 +89,9 @@ class Gateway:
         async with self.db.tx() as s:
             await ensure_org(s, self.profile)
         await self.jobs.start(background=self.background)
+        from .registry import apply_production  # noqa: PLC0415 - 循環 import を避ける
+
+        await apply_production(self)
         log.info("gateway started models=%s", [m.id for m in self.settings.models])
 
     async def stop(self) -> None:

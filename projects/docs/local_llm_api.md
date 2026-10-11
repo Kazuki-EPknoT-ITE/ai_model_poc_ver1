@@ -260,7 +260,8 @@ User = { "id", "login", "display_name", "role": "user|admin", "department_id": n
 
 // GET /admin/v1/dlp/terms → { "terms": [{ "id", "masked": "平井**", "category": "client|vessel|project|other", "updated_at" }] }
 //   語そのものは返さない（一覧でも先頭2文字だけ見せる）
-// POST /admin/v1/dlp/terms { "terms": [{ "term", "category" }] } → { "added": 3, "skipped": 1 }（重複は skipped）
+// POST /admin/v1/dlp/terms { "terms": [{ "term", "category", "readings"?: ["ひらいまる", "hirai maru"] }] } → { "added": 3, "skipped": 1 }
+//   重複は skipped。readings（読み。10個まで）は Web Relay の表記ゆれの検出に使う。一覧には出さない
 // DELETE /admin/v1/dlp/terms/{id} → 204
 
 // GET /admin/v1/instructions → { "current": { "version", "body", "published_at" } | null, "history": [{ "version", "published_at" }] }
@@ -268,9 +269,40 @@ User = { "id", "login", "display_name", "role": "user|admin", "department_id": n
 
 // GET /admin/v1/audit?from=&to=&user=&action=&limit=500 → { "events": [{ "at", "user", "source", "action", "target", "result" }] }
 //   &format=csv で text/csv（UTF-8 BOM 付き）
+
+// ---- モデル台帳（要件 7.4。実装 server/gateway/src/llm_gateway/registry.py）----
+// GET /admin/v1/models → { "models": [Model], "slots": ["local-12b", ...] }（slots = 設定の models[].id）
+// POST /admin/v1/models { id, slot, base_model, quant, lora?, lora_path?, train_data_hash?, protocol_version? } → Model（201）
+//   slot が無い・lora と lora_path の片方だけ → 400。ID の重複 → 409 CONFLICT
+// POST /admin/v1/models/{id}/evals { "results": [{ "eval_set", "metric", "value" }] } → { "added" }（同じ指標は最新の値を使う）
+// POST /admin/v1/models/{id}/promote → Model
+//   同じ枠の本番版が持つ「すべての指標」で候補が同じ以上でなければ 409 EVAL_GATE_FAILED、
+//   error.detail = { "failures": [{ "eval_set", "metric", "production", "candidate": null|数値 }] }。
+//   本番版が無い枠では、評価結果が1件以上あること。推論エンジンへの反映（vLLM の LoRA 読み込み）が
+//   失敗したら 502 ENGINE_ERROR で、台帳は変えない。前の本番版は retired になる
+// POST /admin/v1/models/{id}/rollback → { "slot", "production": 直前の本番版の id | null（基本の設定に戻る） }
+//   本番版以外は 409 CONFLICT
+Model = { "id", "slot", "base_model", "quant", "lora": null, "status": "candidate|production|retired",
+          "train_data_hash", "protocol_version", "created_at", "promoted_at": null,
+          "evals": [{ "eval_set", "metric", "value" }] }
+// Gateway の起動時に、台帳の本番版をエンジンへ反映する（失敗しても起動は続け、基本の設定で動く）
 ```
 
 管理 API はすべて `role=admin` のトークンが必要（それ以外は 403 `FORBIDDEN`）。変更系の操作は監査ログに `source=admin` で残す。
+
+### 9.2 内部 API（Web Relay 専用）
+
+```jsonc
+// GET /internal/v1/net-policy   ヘッダー X-Relay-Secret（LLMGW_WEB_RELAY_SECRET と同じ値。無い・違えば 401）
+{ "sites": [{ "pattern": "*.example.com", "kind": "block|trusted" }],
+  "orgs": { "<org_id>": { "dlp_terms": [{ "term", "category", "readings": [] }] } },
+  "version": "16桁の16進（内容の sha256。変わらなければ同じ）" }
+```
+
+- 機密語そのものを返すので、Gateway の外（frontend ネットワーク）からは届かない配置にする（server_setup §5）。
+- Web Relay は `policy_sync.gateway_url` があれば `interval_s`（既定60秒）ごとに取りに来て、設定ファイルの
+  `policy` に**足して**読み込む。**最初の取り込みに成功するまで、また最後の成功から `max_stale_s`（既定1時間）を
+  過ぎたら**、`/search`・`/fetch` を 503 `UPSTREAM_UNAVAILABLE`（retryable）で断る（安全側）。
 
 ---
 

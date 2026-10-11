@@ -1,0 +1,26 @@
+# ツール操作（9.1）の記録形式のサンプル。合成の作業フォルダ3つで、Runtime をヘッドレスで動かす。
+# --gateway 省略時は item ごとのモック（mock/<id>.yaml）が決め打ちの手順を返す（ハーネスの動作確認用）。
+# 実モデルで回すときは --gateway に検証機の Gateway を指定する（モックは使われない）。
+name: tool_tasks_sample
+version: 1
+description: 請求書→Excel（代表シナリオA の縮小版）、メモ→CSV、Word の新規作成
+requirement_ids: [AGT-01, XLS-01, DOC-01, "9.1 ツール操作", "9.2-1"]
+data_root: synthetic
+generator:
+  kind: tool_tasks
+  tasks:
+    - { id: T01, kind: invoices, count: 3 }
+    - { id: T02, kind: memo }
+    - { id: T03, kind: empty }
+data_hash: "sha256:9576d7a076497002ea9b851636da2e16934075cca75ffecae5f54b9d4baddf32"
+split: eval
+train_hash_index: ../_train/train_hashes.sample.txt
+runner: agent
+scorer: artifact_checks
+model_targets: [fast]
+metrics:
+  - { name: task_success_rate, target: ">= 0.8" }
+timeout_per_item_s: 600
+repeat: 1
+seed: 42
+temperature: 0

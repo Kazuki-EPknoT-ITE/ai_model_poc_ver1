@@ -64,7 +64,13 @@ class Job:
 
 class GatewayError(Exception):
     def __init__(
-        self, status: int, code: str, message: str, retryable: bool = False, retry_after_ms: int | None = None
+        self,
+        status: int,
+        code: str,
+        message: str,
+        retryable: bool = False,
+        retry_after_ms: int | None = None,
+        detail: dict[str, Any] | None = None,
     ):
         super().__init__(message)
         self.status = status
@@ -72,11 +78,14 @@ class GatewayError(Exception):
         self.message = message
         self.retryable = retryable
         self.retry_after_ms = retry_after_ms
+        self.detail = detail
 
     def body(self) -> dict[str, Any]:
         err: dict[str, Any] = {"code": self.code, "message": self.message, "retryable": self.retryable}
         if self.retry_after_ms is not None:
             err["retry_after_ms"] = self.retry_after_ms
+        if self.detail is not None:
+            err["detail"] = self.detail
         return {"error": err}
 
 

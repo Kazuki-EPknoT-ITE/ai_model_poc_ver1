@@ -21,7 +21,13 @@ GATEWAY = HERE.parent
 PROJECT = GATEWAY.parents[1]
 USERS = (("dev", "user", "dev-password-1"), ("admin", "admin", "admin-password-1"))
 FAKE_OUTPUT = json.dumps(
-    {"type": "final", "summary": "（本物の Gateway）完了しました。", "outputs": [], "failures": [], "needs_review": []},
+    {
+        "type": "final",
+        "summary": "（本物の Gateway）完了しました。",
+        "outputs": [],
+        "failures": [],
+        "needs_review": [],
+    },
     ensure_ascii=False,
 )
 
@@ -59,16 +65,23 @@ def main() -> None:
         "upstreams": {},
     }
     cfg = work / "gateway.yaml"
-    cfg.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")  # JSON は YAML として読める
+    cfg.write_text(
+        json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8"
+    )  # JSON は YAML として読める
     marker = work / "users.created"
     if not marker.exists():
         for login, role, pw in USERS:
-            run(["create-user", "--config", str(cfg), "--login", login, "--role", role], {**env, "LLMGW_NEW_PASSWORD": pw})
+            run(
+                ["create-user", "--config", str(cfg), "--login", login, "--role", role],
+                {**env, "LLMGW_NEW_PASSWORD": pw},
+            )
         marker.write_text("ok", encoding="utf-8")
     print(f"gateway dev server: http://127.0.0.1:{a.port} (dir={work})", flush=True)
-    os.execve(sys.executable, [sys.executable, "-m", "llm_gateway.cli", "serve", "--config", str(cfg)], env) if os.name != "nt" else run(
-        ["serve", "--config", str(cfg)], env
-    )
+    if os.name == "nt":
+        run(["serve", "--config", str(cfg)], env)
+    else:
+        argv = [sys.executable, "-m", "llm_gateway.cli", "serve", "--config", str(cfg)]
+        os.execve(sys.executable, argv, env)  # noqa: S606
 
 
 if __name__ == "__main__":

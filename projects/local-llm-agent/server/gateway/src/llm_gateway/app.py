@@ -19,13 +19,14 @@ from sqlalchemy import func, select
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import __version__
-from .admin_api import register_admin
+from .admin_api import register_admin, register_internal
 from .audit import AuditBatch
 from .auth import Principal
 from .db import Instruction, Job, User
 from .gateway import Gateway
 from .jobs import StepRequest
 from .netpolicy import admin_cap, decide
+from .registry import register_registry
 from .relay import forward, require_upstream
 from .users import UserCreate, UserPatch, user_view
 from .util import NET_LEVELS, ApiError, new_ulid
@@ -539,6 +540,8 @@ def create_app(gw: Gateway) -> FastAPI:
         }
 
     register_admin(app, gw, Depends(admin_user))
+    register_registry(app, gw, Depends(admin_user))
+    register_internal(app, gw)
 
     if gw.settings.admin_web_dir:
         admin_dir = gw.settings.resolve(gw.settings.admin_web_dir)

@@ -1,0 +1,3 @@
+{"id": "D01", "source": "sources/report.docx", "ops": [{"tool": "docx.edit", "args": {"ops": [{"op": "replace_in_block", "block_id": "p:2", "find": "MV EXAMPLE STAR", "replace": "MV SAMPLE MOON"}]}}], "changed_blocks": 1}
+{"id": "D02", "source": "sources/budget.xlsx", "ops": [{"tool": "xlsx.write_cells", "args": {"sheet": "予算", "cells": [{"ref": "予算!B2", "value": 1100000}]}}], "changed_cells": ["予算!B2"]}
+{"id": "D03", "source": null, "output": "新規.docx", "ops": [{"tool": "docx.create", "args": {"blocks": [{"kind": "heading", "level": 1, "text": "合成の報告書"}, {"kind": "paragraph", "text": "本文です。"}, {"kind": "table", "header": ["項目", "金額"], "rows": [["入渠費", "1,000,000"]]}]}}]}

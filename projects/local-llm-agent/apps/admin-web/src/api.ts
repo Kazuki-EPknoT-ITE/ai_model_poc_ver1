@@ -7,6 +7,7 @@ export class ApiError extends Error {
     readonly status: number,
     readonly code: string,
     message: string,
+    readonly detail?: Record<string, unknown>,
   ) {
     super(message);
   }
@@ -14,8 +15,8 @@ export class ApiError extends Error {
 
 async function parse<T>(r: Response): Promise<T> {
   if (r.status === 204) return undefined as T;
-  const body = (await r.json().catch(() => ({}))) as { error?: { code?: string; message?: string } };
-  if (!r.ok) throw new ApiError(r.status, body.error?.code ?? `HTTP_${r.status}`, body.error?.message ?? `エラー（HTTP ${r.status}）`);
+  const body = (await r.json().catch(() => ({}))) as { error?: { code?: string; message?: string; detail?: Record<string, unknown> } };
+  if (!r.ok) throw new ApiError(r.status, body.error?.code ?? `HTTP_${r.status}`, body.error?.message ?? `エラー（HTTP ${r.status}）`, body.error?.detail);
   return body as T;
 }
 
@@ -75,6 +76,24 @@ export async function download(path: string, filename: string): Promise<void> {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export interface EvalRow {
+  eval_set: string;
+  metric: string;
+  value: number;
+}
+
+export interface ModelRow {
+  id: string;
+  slot: string;
+  base_model: string;
+  quant: string;
+  lora: string | null;
+  status: "candidate" | "production" | "retired";
+  created_at: string;
+  promoted_at: string | null;
+  evals: EvalRow[];
 }
 
 export type NetLevel = "off" | "search" | "browse";

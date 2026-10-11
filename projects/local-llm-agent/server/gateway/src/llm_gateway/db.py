@@ -234,6 +234,9 @@ class DlpTerm(Base):
     org_id: Mapped[str] = mapped_column(Text, ForeignKey("orgs.id"))
     term: Mapped[str] = mapped_column(Text)
     category: Mapped[str] = mapped_column(Text)
+    readings: Mapped[list[str]] = mapped_column(
+        JsonType, default=list, server_default="[]"
+    )  # 読み（表記ゆれの検出）
     updated_by: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, server_default=func.now())
 

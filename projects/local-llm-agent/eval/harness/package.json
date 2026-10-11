@@ -1,0 +1,19 @@
+{
+  "name": "@lla/eval-harness",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "eval": "vite-node src/run.ts --",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@lla/agent-runtime": "workspace:*",
+    "@lla/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "vite-node": "3.2.4"
+  }
+}

@@ -1,0 +1,23 @@
+# 文書品質（9.1）の記録形式のサンプル。合成の Word / Excel を office-tools で編集し、
+# 壊れていないか（openpyxl / python-docx で開けるか、zip が正しいか）と、
+# 編集していない要素が変わっていないか（書式崩れ）を数える。
+# LibreOffice での読み込み・OOXML スキーマ検証は、LibreOffice のある環境で追加する（test_spec §3.2）。
+name: doc_quality_sample
+version: 1
+description: docx の置換、xlsx のセル書き込み、docx の新規作成
+requirement_ids: [DOC-02, XLS-02, "9.1 文書品質"]
+data_root: synthetic
+generator: { kind: doc_sources }
+data_hash: "sha256:7ffece2b65f0b972c312f061e2eac4b80831d3a94447dfc4ff308c2c21f4be18"
+split: eval
+train_hash_index: ../_train/train_hashes.sample.txt
+runner: tool
+scorer: doc_quality
+model_targets: [fast]
+metrics:
+  - { name: corrupted_files, target: "== 0" }
+  - { name: format_breaks, target: "== 0" }
+timeout_per_item_s: 120
+repeat: 1
+seed: 42
+temperature: 0

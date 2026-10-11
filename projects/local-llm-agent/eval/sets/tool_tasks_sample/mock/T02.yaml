@@ -1,0 +1,15 @@
+# T02: メモ.txt を読む → csv.write → final
+name: eval-tool-tasks-T02
+protocol_version: "1.0"
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action: { type: plan_update, plan: [{ id: t1, title: メモを読む, status: doing }, { id: t2, title: CSVを作る, status: todo }] }
+  - match: { step_index: 1 }
+    action: { type: tool_call, tool: fs.read_text, args: { path: "メモ.txt" } }
+  - match: { step_index: 2 }
+    action: { type: tool_call, tool: csv.write, args: { path: "品目.csv", header: ["品名", "数量"], rows: [["ロープ", 4], ["ペンキ", 12]] } }
+  - match: { step_index: 3 }
+    action: { type: final, summary: "品目.csv を作りました。", outputs: [{ path: "品目.csv", description: "品目" }], failures: [], needs_review: [] }
+fallback:
+  action: { type: final, summary: "（モック）シナリオ外の呼び出しです", outputs: [], failures: [], needs_review: [] }

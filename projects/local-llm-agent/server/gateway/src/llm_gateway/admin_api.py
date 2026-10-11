@@ -6,11 +6,14 @@
 # from __future__ import annotations は使わない（関数内で作る AdminDep を FastAPI が解決できなくなるため）
 
 import csv
+import hashlib
+import hmac
 import io
+import json
 from datetime import datetime
 from typing import Annotated, Any
 
-from fastapi import FastAPI, Query, Response
+from fastapi import FastAPI, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import delete, func, select
@@ -57,6 +60,7 @@ class SitesIn(_Strict):
 class TermIn(_Strict):
     term: str = Field(min_length=1, max_length=200)
     category: str = "other"
+    readings: list[str] = Field(default_factory=list, max_length=10)
 
 
 class TermsIn(_Strict):
@@ -73,6 +77,33 @@ def mask(term: str) -> str:
 
 def _iso(d: datetime | None) -> str | None:
     return d.isoformat() if d else None
+
+
+def register_internal(app: FastAPI, gw: Gateway) -> None:
+    """Web Relay だけが呼ぶ内部 API。管理画面で変えた機密語・サイトを Relay が定期的に取りに来る。
+    認証は Relay と共有する内部トークン（X-Relay-Secret）。語そのものを返すので、外には公開しない。"""
+
+    @app.get("/internal/v1/net-policy")
+    async def net_policy(request: Request) -> dict[str, Any]:
+        expected = gw.settings.upstreams.secret("web_relay", gw.settings.base_dir)
+        given = request.headers.get("x-relay-secret", "")
+        if not expected or not hmac.compare_digest(given.encode(), expected.encode()):
+            raise ApiError(401, "UNAUTHENTICATED", "内部トークンが違います")
+        async with gw.db.tx() as s:
+            terms = (await s.execute(select(DlpTerm).order_by(DlpTerm.id))).scalars().all()
+            sites = (await s.execute(select(NetSite).order_by(NetSite.pattern))).scalars().all()
+        orgs: dict[str, dict[str, Any]] = {}
+        for t in terms:
+            orgs.setdefault(t.org_id, {"dlp_terms": []})["dlp_terms"].append(
+                {"term": t.term, "category": t.category, "readings": list(t.readings or [])}
+            )
+        body: dict[str, Any] = {
+            "sites": [{"pattern": x.pattern, "kind": x.kind} for x in sites],
+            "orgs": orgs,
+        }
+        raw = json.dumps(body, sort_keys=True, ensure_ascii=False).encode()
+        body["version"] = hashlib.sha256(raw).hexdigest()[:16]
+        return body
 
 
 def register_admin(app: FastAPI, gw: Gateway, admin_dep: Any) -> None:
@@ -206,7 +237,12 @@ def register_admin(app: FastAPI, gw: Gateway, admin_dep: Any) -> None:
                 cat = t.category if t.category in CATEGORIES else "other"
                 s.add(
                     DlpTerm(
-                        org_id=org, term=term, category=cat, updated_by=p.user_id, updated_at=gw.clock.now()
+                        org_id=org,
+                        term=term,
+                        category=cat,
+                        readings=[r.strip() for r in t.readings if r.strip()],
+                        updated_by=p.user_id,
+                        updated_at=gw.clock.now(),
                     )
                 )
                 existing.add(term)

@@ -1,0 +1,9 @@
+{
+ "sheet": "明細",
+ "rows": [
+  ["請求日", "請求元", "船名", "通貨", "金額"],
+  ["2026-09-01", "Example Shipping Co. 1", "MV EXAMPLE STAR", "USD", 1000],
+  ["2026-09-02", "Example Shipping Co. 2", "MV EXAMPLE STAR", "USD", 2000],
+  ["2026-09-03", "Example Shipping Co. 3", "MV EXAMPLE STAR", "USD", 3000]
+ ]
+}

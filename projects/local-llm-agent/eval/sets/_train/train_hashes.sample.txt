@@ -1,0 +1,6 @@
+# 学習データのハッシュ一覧（サンプル）。1行に1つ、ファイルの sha256。
+# 本番では学習データの作成時（design §8.3）に出力した一覧を NAS に置き、manifest の
+# train_hash_index に nas://… で指定する（または環境変数 LLA_EVAL_TRAIN_HASHES）。
+# 評価セットのファイルと一致するものがあれば、評価は実行されない（test_spec §3.1）。
+sha256:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08
+sha256:60303ae22b998861bce3b28f33eec1be758a213c86c93c076dbe9f558c11c752

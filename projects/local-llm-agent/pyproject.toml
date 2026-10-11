@@ -49,4 +49,7 @@ testpaths = [
   "server/web-relay/tests",
   "server/ocr/tests",
   "server/rag/tests",
+  "eval/harness/tests",
 ]
+# 評価ハーネスの Python 側（lla_eval）はパッケージにせず、PYTHONPATH で読む（eval/harness/src/env.ts と同じ）
+pythonpath = ["eval/harness"]

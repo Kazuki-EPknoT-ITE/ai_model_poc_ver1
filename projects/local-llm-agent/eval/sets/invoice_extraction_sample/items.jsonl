@@ -1,0 +1,3 @@
+{"id": "INV-001", "file": "INV-001.pdf", "schema": "invoice.v1", "expected": "expected/INV-001.json"}
+{"id": "INV-002", "file": "INV-002.pdf", "schema": "invoice.v1", "expected": "expected/INV-002.json"}
+{"id": "INV-003", "file": "INV-003.pdf", "schema": "invoice.v1", "expected": "expected/INV-003.json"}

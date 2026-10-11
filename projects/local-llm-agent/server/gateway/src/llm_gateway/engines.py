@@ -61,6 +61,10 @@ class InferenceEngine(Protocol):
 
     async def health(self) -> bool: ...
 
+    async def activate_lora(self, name: str | None, path: str | None) -> None:
+        """モデル台帳の本番版を反映する（name が None なら基本の設定に戻す）。"""
+        ...
+
     async def aclose(self) -> None: ...
 
 
@@ -72,6 +76,7 @@ class VLLMEngine:
         if not s.base_url:
             raise ValueError("vllm エンジンには base_url が必要です")
         self.s = s
+        self.active_model: str | None = None  # モデル台帳で本番化した LoRA の名前
         headers = {}
         if s.api_key_env and (key := os.environ.get(s.api_key_env)):
             headers["Authorization"] = f"Bearer {key}"
@@ -84,7 +89,7 @@ class VLLMEngine:
 
     def build_body(self, req: EngineRequest) -> dict[str, Any]:
         body: dict[str, Any] = {
-            "model": self.s.served_model or req.model,
+            "model": self.active_model or self.s.served_model or req.model,
             "messages": req.messages,
             "max_tokens": req.max_tokens,
             "temperature": req.temperature,
@@ -109,6 +114,18 @@ class VLLMEngine:
             elif rf.get("type") == "json_object":
                 body["response_format"] = {"type": "json_object"}
         return body
+
+    async def activate_lora(self, name: str | None, path: str | None) -> None:
+        """vLLM（--enable-lora）に LoRA を読み込ませ、以後の推論をその名前で行う。"""
+        if name is None:
+            self.active_model = None
+            return
+        if path:
+            res = await self.client.post("/v1/load_lora_adapter", json={"lora_name": name, "lora_path": path})
+            # 400 は「読み込み済み」のことがあるので、本文に already が含まれていれば成功とみなす
+            if res.status_code >= 400 and not (res.status_code == 400 and "already" in res.text.lower()):
+                raise EngineRequestError(f"vLLM load_lora_adapter HTTP {res.status_code}")
+        self.active_model = name
 
     async def stream(self, req: EngineRequest) -> AsyncIterator[Chunk]:
         body = self.build_body(req)
@@ -188,6 +205,8 @@ class FakeEngine:
     calls: list[str] = field(default_factory=list)  # job_id
     finished: list[str] = field(default_factory=list)
     healthy: bool = True
+    active_lora: str | None = None
+    lora_activations: list[tuple[str | None, str | None]] = field(default_factory=list)
     active: int = 0
     max_active: int = 0
 
@@ -236,6 +255,10 @@ class FakeEngine:
 
     async def health(self) -> bool:
         return self.healthy
+
+    async def activate_lora(self, name: str | None, path: str | None) -> None:
+        self.active_lora = name
+        self.lora_activations.append((name, path))
 
     async def aclose(self) -> None:
         return None

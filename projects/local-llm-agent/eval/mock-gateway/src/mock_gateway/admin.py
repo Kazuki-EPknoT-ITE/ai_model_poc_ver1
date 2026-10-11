@@ -53,6 +53,8 @@ class AdminState:
         self.sites: list[dict[str, str]] = [{"pattern": "*.go.jp", "kind": "trusted"}]
         self.terms: dict[str, dict[str, Any]] = {}
         self.instructions: list[dict[str, Any]] = []
+        self.models: dict[str, dict[str, Any]] = {}
+        self.slots = ["local-12b", "local-26b"]
         self.audit: list[dict[str, Any]] = []
         self.started = time.time()
 
@@ -184,7 +186,8 @@ def admin_router(state: AdminState, is_admin: Any) -> APIRouter:
     @r.get("/dlp/terms")
     async def terms(request: Request) -> dict[str, Any]:
         require(request)
-        return {"terms": [{k: v for k, v in t.items() if k != "term"} for t in state.terms.values()]}
+        hidden = ("term", "readings")  # 語も読みも一覧には出さない
+        return {"terms": [{k: v for k, v in t.items() if k not in hidden} for t in state.terms.values()]}
 
     @r.post("/dlp/terms")
     async def add_terms(request: Request, body: dict[str, Any]) -> dict[str, Any]:
@@ -202,6 +205,7 @@ def admin_router(state: AdminState, is_admin: Any) -> APIRouter:
                 "term": term,
                 "masked": _mask(term),
                 "category": t.get("category", "other"),
+                "readings": [str(x).strip() for x in t.get("readings", []) if str(x).strip()],
                 "updated_at": _now(),
             }
             existing.add(term)
@@ -238,6 +242,102 @@ def admin_router(state: AdminState, is_admin: Any) -> APIRouter:
         state.instructions.append({"version": version, "body": text, "published_at": _now()})
         state.log(who, "admin.instructions.publish", f"v{version}")
         return {"version": version}
+
+    # ---- モデル台帳（本物は server/gateway/src/llm_gateway/registry.py）----
+    def evals_of(m: dict[str, Any]) -> dict[tuple[str, str], float]:
+        return {(e["eval_set"], e["metric"]): e["value"] for e in m["evals"]}
+
+    @r.get("/models")
+    async def models(request: Request) -> dict[str, Any]:
+        require(request)
+        rows = sorted(state.models.values(), key=lambda m: m["created_at"], reverse=True)
+        return {"models": rows, "slots": state.slots}
+
+    @r.post("/models", status_code=201)
+    async def register_model(request: Request, body: dict[str, Any]) -> dict[str, Any]:
+        who = require(request)
+        mid = str(body.get("id", ""))
+        if not mid or body.get("slot") not in state.slots:
+            raise GatewayError(400, "INVALID_REQUEST", "ID と枠を指定してください")
+        if mid in state.models:
+            raise GatewayError(409, "CONFLICT", "その ID は登録済みです")
+        state.models[mid] = {
+            "id": mid,
+            "slot": body["slot"],
+            "base_model": body.get("base_model", ""),
+            "quant": body.get("quant", ""),
+            "lora": body.get("lora"),
+            "status": "candidate",
+            "created_at": _now(),
+            "promoted_at": None,
+            "evals": [],
+        }
+        state.log(who, "admin.model.register", mid)
+        return state.models[mid]
+
+    @r.post("/models/{mid}/evals")
+    async def add_evals(mid: str, request: Request, body: dict[str, Any]) -> dict[str, Any]:
+        who = require(request)
+        m = state.models.get(mid)
+        if m is None:
+            raise GatewayError(404, "NOT_FOUND", "モデルがありません")
+        latest = evals_of(m)
+        for e in body.get("results", []):
+            latest[(str(e["eval_set"]), str(e["metric"]))] = float(e["value"])
+        m["evals"] = [{"eval_set": k[0], "metric": k[1], "value": v} for k, v in sorted(latest.items())]
+        state.log(who, "admin.model.evals", mid)
+        return {"added": len(body.get("results", []))}
+
+    @r.post("/models/{mid}/promote")
+    async def promote(mid: str, request: Request) -> dict[str, Any]:
+        who = require(request)
+        m = state.models.get(mid)
+        if m is None:
+            raise GatewayError(404, "NOT_FOUND", "モデルがありません")
+        cur = [x for x in state.models.values() if x["status"] == "production" and x["slot"] == m["slot"]]
+        if cur:
+            cand = evals_of(m)
+            failures = [
+                {"eval_set": k[0], "metric": k[1], "production": v, "candidate": cand.get(k)}
+                for k, v in sorted(evals_of(cur[0]).items())
+                if cand.get(k) is None or cand[k] < v
+            ]
+            if failures:
+                raise GatewayError(
+                    409,
+                    "EVAL_GATE_FAILED",
+                    "評価セットで本番版を下回る指標があるため本番化できません",
+                    detail={"failures": failures},
+                )
+        elif not m["evals"]:
+            raise GatewayError(409, "EVAL_GATE_FAILED", "評価結果のないモデルは本番化できません")
+        for x in cur:
+            x["status"] = "retired"
+        m["status"], m["promoted_at"] = "production", _now()
+        state.log(who, "admin.model.promote", mid)
+        return m
+
+    @r.post("/models/{mid}/rollback")
+    async def rollback(mid: str, request: Request) -> dict[str, Any]:
+        who = require(request)
+        m = state.models.get(mid)
+        if m is None or m["status"] != "production":
+            raise GatewayError(409, "CONFLICT", "本番のモデルだけを切り戻せます")
+        prev = sorted(
+            (
+                x
+                for x in state.models.values()
+                if x["status"] == "retired" and x["promoted_at"] and x["slot"] == m["slot"]
+            ),
+            key=lambda x: x["promoted_at"],
+            reverse=True,
+        )
+        m["status"] = "retired"
+        target = prev[0] if prev else None
+        if target:
+            target["status"], target["promoted_at"] = "production", _now()
+        state.log(who, "admin.model.rollback", mid)
+        return {"slot": m["slot"], "production": target["id"] if target else None}
 
     @r.get("/audit")
     async def audit(request: Request, user: str = "", action: str = "", format: str = "json") -> Any:  # noqa: A002

@@ -18,6 +18,65 @@
 
 ---
 
+## 2026-10-11 22:40 — 評価ハーネス（T-50）を統合し、全体チェック合格。チェックポイント作成（直下のエントリと合わせて1つの時点）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `eval/harness`（新規）:
+    - Python `lla_eval/`（manifest 検証・data_hash・学習データとの重複照合・合成データ・採点・合否表・台帳向け出力）
+    - TS `src/`（Runtime をヘッドレスで動かすランナー・モック Gateway のプロセス管理）
+    - `package.json`・`tsconfig.json`・`tests/test_lla_eval.py`
+  - `eval/sets`（新規。サンプル3セット: `invoice_extraction_sample`・`tool_tasks_sample`・`doc_quality_sample`、`_train/train_hashes.sample.txt`。すべて合成データ）
+  - ルート: `pnpm-workspace.yaml`（eval/harness）、`package.json`（`pnpm eval`、mypy 対象）、`pyproject.toml`（testpaths・pythonpath）、`.gitignore`（`eval/harness/results/`）
+  - 設計ドキュメント: dev_guide §1.4（評価ハーネスの使い方）、impl_plan（T-50 一部完了・T-51 未着手）
+- **やったこと**:
+  - サブエージェント（resilience-qa-engineer 相当）が、障害注入（T-51）の途中で 20分以上止まったため停止し、残りを引き取った。
+  - 引き取った作業: ワークスペースへの登録、mypy の型エラー修正、Python の試験 8件の追加、3セットの実行確認、ルート設定とドキュメント。
+  - `eval/fault-injection/src` は空のまま（T-51 は次回）。
+- **E2Eテスト**: **合格**。
+  - 評価ハーネスを実際に回した: `pnpm eval --set <各セット>`（モック Gateway・office-tools・Runtime をヘッドレスで起動）。
+    - `tool_tasks_sample`: 合格（3件とも final、成功率 1.0）。
+    - `doc_quality_sample`: 合格（破損 0・書式崩れ 0）。
+    - `invoice_extraction_sample`: 「未達」。**意図どおり**で、モックが2枚目の合計・3枚目の船名に誤りを仕込んでいる。ハーネスが誤りを検出して不合格にすることを確認した。
+  - 直下のエントリの管理画面 E2E 3件（モック・本物の Gateway）とデスクトップ E2E 8件は、その後の変更が eval だけなので再実行していない。
+  - 結果は scratchpad の `eval-out/`。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（eslint、tsc、生成物の差分、vitest、ruff、mypy 102ファイル、pytest **487件成功・47件スキップ**）。
+  - スキップの内訳: PostgreSQL 44件、LibreOffice 3件。
+  - 差分に秘密情報が含まれていないことを grep で確認した。
+- **次にやること / 申し送り**:
+  - T-51 障害注入試験（`eval/fault-injection`。`eval/harness/src/mock.ts` の停止・再起動・リクエスト記録と `scorer: resilience` を使う）。
+  - 評価ハーネスの `--register`（結果を台帳へ直接登録）は未実装。今は `<run_id>.registry.json` を手で POST する。
+  - PostgreSQL での試験（Docker）、実モデルでの評価（検証機）、T-45 の一本通し。
+
+## 2026-10-11 21:55 — モデル台帳・Web Relay のポリシー取り込み・管理画面のモデル画面（途中経過。チェックポイントは評価ハーネスの統合後）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `server/gateway`:
+    - `registry.py`（新規）、`admin_api.py`（`register_internal`・読み）、`app.py`、`gateway.py`（起動時に本番版を反映）
+    - `engines.py`（`activate_lora`）、`util.py`（`ApiError.detail`）、`db.py`
+    - `migrations/versions/0002_dlp_readings.py`、`tests/test_gw_registry.py`、`scripts/dev_server.py`（lint）
+  - `server/web-relay`:
+    - `policy_sync.py`（新規）、`config.py`（`policy_sync`）、`app.py`（lifespan・503）、`errors.py`
+    - `examples/web-relay.yaml`、`tests/test_wr_policy_sync.py`
+  - `server/deploy/compose.yaml`（Relay の設定・CA・データの volume）
+  - `apps/admin-web`（モデル画面、機密語の読み、`ApiError.detail`、E2E 1件追加）
+  - `eval/mock-gateway`（モデル台帳のモック、`GatewayError.detail`）
+  - 設計ドキュメント: api §9.1（モデル台帳）・§9.2（内部 API）、data_model §3.4、impl_plan、ops/server_setup
+- **やったこと**:
+  - **モデル台帳**: 登録・評価結果・本番化・切り戻し。本番化には、本番版のすべての指標で同じ以上という条件を付け、満たさなければ 409 `EVAL_GATE_FAILED` と下回った指標を返す。エンジンへの LoRA 反映に失敗したら台帳は変えない。
+  - **Web Relay**: Gateway の `GET /internal/v1/net-policy`（X-Relay-Secret）から60秒ごとに取り込む。取り込めるまで、また1時間を超えて古くなったら 503 で断る（安全側）。
+- **E2Eテスト**: **合格**。
+  - 管理画面 3件（新規「モデル台帳: 評価の条件・本番化・切り戻し」を含む）を、モックと本物の Gateway の両方で実施。
+  - デスクトップ 8件（本物の Gateway を含む）。
+  - 証跡は scratchpad の `e2e-admin/{mock,real}`・`e2e-desktop`。
+- **結果/確認**:
+  - pytest: gateway＋mock 70件成功・44件スキップ（PostgreSQL）、web-relay 181件成功。
+  - ruff・mypy（gateway・web-relay・mock）・admin-web の tsc は問題なし。
+  - **全体の `pnpm check` は未実行**（評価ハーネスのサブエージェントが `eval/harness`・`eval/sets` を書き込み中のため）。
+- **次にやること / 申し送り**:
+  - 評価ハーネス（T-50/T-51）のサブエージェントの成果を統合する。
+  - その後 `pnpm check` → このログに追記 → `scripts/checkpoint.sh` → 継続確認・push の確認。
+
 ## 2026-10-12 04:30 — Gateway・Web Relay・RAG・OCR を統合し、本物の Gateway で E2E 合格（M4〜M6 の主要部品がそろった）
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

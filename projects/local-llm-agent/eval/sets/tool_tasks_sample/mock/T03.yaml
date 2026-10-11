@@ -1,0 +1,21 @@
+# T03: docx.create → final
+name: eval-tool-tasks-T03
+protocol_version: "1.0"
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action: { type: plan_update, plan: [{ id: t1, title: 報告書を作る, status: doing }] }
+  - match: { step_index: 1 }
+    action:
+      type: tool_call
+      tool: docx.create
+      args:
+        path: "入渠報告書.docx"
+        blocks:
+          - { kind: heading, level: 1, text: "入渠報告書（2026年9月）" }
+          - { kind: paragraph, text: "船名: MV EXAMPLE STAR" }
+          - { kind: paragraph, text: "第3条 費用の精算は入渠の翌月末とする。" }
+  - match: { step_index: 2 }
+    action: { type: final, summary: "入渠報告書.docx を作りました。", outputs: [{ path: "入渠報告書.docx", description: "報告書" }], failures: [], needs_review: [] }
+fallback:
+  action: { type: final, summary: "（モック）シナリオ外の呼び出しです", outputs: [], failures: [], needs_review: [] }

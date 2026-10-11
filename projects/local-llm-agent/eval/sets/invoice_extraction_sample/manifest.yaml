@@ -1,0 +1,24 @@
+# 帳票抽出（9.1）の記録形式のサンプル。合成の請求書3枚だけで回る（ハーネス自体の動作確認用）。
+# 本番の invoice_extraction（約100枚）は data_root を nas://ai-eval/invoice_extraction/v<N> にし、
+# data_hash を登録して使う（実データはリポジトリ・開発PC・CI に置かない。test_spec §8.1）。
+name: invoice_extraction_sample
+version: 1
+description: 合成の請求書3枚。モック Gateway は決め打ちの抽出結果（2枚目の合計・3枚目の船名に誤りを仕込んである）を返す
+requirement_ids: [PDF-03, PDF-04, "9.1 帳票抽出"]
+data_root: synthetic
+generator: { kind: invoices, count: 3 }
+data_hash: "sha256:13100f477e71930e49733f3891d23560db03a866e2163350c3967f7faf2dac94"
+split: eval
+train_hash_index: ../_train/train_hashes.sample.txt
+runner: tool
+scorer: invoice_fields
+model_targets: [fast, accurate]
+metrics:
+  - { name: field_accuracy_amount_date, target: ">= 0.98" }
+  - { name: field_accuracy_other, target: ">= 0.95" }
+timeout_per_item_s: 600
+repeat: 1
+seed: 42
+temperature: 0
+mock:
+  scenario: mock/scenario.yaml

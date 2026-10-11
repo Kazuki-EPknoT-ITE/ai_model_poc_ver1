@@ -97,6 +97,20 @@ class PolicySettings(_Strict):
     orgs: dict[str, OrgPolicySettings] = Field(default_factory=dict)
 
 
+class PolicySyncSettings(_Strict):
+    """Gateway の DB からポリシー（net_sites / dlp_terms）を取り込む。gateway_url が無ければ取り込まない。"""
+
+    gateway_url: str | None = (
+        None  # 例: https://gateway:8443（内部ネットワーク。証明書に gateway の名前が必要）
+    )
+    ca_file: str | None = None  # Gateway の証明書を発行した社内 CA（省略時は OS の信頼ストア）
+    interval_s: float = 60.0
+    retry_s: float = 5.0  # 失敗したときのやり直し間隔
+    timeout_s: float = 10.0
+    # 最後の成功からこれ以上経ったら、検索・取得を断る（古い辞書のまま外へ出さない）
+    max_stale_s: float = 3600.0
+
+
 class Settings(_Strict):
     server: ServerSettings = Field(default_factory=ServerSettings)
     fetch: FetchSettings = Field(default_factory=FetchSettings)
@@ -105,6 +119,7 @@ class Settings(_Strict):
     usage: UsageSettings = Field(default_factory=UsageSettings)
     policy: PolicySettings = Field(default_factory=PolicySettings)
     policy_file: str | None = None
+    policy_sync: PolicySyncSettings = Field(default_factory=PolicySyncSettings)
 
 
 def load_settings(path: str | Path | None = None) -> Settings:

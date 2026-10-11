@@ -292,11 +292,22 @@ services:
 
   web-relay:
     image: llm/web-relay:<tag>
+    command: [ "web-relay", "--config", "/profiles/web-relay.yaml" ]
     env_file: /srv/llm/secrets/web-relay.env
+    volumes: [ "/srv/llm/profiles:/profiles:ro", "/srv/llm/secrets/tls/ca.crt:/tls/ca.crt:ro", "/srv/llm/data/web-relay:/data" ]
     networks: [ internal, egress ]
     restart: unless-stopped
   # rag / qdrant / ocr / prometheus / grafana / dcgm-exporter も同じ書き方で定義する（本番機の vllm-26b は profiles: [prod]）
 ```
+
+**Web Relay の機密語・サイトの取り込み**: 機密語辞書と禁止／信頼サイトは管理画面で編集し、Web Relay が
+Gateway の内部 API（`GET /internal/v1/net-policy`、API 仕様 §9.2）から 60 秒ごとに取り込む。
+設定例は `server/web-relay/examples/web-relay.yaml`（`policy_sync.gateway_url: https://gateway:8443`、`ca_file`）。
+
+- `web-relay.env` の `WEB_RELAY_SECRET` と `gateway.env` の `LLMGW_WEB_RELAY_SECRET` は**同じ値**にする（16文字以上）。
+- Gateway のサーバー証明書の SAN に、コンテナ名 `gateway` を入れておく（Relay は `https://gateway:8443` で照合する）。
+- 取り込めるまで（起動直後や Gateway の停止が1時間を超えたとき）、Web 検索・閲覧は 503 で断られる。これは安全側の動作で、
+  ログに `policy sync failed: <種類>` が出る。`/srv/llm/data/web-relay` は Relay の監査ログと利用回数の置き場。
 
 **vLLM の起動パラメータの注意**
 - 量子化: 公式の QAT int4 版（または AWQ/GPTQ 版）を指定すると、量子化方式はモデルの設定から自動で判別される。判別されない場合は `--quantization <方式>` を付ける。どの版を採るかは設計書 §8.2 の比較で決める。

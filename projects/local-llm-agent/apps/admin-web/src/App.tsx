@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, download, login, logout, NET_LABEL, resume, type NetLevel, type User } from "./api.js";
+import { api, ApiError, download, login, logout, NET_LABEL, resume, type ModelRow, type NetLevel, type User } from "./api.js";
 
 // 日時は保存は UTC、表示は日本時間（開発ガイド §3.1）
 const fmt = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
 
-type Tab = "dashboard" | "users" | "net" | "dlp" | "instructions" | "audit";
+type Tab = "dashboard" | "users" | "net" | "dlp" | "instructions" | "models" | "audit";
 const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "ダッシュボード" },
   { id: "users", label: "利用者" },
   { id: "net", label: "ネットアクセス" },
   { id: "dlp", label: "機密語辞書" },
   { id: "instructions", label: "共通指示" },
+  { id: "models", label: "モデル" },
   { id: "audit", label: "監査ログ" },
 ];
 
@@ -54,6 +55,7 @@ export function App() {
         {tab === "net" && <Net />}
         {tab === "dlp" && <Dlp />}
         {tab === "instructions" && <Instructions />}
+        {tab === "models" && <Models />}
         {tab === "audit" && <Audit />}
       </main>
     </div>
@@ -384,7 +386,7 @@ function Dlp() {
   const [text, setText] = useState("");
   const [category, setCategory] = useState("client");
   const [msg, setMsg] = useState<{ ok?: string; error?: string }>({});
-  const add = async (terms: { term: string; category: string }[]) => {
+  const add = async (terms: { term: string; category: string; readings: string[] }[]) => {
     try {
       const r = await api<{ added: number; skipped: number }>("/dlp/terms", { method: "POST", body: JSON.stringify({ terms }) });
       setMsg({ ok: `${r.added} 件を登録しました${r.skipped ? `（重複 ${r.skipped} 件は飛ばしました）` : ""}` });
@@ -401,20 +403,24 @@ function Dlp() {
         className="inline-form"
         onSubmit={(e) => {
           e.preventDefault();
-          // 1行1語。「語,分類」の CSV 形式も受け付ける
+          // 1行1語。「語,分類,読み/読み」の CSV 形式も受け付ける（読みは表記ゆれの検出に使う）
           const terms = text
             .split(/\r?\n/)
             .map((l) => l.trim())
             .filter(Boolean)
             .map((l) => {
-              const [term, cat] = l.split(",").map((x) => x.trim());
-              return { term: term!, category: cat || category };
+              const [term, cat, reading] = l.split(",").map((x) => x.trim());
+              const readings = (reading ?? "")
+                .split("/")
+                .map((x) => x.trim())
+                .filter(Boolean);
+              return { term: term!, category: cat || category, readings };
             });
           void add(terms);
           setText("");
         }}
       >
-        <textarea rows={4} placeholder={"1行に1語（「語,分類」の CSV も可）"} aria-label="機密語" value={text} onChange={(e) => setText(e.target.value)} />
+        <textarea rows={4} placeholder={"1行に1語（「語,分類,読み/読み」の CSV も可。例: 平井丸,vessel,ひらいまる/hirai maru）"} aria-label="機密語" value={text} onChange={(e) => setText(e.target.value)} />
         <select aria-label="分類" value={category} onChange={(e) => setCategory(e.target.value)}>
           <option value="client">取引先</option>
           <option value="vessel">船名</option>
@@ -486,6 +492,150 @@ function Instructions() {
           配信履歴: {data.history.map((h) => `第${h.version}版（${fmt(h.published_at)}）`).join(" / ")}
         </p>
       )}
+    </section>
+  );
+}
+
+const STATUS_LABEL: Record<ModelRow["status"], string> = { candidate: "候補", production: "本番", retired: "退役" };
+
+function Models() {
+  const { data, error, reload } = useLoad<{ models: ModelRow[]; slots: string[] }>("/models");
+  const [msg, setMsg] = useState<{ ok?: string; error?: string; failures?: string[] }>({});
+  const empty = { id: "", slot: "", base_model: "", quant: "awq", lora: "", lora_path: "" };
+  const [form, setForm] = useState(empty);
+  const [ev, setEv] = useState({ model: "", eval_set: "", metric: "", value: "" });
+  const run = async (f: () => Promise<unknown>, ok: string) => {
+    try {
+      await f();
+      setMsg({ ok });
+      reload();
+    } catch (e) {
+      const err = e as ApiError;
+      // 評価の条件を満たさないときは、下回った指標を並べる
+      const failures = (err.detail?.failures as { eval_set: string; metric: string; production: number; candidate: number | null }[] | undefined)?.map(
+        (f) => `${f.eval_set} / ${f.metric}: 本番 ${f.production}、候補 ${f.candidate ?? "未評価"}`,
+      );
+      setMsg({ error: err.message, failures });
+    }
+  };
+  const slot = form.slot || data?.slots[0] || "";
+  return (
+    <section aria-label="モデル">
+      <p className="muted small">
+        学習した版（LoRA など）を登録し、評価結果を記録してから本番にします。本番の版が持つすべての指標で、同じ以上でないと本番にできません（要件 7.4）。
+      </p>
+      <Message error={error ?? msg.error} ok={msg.ok} />
+      {msg.failures && (
+        <ul className="error small" aria-label="下回った指標">
+          {msg.failures.map((f) => (
+            <li key={f}>{f}</li>
+          ))}
+        </ul>
+      )}
+      <table className="grid" aria-label="モデルの一覧">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>枠</th>
+            <th>基本モデル</th>
+            <th>LoRA</th>
+            <th>状態</th>
+            <th>評価</th>
+            <th>本番にした日時</th>
+            <th />
+          </tr>
+        </thead>
+        <tbody>
+          {data?.models.map((m) => (
+            <tr key={m.id} data-testid={`model-${m.id}`}>
+              <td className="mono">{m.id}</td>
+              <td className="mono">{m.slot}</td>
+              <td>
+                {m.base_model} <span className="muted small">{m.quant}</span>
+              </td>
+              <td className="mono small">{m.lora ?? "—"}</td>
+              <td>
+                <span className={`badge ${m.status === "retired" ? "muted" : ""}`}>{STATUS_LABEL[m.status]}</span>
+              </td>
+              <td className="small">{m.evals.length ? m.evals.map((e) => `${e.eval_set}/${e.metric}=${e.value}`).join(" ") : <span className="muted">未評価</span>}</td>
+              <td className="small">{fmt(m.promoted_at)}</td>
+              <td className="row">
+                {m.status !== "production" && (
+                  <button onClick={() => void run(() => api(`/models/${encodeURIComponent(m.id)}/promote`, { method: "POST" }), `${m.id} を本番にしました`)}>本番にする</button>
+                )}
+                {m.status === "production" && (
+                  <button
+                    className="danger"
+                    onClick={() =>
+                      confirm(`${m.id} を退役させ、直前の本番の版に戻します。よろしいですか？`) &&
+                      void run(() => api(`/models/${encodeURIComponent(m.id)}/rollback`, { method: "POST" }), `${m.id} を切り戻しました`)
+                    }
+                  >
+                    切り戻す
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <h2>評価結果を記録</h2>
+      <form
+        className="inline-form"
+        aria-label="評価結果を記録"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const value = Number(ev.value);
+          if (!Number.isFinite(value)) return setMsg({ error: "値は数値で入力してください" });
+          void run(
+            () => api(`/models/${encodeURIComponent(ev.model)}/evals`, { method: "POST", body: JSON.stringify({ results: [{ eval_set: ev.eval_set, metric: ev.metric, value }] }) }),
+            "評価結果を記録しました",
+          );
+          setEv({ ...ev, value: "" });
+        }}
+      >
+        <select aria-label="評価するモデル" value={ev.model} onChange={(e) => setEv({ ...ev, model: e.target.value })}>
+          <option value="">モデルを選ぶ</option>
+          {data?.models.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.id}
+            </option>
+          ))}
+        </select>
+        <input placeholder="評価セット（例 office）" aria-label="評価セット" value={ev.eval_set} onChange={(e) => setEv({ ...ev, eval_set: e.target.value })} />
+        <input placeholder="指標（例 pass_rate）" aria-label="指標" value={ev.metric} onChange={(e) => setEv({ ...ev, metric: e.target.value })} />
+        <input placeholder="値" aria-label="値" value={ev.value} onChange={(e) => setEv({ ...ev, value: e.target.value })} />
+        <button type="submit" disabled={!ev.model || !ev.eval_set || !ev.metric || !ev.value}>
+          記録
+        </button>
+      </form>
+      <h2>モデルを登録</h2>
+      <form
+        className="inline-form"
+        aria-label="モデルを登録"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const body = { ...form, slot, lora: form.lora || null, lora_path: form.lora_path || null };
+          void run(() => api("/models", { method: "POST", body: JSON.stringify(body) }), `${form.id} を登録しました`);
+          setForm(empty);
+        }}
+      >
+        <input placeholder="ID（例 local-12b-lora-2026-10）" aria-label="モデルID" value={form.id} onChange={(e) => setForm({ ...form, id: e.target.value })} />
+        <select aria-label="枠" value={slot} onChange={(e) => setForm({ ...form, slot: e.target.value })}>
+          {data?.slots.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
+        <input placeholder="基本モデル" aria-label="基本モデル" value={form.base_model} onChange={(e) => setForm({ ...form, base_model: e.target.value })} />
+        <input placeholder="量子化" aria-label="量子化" value={form.quant} onChange={(e) => setForm({ ...form, quant: e.target.value })} />
+        <input placeholder="LoRA の名前（任意）" aria-label="LoRA の名前" value={form.lora} onChange={(e) => setForm({ ...form, lora: e.target.value })} />
+        <input placeholder="LoRA の置き場所（サーバー上）" aria-label="LoRA の置き場所" value={form.lora_path} onChange={(e) => setForm({ ...form, lora_path: e.target.value })} />
+        <button className="primary" type="submit" disabled={!form.id || !form.base_model || !slot}>
+          登録
+        </button>
+      </form>
     </section>
   );
 }

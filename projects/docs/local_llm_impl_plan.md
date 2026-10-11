@@ -98,8 +98,8 @@ flowchart LR
 
 | ID | タスク | 成果物・完了条件 | 要件 | 担当 | 状態 |
 | --- | --- | --- | --- | --- | --- |
-| T-50 | 評価ハーネス | `eval/harness` と評価セットの manifest（PHASE 0 の正解データを使う） | 9.1 | resilience-qa-engineer | 未着手 |
-| T-51 | 障害注入試験 FI-01〜20 | 完了100%・重複0件 | 9.1 継続実行 | 同上 | 未着手 |
+| T-50 | 評価ハーネス | `eval/harness` と評価セットの manifest（PHASE 0 の正解データを使う） | 9.1 | resilience-qa-engineer | **一部完了（eval/harness: manifest 検証・data_hash・学習データとの重複照合・合成データ・採点（帳票抽出・ツール操作・文書品質）・合否表・台帳向け出力。サンプル3セットがモックで通る。実データの評価セットは PHASE 0 の正解データ待ち）** |
+| T-51 | 障害注入試験 FI-01〜20 | 完了100%・重複0件 | 9.1 継続実行 | 同上 | 未着手（ハーネス側の受け口 `scorer: resilience` と、モック Gateway の停止・再起動・リクエスト記録の部品 `eval/harness/src/mock.ts` はある） |
 | T-52 | 手順例の合成とツール呼び出し学習 | `ml/datagen` で数千件を合成して検証 → 12B の QLoRA → ベースモデルとの比較 | 7.2-2, 9.2-2 | ml-finetuning-engineer | 未着手 |
 | T-53 | 量子化の比較 | QAT int4 / AWQ / FP8 の精度と速度 | 7.2-1 | 同上 | 未着手 |
 | T-54 | 代表シナリオ3本と性能の実測 | 9.2 の条件1・3 を判定する材料 | 9.2 | qa＋inference | 未着手 |
@@ -110,8 +110,8 @@ flowchart LR
 | ID | タスク | 要件 | 担当 | 状態 |
 | --- | --- | --- | --- | --- |
 | T-60 | RAG（取り込み・検索・ACL・評価） | AGT-07, SEC-07, ADM-02 | rag-search-engineer | **完了（server/rag。ハイブリッド検索・ACL を検索条件に・差分取り込み。試験 53件。実モデル・実データでの評価は未）** |
-| T-61 | Web Relay（検索・取得・DLP・SSRF・利用回数） | NET-01〜13 | web-relay-security-engineer | **完了（server/web-relay。試験174件。DLP・SSRF・読み取り専用・本文抽出・回数・監査）** |
-| T-62 | 管理画面 | ADM-02〜04, NET-02, 08 | desktop-app-engineer | **完了（apps/admin-web。利用者・ネット・機密語・共通指示・監査・ダッシュボード。モデル台帳の画面は未）** |
+| T-61 | Web Relay（検索・取得・DLP・SSRF・利用回数） | NET-01〜13 | web-relay-security-engineer | **完了（server/web-relay。試験181件。DLP・SSRF・読み取り専用・本文抽出・回数・監査。機密語・サイトは Gateway の DB から定期取り込み（取り込めるまで断る））** |
+| T-62 | 管理画面 | ADM-02〜04, NET-02, 08 | desktop-app-engineer | **完了（apps/admin-web。利用者・ネット・機密語・共通指示・監査・ダッシュボード・モデル台帳（評価の条件・本番化・切り戻し）。機密語の読みも登録可）** |
 | T-63 | 業務 LoRA | 7.2-3 | ml-finetuning-engineer | 未着手 |
 | T-64 | 本番機での 26B の評価と既定モデルの決定 | 7.1 | inference＋ml | 未着手 |
 | T-65 | 監視・バックアップ・予備機への切替 | OPS-03〜06 | llm-inference-engineer | 未着手 |

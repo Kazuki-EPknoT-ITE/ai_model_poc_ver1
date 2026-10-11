@@ -93,7 +93,10 @@ services:
     <<: *app
     image: llm/web-relay:${APP_TAG}
     build: { context: ../../../.., dockerfile: projects/local-llm-agent/server/deploy/Dockerfile.python, args: { PACKAGE: web-relay } }
+    # 機密語・サイトは Gateway の DB から取り込む（policy_sync。取り込めるまで検索・取得を断る）
+    command: ["web-relay", "--config", "/profiles/web-relay.yaml"]
     env_file: /srv/llm/secrets/web-relay.env
+    volumes: ["/srv/llm/profiles:/profiles:ro", "/srv/llm/secrets/tls/ca.crt:/tls/ca.crt:ro", "/srv/llm/data/web-relay:/data"]
     networks: [internal, egress]
 
   ocr:

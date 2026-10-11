@@ -1,0 +1,11 @@
+# 帳票抽出サンプルのモック: invoice.extract が内部で呼ぶ抽出推論（purpose: invoice_extract）に、
+# 件ごとの決め打ちの抽出結果（fixtures/invoice/<ファイル名>.json）を返す。
+name: eval-invoice-extraction-sample
+protocol_version: "1.0"
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { purpose: invoice_extract }
+    repeat: true
+    action_from_fixture: "fixtures/invoice/{item_basename}.json"
+fallback:
+  action: { type: final, summary: "（モック）シナリオ外の呼び出しです", outputs: [], failures: [], needs_review: [] }
