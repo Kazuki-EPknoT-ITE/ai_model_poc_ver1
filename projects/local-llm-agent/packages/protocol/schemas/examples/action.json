@@ -1,0 +1,25 @@
+{
+  "def": "Action",
+  "valid": [
+    { "type": "plan_update", "plan": [{ "id": "t1", "title": "請求書を一括抽出", "status": "doing" }] },
+    { "type": "tool_call", "thought": "請求書の一覧を確認します", "tool": "fs.list", "args": { "path": "請求書", "glob": "*.pdf" } },
+    { "type": "ask_user", "question": "USD建てのものだけを対象にしますか？", "choices": ["はい", "いいえ"] },
+    {
+      "type": "final",
+      "summary": "10件中9件を転記しました。",
+      "outputs": [{ "path": "送金明細.xlsx", "description": "送金明細" }],
+      "failures": [{ "item": "請求書/INV-007.pdf", "reason": "ファイルが壊れていて読めません" }],
+      "needs_review": [{ "path": "送金明細.xlsx", "location": "明細!D5", "reason": "OCRの確信度が低い" }],
+      "citations": [{ "kind": "file", "ref": "請求書/INV-001.pdf", "location": "p.1" }]
+    }
+  ],
+  "invalid": [
+    { "type": "tool_call", "tool": "fs.list" },
+    { "type": "tool_call", "tool": "Shell Exec", "args": {} },
+    { "type": "plan_update", "plan": [] },
+    { "type": "final", "summary": "完了" },
+    { "type": "ask_user", "question": "選んで", "choices": ["1つだけ"] },
+    { "type": "talk", "text": "こんにちは" },
+    { "type": "tool_call", "tool": "fs.list", "args": {}, "extra": 1 }
+  ]
+}

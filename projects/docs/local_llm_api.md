@@ -93,7 +93,8 @@ Gateway（FastAPI）が提供する HTTP API を定める。OpenAPI 3.1 の定�
   "response_format": { "type": "json_schema", "schema": { ... Action oneOf ... } },
   "max_tokens": 2048,
   "temperature": 0.2,
-  "stream": true
+  "stream": true,
+  "purpose": "agent"                     // agent | invoice_extract | compact（集計・モックの照合用。既定 agent）
 }
 ```
 
@@ -138,6 +139,7 @@ data: {"code":"ENGINE_UNAVAILABLE","retryable":true}
 SSE を使わない場合のポーリング用。`{ state, position?, output?, usage?, error? }`
 
 ### DELETE `/v1/steps/{job_id}`
+取り消すと、SSE には `event: error` / `data: {"code":"CANCELLED","retryable":false}` を送って閉じる。
 取り消し（RUN-11 の停止）。実行中ならエンジンに中止を伝える。204。
 
 ### スケジューリング（RUN-10）

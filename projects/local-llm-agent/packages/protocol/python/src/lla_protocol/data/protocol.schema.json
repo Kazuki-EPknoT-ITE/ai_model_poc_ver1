@@ -1,0 +1,4264 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://local-llm-agent/schemas/1.0/protocol.json",
+  "title": "LocalLlmAgentProtocol",
+  "description": "local-llm-agent protocol v1.0（生成物。編集しないこと）",
+  "$defs": {
+    "Action": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ToolCall"
+        },
+        {
+          "$ref": "#/$defs/PlanUpdate"
+        },
+        {
+          "$ref": "#/$defs/AskUser"
+        },
+        {
+          "$ref": "#/$defs/Final"
+        }
+      ]
+    },
+    "ApprovalDecision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_id",
+        "decision"
+      ],
+      "properties": {
+        "approval_id": {
+          "type": "string",
+          "pattern": "^ap-[0-9]+$"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "approve",
+            "reject"
+          ]
+        },
+        "remember": {
+          "type": "string",
+          "enum": [
+            "this_run"
+          ]
+        }
+      }
+    },
+    "ApprovalReason": {
+      "type": "string",
+      "enum": [
+        "outside_workspace",
+        "delete",
+        "move",
+        "plugin_write",
+        "tainted_outside"
+      ]
+    },
+    "ApprovalRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_id",
+        "run_id",
+        "step_id",
+        "tool",
+        "args",
+        "reason",
+        "paths",
+        "tainted",
+        "created_at"
+      ],
+      "properties": {
+        "approval_id": {
+          "type": "string",
+          "pattern": "^ap-[0-9]+$"
+        },
+        "run_id": {
+          "type": "string"
+        },
+        "step_id": {
+          "type": "string"
+        },
+        "tool": {
+          "type": "string"
+        },
+        "args": {
+          "type": "object"
+        },
+        "reason": {
+          "$ref": "#/$defs/ApprovalReason"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "real_path",
+              "inside_workspace"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "real_path": {
+                "type": "string"
+              },
+              "inside_workspace": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "tainted": {
+          "type": "boolean"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "Artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "op"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "op": {
+          "type": "string",
+          "enum": [
+            "create",
+            "overwrite",
+            "delete",
+            "move",
+            "copy"
+          ]
+        },
+        "pre_hash": {
+          "$ref": "#/$defs/FileHash"
+        },
+        "post_hash": {
+          "$ref": "#/$defs/FileHash"
+        },
+        "backup_path": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "renamed_from": {
+          "type": "string",
+          "maxLength": 1024
+        }
+      }
+    },
+    "ArtifactEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "artifact"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        },
+        "diff_ref": {
+          "type": "string"
+        }
+      }
+    },
+    "AskUser": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "question"
+      ],
+      "properties": {
+        "type": {
+          "const": "ask_user"
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "choices": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "maxLength": 100
+          }
+        }
+      }
+    },
+    "BatchRunArgs": {
+      "$ref": "#/$defs/BatchSpec"
+    },
+    "BatchRunResult": {
+      "type": "object",
+      "required": [
+        "batch_id",
+        "total",
+        "succeeded",
+        "failed",
+        "result_id"
+      ],
+      "properties": {
+        "batch_id": {
+          "type": "string"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "succeeded": {
+          "type": "integer"
+        },
+        "failed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "item",
+              "code",
+              "reason"
+            ],
+            "properties": {
+              "item": {
+                "type": "string"
+              },
+              "code": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "result_id": {
+          "type": "string"
+        },
+        "output_artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "BatchSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "items",
+        "pipeline"
+      ],
+      "properties": {
+        "items": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "pattern": "^(glob:|list:)"
+        },
+        "pipeline": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tool",
+                "args"
+              ],
+              "properties": {
+                "tool": {
+                  "const": "invoice.extract"
+                },
+                "args": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "schema"
+                  ],
+                  "properties": {
+                    "schema": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_.-]{1,40}$"
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "tool"
+              ],
+              "properties": {
+                "tool": {
+                  "enum": [
+                    "pdf.extract_tables",
+                    "pdf.read_pages",
+                    "convert.to_pdf",
+                    "convert.to_docx",
+                    "convert.to_xlsx"
+                  ]
+                },
+                "args": {
+                  "type": "object"
+                }
+              }
+            }
+          ]
+        },
+        "output": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "xlsx",
+                "sheet",
+                "columns"
+              ],
+              "properties": {
+                "xlsx": {
+                  "$ref": "#/$defs/Path"
+                },
+                "sheet": {
+                  "$ref": "#/$defs/SheetName"
+                },
+                "columns": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 100,
+                  "items": {
+                    "$ref": "#/$defs/OutputColumn"
+                  }
+                },
+                "append": {
+                  "type": "boolean"
+                }
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "csv",
+                "columns"
+              ],
+              "properties": {
+                "csv": {
+                  "$ref": "#/$defs/Path"
+                },
+                "columns": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 100,
+                  "items": {
+                    "$ref": "#/$defs/OutputColumn"
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "on_error": {
+          "const": "skip"
+        }
+      }
+    },
+    "BatchStatusArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "batch_id"
+      ],
+      "properties": {
+        "batch_id": {
+          "type": "string",
+          "maxLength": 64
+        }
+      }
+    },
+    "BatchStatusResult": {
+      "type": "object",
+      "required": [
+        "done",
+        "total"
+      ],
+      "properties": {
+        "done": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "failed": {
+          "type": "integer"
+        }
+      }
+    },
+    "BlockId": {
+      "type": "string",
+      "pattern": "^(p|tbl|hdr|ftr|img|brk):[0-9]+(/r[0-9]+c[0-9]+)?$"
+    },
+    "CellRef": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 140,
+      "description": "Sheet1!B12 / '送金 明細'!A1"
+    },
+    "CellWrite": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref"
+      ],
+      "properties": {
+        "ref": {
+          "$ref": "#/$defs/CellRef"
+        },
+        "value": {
+          "$ref": "#/$defs/Scalar"
+        },
+        "formula": {
+          "type": "string",
+          "pattern": "^=",
+          "maxLength": 2000
+        },
+        "number_format": {
+          "$ref": "#/$defs/NumberFormat"
+        }
+      }
+    },
+    "Citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "ref"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "file",
+            "web",
+            "rag"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "location": {
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    },
+    "ColumnName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "Continuation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "ConvertArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "src"
+      ],
+      "properties": {
+        "src": {
+          "$ref": "#/$defs/Path"
+        },
+        "dst": {
+          "$ref": "#/$defs/Path"
+        }
+      }
+    },
+    "ConvertToDocxArgs": {
+      "$ref": "#/$defs/ConvertArgs"
+    },
+    "ConvertToDocxResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "ConvertToPdfArgs": {
+      "$ref": "#/$defs/ConvertArgs"
+    },
+    "ConvertToPdfResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "ConvertToXlsxArgs": {
+      "$ref": "#/$defs/ConvertArgs"
+    },
+    "ConvertToXlsxResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "CsvReadArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "encoding": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "utf-8",
+            "utf-8-sig",
+            "cp932"
+          ]
+        },
+        "delimiter": {
+          "type": "string",
+          "enum": [
+            "auto",
+            ",",
+            "\t",
+            ";",
+            "|"
+          ]
+        },
+        "max_rows": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20000
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "CsvReadResult": {
+      "type": "object",
+      "required": [
+        "encoding",
+        "delimiter",
+        "rows",
+        "total_rows"
+      ],
+      "properties": {
+        "encoding": {
+          "type": "string"
+        },
+        "delimiter": {
+          "type": "string"
+        },
+        "header": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array"
+          }
+        },
+        "total_rows": {
+          "type": "integer"
+        }
+      }
+    },
+    "CsvWriteArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "rows"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "header": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "rows": {
+          "type": "array",
+          "maxItems": 100000,
+          "items": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/$defs/Scalar"
+            }
+          }
+        },
+        "encoding": {
+          "type": "string",
+          "enum": [
+            "utf-8-sig",
+            "cp932"
+          ]
+        },
+        "overwrite": {
+          "type": "boolean"
+        }
+      }
+    },
+    "CsvWriteResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "DataTransformArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "inputs",
+        "steps",
+        "output"
+      ],
+      "properties": {
+        "inputs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "source"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$"
+              },
+              "source": {
+                "$ref": "#/$defs/SourceRef"
+              }
+            }
+          }
+        },
+        "steps": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/Step"
+          }
+        },
+        "output": {
+          "$ref": "#/$defs/OutputRef"
+        }
+      }
+    },
+    "DataTransformResult": {
+      "type": "object",
+      "required": [
+        "rows_out",
+        "preview"
+      ],
+      "properties": {
+        "rows_out": {
+          "type": "integer"
+        },
+        "preview": {
+          "type": "array",
+          "items": {
+            "type": "array"
+          }
+        },
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "DateValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "date"
+      ],
+      "properties": {
+        "date": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+        }
+      }
+    },
+    "DocxCommentsArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "add": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "block_id",
+              "text"
+            ],
+            "properties": {
+              "block_id": {
+                "$ref": "#/$defs/BlockId"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 1000
+              }
+            }
+          }
+        }
+      }
+    },
+    "DocxCommentsResult": {
+      "type": "object",
+      "required": [
+        "comments"
+      ],
+      "properties": {
+        "comments": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "DocxCreateArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "blocks"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "template": {
+          "$ref": "#/$defs/Path"
+        },
+        "blocks": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2000,
+          "items": {
+            "$ref": "#/$defs/NewBlock"
+          }
+        },
+        "overwrite": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DocxCreateResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "DocxDiffArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a",
+        "b"
+      ],
+      "properties": {
+        "a": {
+          "$ref": "#/$defs/Path"
+        },
+        "b": {
+          "$ref": "#/$defs/Path"
+        },
+        "granularity": {
+          "type": "string",
+          "enum": [
+            "paragraph",
+            "char"
+          ]
+        }
+      }
+    },
+    "DocxDiffResult": {
+      "type": "object",
+      "required": [
+        "changes"
+      ],
+      "properties": {
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "DocxEditArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "ops"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "ops": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/DocxOp"
+          }
+        },
+        "track_changes": {
+          "type": "boolean"
+        },
+        "author": {
+          "type": "string",
+          "maxLength": 50
+        },
+        "expect_hash": {
+          "$ref": "#/$defs/FileHash"
+        }
+      }
+    },
+    "DocxEditResult": {
+      "type": "object",
+      "required": [
+        "artifact",
+        "applied",
+        "results"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        },
+        "applied": {
+          "type": "integer"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "DocxImagesArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "describe": {
+          "type": "boolean"
+        }
+      }
+    },
+    "DocxImagesResult": {
+      "type": "object",
+      "required": [
+        "images"
+      ],
+      "properties": {
+        "images": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "DocxOp": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "block_id",
+            "text"
+          ],
+          "properties": {
+            "op": {
+              "const": "replace_text"
+            },
+            "block_id": {
+              "$ref": "#/$defs/BlockId"
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 8000
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "block_id",
+            "find",
+            "replace"
+          ],
+          "properties": {
+            "op": {
+              "const": "replace_in_block"
+            },
+            "block_id": {
+              "$ref": "#/$defs/BlockId"
+            },
+            "find": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            "replace": {
+              "type": "string",
+              "maxLength": 4000
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "block_id",
+            "blocks"
+          ],
+          "properties": {
+            "op": {
+              "enum": [
+                "insert_after",
+                "insert_before"
+              ]
+            },
+            "block_id": {
+              "$ref": "#/$defs/BlockId"
+            },
+            "blocks": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 100,
+              "items": {
+                "$ref": "#/$defs/NewBlock"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "block_id"
+          ],
+          "properties": {
+            "op": {
+              "const": "delete_block"
+            },
+            "block_id": {
+              "$ref": "#/$defs/BlockId"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "cell_id",
+            "text"
+          ],
+          "properties": {
+            "op": {
+              "const": "table_set_cell"
+            },
+            "cell_id": {
+              "$ref": "#/$defs/BlockId"
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 4000
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "table_id",
+            "values"
+          ],
+          "properties": {
+            "op": {
+              "const": "table_add_row"
+            },
+            "table_id": {
+              "$ref": "#/$defs/BlockId"
+            },
+            "after_row": {
+              "type": "integer",
+              "minimum": -1,
+              "maximum": 10000
+            },
+            "values": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "table_id",
+            "row"
+          ],
+          "properties": {
+            "op": {
+              "const": "table_delete_row"
+            },
+            "table_id": {
+              "$ref": "#/$defs/BlockId"
+            },
+            "row": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "block_id",
+            "style"
+          ],
+          "properties": {
+            "op": {
+              "const": "set_style"
+            },
+            "block_id": {
+              "$ref": "#/$defs/BlockId"
+            },
+            "style": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        }
+      ]
+    },
+    "DocxOutlineArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        }
+      }
+    },
+    "DocxOutlineResult": {
+      "type": "object",
+      "required": [
+        "file_hash",
+        "headings"
+      ],
+      "properties": {
+        "file_hash": {
+          "$ref": "#/$defs/FileHash"
+        },
+        "headings": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "tables": {
+          "type": "integer"
+        },
+        "pages_estimate": {
+          "type": "integer"
+        }
+      }
+    },
+    "DocxReadArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "from_block": {
+          "$ref": "#/$defs/BlockId"
+        },
+        "max_blocks": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500
+        },
+        "include": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "headers",
+              "comments",
+              "images"
+            ]
+          },
+          "maxItems": 3
+        }
+      }
+    },
+    "DocxReadResult": {
+      "type": "object",
+      "required": [
+        "file_hash",
+        "total_blocks",
+        "blocks"
+      ],
+      "properties": {
+        "file_hash": {
+          "$ref": "#/$defs/FileHash"
+        },
+        "total_blocks": {
+          "type": "integer"
+        },
+        "blocks": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "Effect": {
+      "type": "string",
+      "enum": [
+        "read",
+        "write",
+        "delete",
+        "net",
+        "none"
+      ]
+    },
+    "ErrorCode": {
+      "type": "string",
+      "enum": [
+        "INVALID_ARGS",
+        "UNKNOWN_TOOL",
+        "NOT_FOUND",
+        "BLOCK_NOT_FOUND",
+        "STALE_DOCUMENT",
+        "CORRUPT_FILE",
+        "UNSUPPORTED_FORMAT",
+        "PASSWORD_REQUIRED",
+        "FORMULA_ERROR",
+        "RESULT_TOO_LARGE",
+        "FORBIDDEN_PATH",
+        "APPROVAL_REQUIRED",
+        "APPROVAL_REJECTED",
+        "NET_DISABLED",
+        "DLP_BLOCKED",
+        "DOMAIN_BLOCKED",
+        "QUOTA_EXCEEDED",
+        "FILE_LOCKED",
+        "NET_UNREACHABLE",
+        "SERVER_BUSY",
+        "TIMEOUT",
+        "TOOL_CRASHED",
+        "TOOL_FAILED"
+      ]
+    },
+    "ErrorKind": {
+      "type": "string",
+      "enum": [
+        "transient",
+        "permanent",
+        "policy",
+        "deferred"
+      ]
+    },
+    "EventsSincePayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "conversation_id",
+        "seq"
+      ],
+      "properties": {
+        "conversation_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "Expr": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "description": "限定式（列名・数値・文字列・算術・比較・and/or/not・contains/startswith/round/date/coalesce）"
+    },
+    "FileHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "Final": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "summary",
+        "outputs",
+        "failures",
+        "needs_review"
+      ],
+      "properties": {
+        "type": {
+          "const": "final"
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "outputs": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "description"
+            ],
+            "properties": {
+              "path": {
+                "$ref": "#/$defs/Path"
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 200
+              }
+            }
+          }
+        },
+        "failures": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "item",
+              "reason"
+            ],
+            "properties": {
+              "item": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 300
+              }
+            }
+          }
+        },
+        "needs_review": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "reason"
+            ],
+            "properties": {
+              "path": {
+                "$ref": "#/$defs/Path"
+              },
+              "location": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "reason": {
+                "type": "string",
+                "maxLength": 300
+              }
+            }
+          }
+        },
+        "citations": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/Citation"
+          }
+        }
+      }
+    },
+    "FsCopyArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "src",
+        "dst"
+      ],
+      "properties": {
+        "src": {
+          "$ref": "#/$defs/Path"
+        },
+        "dst": {
+          "$ref": "#/$defs/Path"
+        },
+        "overwrite": {
+          "type": "boolean"
+        }
+      }
+    },
+    "FsCopyResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "FsDeleteArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        }
+      }
+    },
+    "FsDeleteResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "FsListArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "glob": {
+          "$ref": "#/$defs/Glob"
+        },
+        "depth": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        },
+        "include_hidden": {
+          "type": "boolean"
+        }
+      }
+    },
+    "FsListResult": {
+      "type": "object",
+      "required": [
+        "entries"
+      ],
+      "properties": {
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "type"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "file",
+                  "dir"
+                ]
+              },
+              "size": {
+                "type": "integer"
+              },
+              "mtime": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "FsMkdirArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        }
+      }
+    },
+    "FsMkdirResult": {
+      "type": "object",
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        }
+      }
+    },
+    "FsMoveArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "src",
+        "dst"
+      ],
+      "properties": {
+        "src": {
+          "$ref": "#/$defs/Path"
+        },
+        "dst": {
+          "$ref": "#/$defs/Path"
+        },
+        "overwrite": {
+          "type": "boolean"
+        }
+      }
+    },
+    "FsMoveResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "FsReadTextArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "encoding": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "utf-8",
+            "cp932"
+          ]
+        },
+        "offset_lines": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_lines": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2000
+        }
+      }
+    },
+    "FsReadTextResult": {
+      "type": "object",
+      "required": [
+        "text_ref"
+      ],
+      "properties": {
+        "text_ref": {
+          "type": "string"
+        },
+        "encoding": {
+          "type": "string"
+        },
+        "total_lines": {
+          "type": "integer"
+        }
+      }
+    },
+    "FsSearchArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "name_glob": {
+          "$ref": "#/$defs/Glob"
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "max_results": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        }
+      }
+    },
+    "FsSearchResult": {
+      "type": "object",
+      "required": [
+        "hits"
+      ],
+      "properties": {
+        "hits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "path"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "line": {
+                "type": "integer"
+              },
+              "snippet_ref": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "FsStatArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        }
+      }
+    },
+    "FsStatResult": {
+      "type": "object",
+      "required": [
+        "path",
+        "type",
+        "locked"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "file",
+            "dir"
+          ]
+        },
+        "size": {
+          "type": "integer"
+        },
+        "mtime": {
+          "type": "string"
+        },
+        "hash": {
+          "$ref": "#/$defs/FileHash"
+        },
+        "locked": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Glob": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "InvoiceExtractArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "schema"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "schema": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]{1,40}$"
+        },
+        "pages": {
+          "$ref": "#/$defs/PageSpec"
+        }
+      }
+    },
+    "InvoiceExtractResult": {
+      "type": "object",
+      "required": [
+        "fields",
+        "checks",
+        "needs_review"
+      ],
+      "properties": {
+        "fields": {
+          "type": "object"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "ok"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "detail": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "needs_review": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MemoryForgetArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        }
+      }
+    },
+    "MemoryForgetResult": {
+      "type": "object",
+      "required": [
+        "keys"
+      ],
+      "properties": {
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "MemoryNoteArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "value"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    },
+    "MemoryNoteResult": {
+      "type": "object",
+      "required": [
+        "keys"
+      ],
+      "properties": {
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "ModelPref": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "fast",
+        "accurate"
+      ]
+    },
+    "NetLevel": {
+      "type": "string",
+      "enum": [
+        "off",
+        "search",
+        "browse"
+      ]
+    },
+    "NewBlock": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "level",
+            "text"
+          ],
+          "properties": {
+            "kind": {
+              "const": "heading"
+            },
+            "level": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "text"
+          ],
+          "properties": {
+            "kind": {
+              "const": "paragraph"
+            },
+            "text": {
+              "type": "string",
+              "maxLength": 8000
+            },
+            "style": {
+              "type": "string",
+              "maxLength": 100
+            },
+            "list": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "level",
+                "numbered"
+              ],
+              "properties": {
+                "level": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 8
+                },
+                "numbered": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "rows"
+          ],
+          "properties": {
+            "kind": {
+              "const": "table"
+            },
+            "header": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "rows": {
+              "type": "array",
+              "maxItems": 2000,
+              "items": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              }
+            },
+            "style": {
+              "type": "string",
+              "maxLength": 100
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "const": "page_break"
+            }
+          }
+        }
+      ]
+    },
+    "NotifyEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "title",
+        "body"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "done",
+            "approval",
+            "stalled",
+            "long_run"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "body": {
+          "type": "string",
+          "maxLength": 500
+        }
+      }
+    },
+    "NumberFormat": {
+      "type": "string",
+      "maxLength": 100
+    },
+    "OutputColumn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "header",
+        "from"
+      ],
+      "properties": {
+        "header": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "from": {
+          "type": "string",
+          "pattern": "^(/[^/]*)+$",
+          "maxLength": 200
+        }
+      }
+    },
+    "OutputRef": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "xlsx",
+            "sheet"
+          ],
+          "properties": {
+            "xlsx": {
+              "$ref": "#/$defs/Path"
+            },
+            "sheet": {
+              "$ref": "#/$defs/SheetName"
+            },
+            "top_left": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[0-9]{1,7}$"
+            },
+            "as_table": {
+              "type": "boolean"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "csv"
+          ],
+          "properties": {
+            "csv": {
+              "$ref": "#/$defs/Path"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "return_only"
+          ],
+          "properties": {
+            "return_only": {
+              "const": true
+            }
+          }
+        }
+      ]
+    },
+    "PageSpec": {
+      "type": "string",
+      "pattern": "^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$",
+      "maxLength": 200
+    },
+    "PasswordRef": {
+      "type": "string",
+      "pattern": "^pw-[0-9]+$"
+    },
+    "Path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024,
+      "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+    },
+    "PdfExtractTablesArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "pages"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "pages": {
+          "$ref": "#/$defs/PageSpec"
+        },
+        "password_ref": {
+          "$ref": "#/$defs/PasswordRef"
+        }
+      }
+    },
+    "PdfExtractTablesResult": {
+      "type": "object",
+      "required": [
+        "tables"
+      ],
+      "properties": {
+        "tables": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "PdfInfoArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "password_ref": {
+          "$ref": "#/$defs/PasswordRef"
+        }
+      }
+    },
+    "PdfInfoResult": {
+      "type": "object",
+      "required": [
+        "file_hash",
+        "pages",
+        "encrypted",
+        "text_pages",
+        "scanned_pages"
+      ],
+      "properties": {
+        "file_hash": {
+          "$ref": "#/$defs/FileHash"
+        },
+        "pages": {
+          "type": "integer"
+        },
+        "encrypted": {
+          "type": "boolean"
+        },
+        "text_pages": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "scanned_pages": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "title": {
+          "type": "string"
+        },
+        "producer": {
+          "type": "string"
+        }
+      }
+    },
+    "PdfOcrArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "pages"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "pages": {
+          "$ref": "#/$defs/PageSpec"
+        },
+        "engine": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "ocr",
+            "vlm"
+          ]
+        },
+        "password_ref": {
+          "$ref": "#/$defs/PasswordRef"
+        }
+      }
+    },
+    "PdfOcrResult": {
+      "type": "object",
+      "required": [
+        "pages"
+      ],
+      "properties": {
+        "pages": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "PdfReadPagesArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "pages"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "pages": {
+          "$ref": "#/$defs/PageSpec"
+        },
+        "password_ref": {
+          "$ref": "#/$defs/PasswordRef"
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "reading",
+            "raw"
+          ]
+        }
+      }
+    },
+    "PdfReadPagesResult": {
+      "type": "object",
+      "required": [
+        "pages"
+      ],
+      "properties": {
+        "pages": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "PlanItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "status"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,16}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "todo",
+            "doing",
+            "done",
+            "skipped"
+          ]
+        }
+      }
+    },
+    "PlanUpdate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "plan"
+      ],
+      "properties": {
+        "type": {
+          "const": "plan_update"
+        },
+        "plan": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/PlanItem"
+          }
+        },
+        "note": {
+          "type": "string",
+          "maxLength": 300
+        }
+      }
+    },
+    "Priority": {
+      "type": "string",
+      "enum": [
+        "Must",
+        "Should",
+        "Could"
+      ]
+    },
+    "QuestionAnswerPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "question_id",
+        "answer"
+      ],
+      "properties": {
+        "question_id": {
+          "type": "string"
+        },
+        "answer": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "secret": {
+          "type": "boolean"
+        }
+      }
+    },
+    "RagSearchArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "query"
+      ],
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "top_k": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "filters": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "path_prefix": {
+              "type": "string",
+              "maxLength": 512
+            },
+            "doc_type": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "updated_after": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+            }
+          }
+        }
+      }
+    },
+    "RagSearchResult": {
+      "type": "object",
+      "required": [
+        "hits"
+      ],
+      "properties": {
+        "hits": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "ref",
+              "path"
+            ],
+            "properties": {
+              "ref": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              },
+              "score": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      }
+    },
+    "RangeRef": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 160,
+      "description": "Sheet1!A1:F200"
+    },
+    "RecalcResult": {
+      "type": "object",
+      "required": [
+        "ok",
+        "errors"
+      ],
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "cell",
+              "value"
+            ],
+            "properties": {
+              "cell": {
+                "type": "string"
+              },
+              "value": {
+                "type": "string",
+                "enum": [
+                  "#REF!",
+                  "#DIV/0!",
+                  "#VALUE!",
+                  "#NAME?",
+                  "#N/A",
+                  "#NUM!",
+                  "#NULL!"
+                ]
+              },
+              "formula": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "RunRefPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        }
+      }
+    },
+    "RunStartPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "conversation_id",
+        "text",
+        "attachments",
+        "workspace",
+        "model"
+      ],
+      "properties": {
+        "conversation_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "workspace": {
+          "type": "string"
+        },
+        "model": {
+          "$ref": "#/$defs/ModelPref"
+        }
+      }
+    },
+    "RunState": {
+      "type": "string",
+      "enum": [
+        "planning",
+        "inferring",
+        "tool_running",
+        "waiting_approval",
+        "waiting_question",
+        "compacting",
+        "replanning",
+        "stalled",
+        "paused",
+        "reconnecting",
+        "done",
+        "stopped"
+      ]
+    },
+    "RunStateEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "state"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/RunState"
+        },
+        "detail": {
+          "type": "object"
+        }
+      }
+    },
+    "RuntimeCommand": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "v",
+        "id",
+        "type",
+        "payload"
+      ],
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "run.start",
+            "run.pause",
+            "run.resume",
+            "run.stop",
+            "approval.decide",
+            "question.answer",
+            "undo.run",
+            "events.since",
+            "settings.update",
+            "conversation.list",
+            "conversation.get",
+            "conversation.search",
+            "conversation.delete"
+          ]
+        },
+        "payload": {
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "run.start"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/RunStartPayload"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "run.pause",
+                  "run.resume",
+                  "run.stop"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/RunRefPayload"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "approval.decide"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/ApprovalDecision"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "question.answer"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/QuestionAnswerPayload"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "undo.run"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/UndoPayload"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "events.since"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/EventsSincePayload"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "settings.update"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/SettingsPayload"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "RuntimeEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "v",
+        "id",
+        "type",
+        "payload",
+        "seq"
+      ],
+      "properties": {
+        "v": {
+          "const": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "conversation_id": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "run.state",
+            "token",
+            "step",
+            "plan",
+            "approval.request",
+            "question",
+            "artifact",
+            "batch_progress",
+            "queue",
+            "retry",
+            "net.activity",
+            "notify",
+            "server.status"
+          ]
+        },
+        "payload": {
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "run.state"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/RunStateEvent"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "step"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/StepEvent"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "approval.request"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/ApprovalRequest"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "artifact"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/ArtifactEvent"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "notify"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/NotifyEvent"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "Scalar": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 4000
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/DateValue"
+        }
+      ]
+    },
+    "SettingsPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "net_level": {
+          "$ref": "#/$defs/NetLevel"
+        },
+        "model_default": {
+          "$ref": "#/$defs/ModelPref"
+        },
+        "notify_long_run_minutes": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 1440
+        }
+      }
+    },
+    "SheetName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 31
+    },
+    "SheetSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "columns"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/SheetName"
+        },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "header"
+            ],
+            "properties": {
+              "header": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "width": {
+                "type": "number",
+                "minimum": 1,
+                "maximum": 255
+              },
+              "number_format": {
+                "$ref": "#/$defs/NumberFormat"
+              }
+            }
+          }
+        },
+        "rows": {
+          "type": "array",
+          "maxItems": 100000,
+          "items": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/$defs/Scalar"
+            }
+          }
+        },
+        "formulas": {
+          "type": "array",
+          "maxItems": 5000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "ref",
+              "formula"
+            ],
+            "properties": {
+              "ref": {
+                "type": "string",
+                "maxLength": 20
+              },
+              "formula": {
+                "type": "string",
+                "pattern": "^=",
+                "maxLength": 2000
+              }
+            }
+          }
+        },
+        "freeze": {
+          "type": "string",
+          "maxLength": 20
+        },
+        "as_table": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name"
+          ],
+          "properties": {
+            "name": {
+              "type": "string",
+              "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+            },
+            "style": {
+              "type": "string",
+              "maxLength": 50
+            }
+          }
+        }
+      }
+    },
+    "ShortText": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "SourceRef": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "xlsx",
+            "range"
+          ],
+          "properties": {
+            "xlsx": {
+              "$ref": "#/$defs/Path"
+            },
+            "range": {
+              "$ref": "#/$defs/RangeRef"
+            },
+            "header_row": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "csv"
+          ],
+          "properties": {
+            "csv": {
+              "$ref": "#/$defs/Path"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rows",
+            "header"
+          ],
+          "properties": {
+            "header": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "$ref": "#/$defs/ColumnName"
+              }
+            },
+            "rows": {
+              "type": "array",
+              "maxItems": 10000,
+              "items": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/Scalar"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "result_of"
+          ],
+          "properties": {
+            "result_of": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        }
+      ]
+    },
+    "Step": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "where"
+          ],
+          "properties": {
+            "op": {
+              "const": "filter"
+            },
+            "where": {
+              "$ref": "#/$defs/Expr"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "columns"
+          ],
+          "properties": {
+            "op": {
+              "const": "select"
+            },
+            "columns": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 200,
+              "items": {
+                "$ref": "#/$defs/ColumnName"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "map"
+          ],
+          "properties": {
+            "op": {
+              "const": "rename"
+            },
+            "map": {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/ColumnName"
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "column",
+            "expr"
+          ],
+          "properties": {
+            "op": {
+              "const": "derive"
+            },
+            "column": {
+              "$ref": "#/$defs/ColumnName"
+            },
+            "expr": {
+              "$ref": "#/$defs/Expr"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "by",
+            "aggs"
+          ],
+          "properties": {
+            "op": {
+              "const": "group"
+            },
+            "by": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "$ref": "#/$defs/ColumnName"
+              }
+            },
+            "aggs": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "column",
+                  "fn",
+                  "as"
+                ],
+                "properties": {
+                  "column": {
+                    "$ref": "#/$defs/ColumnName"
+                  },
+                  "fn": {
+                    "type": "string",
+                    "enum": [
+                      "sum",
+                      "count",
+                      "avg",
+                      "min",
+                      "max",
+                      "first"
+                    ]
+                  },
+                  "as": {
+                    "$ref": "#/$defs/ColumnName"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "by"
+          ],
+          "properties": {
+            "op": {
+              "const": "sort"
+            },
+            "by": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 10,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "column"
+                ],
+                "properties": {
+                  "column": {
+                    "$ref": "#/$defs/ColumnName"
+                  },
+                  "desc": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "with",
+            "on",
+            "how"
+          ],
+          "properties": {
+            "op": {
+              "const": "join"
+            },
+            "with": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "on": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 10,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "left",
+                  "right"
+                ],
+                "properties": {
+                  "left": {
+                    "$ref": "#/$defs/ColumnName"
+                  },
+                  "right": {
+                    "$ref": "#/$defs/ColumnName"
+                  }
+                }
+              }
+            },
+            "how": {
+              "type": "string",
+              "enum": [
+                "inner",
+                "left",
+                "outer"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "with",
+            "key",
+            "compare"
+          ],
+          "properties": {
+            "op": {
+              "const": "reconcile"
+            },
+            "with": {
+              "type": "string",
+              "maxLength": 64
+            },
+            "key": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 10,
+              "items": {
+                "$ref": "#/$defs/ColumnName"
+              }
+            },
+            "compare": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 50,
+              "items": {
+                "$ref": "#/$defs/ColumnName"
+              }
+            },
+            "tolerance": {
+              "type": "number",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "op",
+            "by"
+          ],
+          "properties": {
+            "op": {
+              "const": "dedupe"
+            },
+            "by": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 20,
+              "items": {
+                "$ref": "#/$defs/ColumnName"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "StepEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "step_id",
+        "kind",
+        "status",
+        "started_at"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "step_id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "tool",
+            "plan",
+            "final",
+            "ask",
+            "system"
+          ]
+        },
+        "tool": {
+          "type": "string"
+        },
+        "args_preview": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "result_preview": {
+          "type": "string",
+          "maxLength": 500
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "running",
+            "ok",
+            "error",
+            "deferred"
+          ]
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ended_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "ToolCall": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "tool",
+        "args"
+      ],
+      "properties": {
+        "type": {
+          "const": "tool_call"
+        },
+        "thought": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "tool": {
+          "type": "string",
+          "pattern": "^[a-z]+(\\.[a-z0-9_]+)+$",
+          "maxLength": 80
+        },
+        "args": {
+          "type": "object"
+        }
+      }
+    },
+    "ToolError": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "kind",
+        "message"
+      ],
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "kind": {
+          "$ref": "#/$defs/ErrorKind"
+        },
+        "message": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "retry_after_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "detail": {
+          "type": "object"
+        }
+      }
+    },
+    "ToolResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ok",
+        "tokens_estimate"
+      ],
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "data": {
+          "type": "object"
+        },
+        "error": {
+          "$ref": "#/$defs/ToolError"
+        },
+        "untrusted": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UntrustedBlock"
+          }
+        },
+        "continuation": {
+          "$ref": "#/$defs/Continuation"
+        },
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Artifact"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "tokens_estimate": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "ToolSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "description",
+        "args_schema",
+        "result_schema",
+        "effect",
+        "path_args",
+        "idempotent",
+        "untrusted_output",
+        "timeout_ms",
+        "priority"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z]+(\\.[a-z0-9_]+)+$"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 120
+        },
+        "args_schema": {
+          "type": "object"
+        },
+        "result_schema": {
+          "type": "object"
+        },
+        "effect": {
+          "$ref": "#/$defs/Effect"
+        },
+        "path_args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "idempotent": {
+          "type": "boolean"
+        },
+        "untrusted_output": {
+          "type": "boolean"
+        },
+        "timeout_ms": {
+          "type": "integer",
+          "minimum": 1000
+        },
+        "priority": {
+          "$ref": "#/$defs/Priority"
+        }
+      }
+    },
+    "UndoPayload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "UntrustedBlock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "ref",
+        "text"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "file",
+            "web",
+            "rag",
+            "ocr"
+          ]
+        },
+        "ref": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "text": {
+          "type": "string"
+        }
+      }
+    },
+    "WebFetchArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https?://",
+          "maxLength": 2048
+        },
+        "max_chars": {
+          "type": "integer",
+          "minimum": 500,
+          "maximum": 8000
+        }
+      }
+    },
+    "WebFetchResult": {
+      "type": "object",
+      "required": [
+        "url",
+        "final_url",
+        "chars",
+        "truncated"
+      ],
+      "properties": {
+        "url": {
+          "type": "string"
+        },
+        "final_url": {
+          "type": "string"
+        },
+        "title_ref": {
+          "type": "string"
+        },
+        "content_type": {
+          "type": "string"
+        },
+        "chars": {
+          "type": "integer"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      }
+    },
+    "WebSearchArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "query"
+      ],
+      "properties": {
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "max_results": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "site": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9.-]{1,253}$"
+        }
+      }
+    },
+    "WebSearchResult": {
+      "type": "object",
+      "required": [
+        "results"
+      ],
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "rank",
+              "url"
+            ],
+            "properties": {
+              "rank": {
+                "type": "integer"
+              },
+              "url": {
+                "type": "string"
+              },
+              "title_ref": {
+                "type": "string"
+              },
+              "snippet_ref": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "XlsxAddSheetArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "name"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "name": {
+          "$ref": "#/$defs/SheetName"
+        },
+        "position": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        }
+      }
+    },
+    "XlsxAddSheetResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "XlsxChartArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sheet",
+        "kind",
+        "data_range",
+        "anchor"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "sheet": {
+          "$ref": "#/$defs/SheetName"
+        },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "bar",
+            "line",
+            "pie",
+            "scatter"
+          ]
+        },
+        "data_range": {
+          "$ref": "#/$defs/RangeRef"
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 100
+        },
+        "anchor": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,3}[0-9]{1,7}$"
+        }
+      }
+    },
+    "XlsxChartResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "XlsxCreateArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sheets"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "sheets": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/SheetSpec"
+          }
+        },
+        "overwrite": {
+          "type": "boolean"
+        }
+      }
+    },
+    "XlsxCreateResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        },
+        "recalc": {
+          "$ref": "#/$defs/RecalcResult"
+        }
+      }
+    },
+    "XlsxDeleteColsArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sheet",
+        "at",
+        "count"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "sheet": {
+          "$ref": "#/$defs/SheetName"
+        },
+        "at": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,3}$"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "expect_hash": {
+          "$ref": "#/$defs/FileHash"
+        }
+      }
+    },
+    "XlsxDeleteColsResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "XlsxDeleteRowsArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sheet",
+        "at",
+        "count"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "sheet": {
+          "$ref": "#/$defs/SheetName"
+        },
+        "at": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "expect_hash": {
+          "$ref": "#/$defs/FileHash"
+        }
+      }
+    },
+    "XlsxDeleteRowsResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "XlsxFindArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "query"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "sheet": {
+          "$ref": "#/$defs/SheetName"
+        },
+        "query": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "match": {
+          "type": "string",
+          "enum": [
+            "exact",
+            "contains"
+          ]
+        },
+        "max_results": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      }
+    },
+    "XlsxFindResult": {
+      "type": "object",
+      "required": [
+        "hits"
+      ],
+      "properties": {
+        "hits": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "XlsxInfoArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        }
+      }
+    },
+    "XlsxInfoResult": {
+      "type": "object",
+      "required": [
+        "file_hash",
+        "sheets",
+        "has_macros"
+      ],
+      "properties": {
+        "file_hash": {
+          "$ref": "#/$defs/FileHash"
+        },
+        "sheets": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "has_macros": {
+          "type": "boolean"
+        }
+      }
+    },
+    "XlsxInsertColsArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sheet",
+        "at",
+        "count"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "sheet": {
+          "$ref": "#/$defs/SheetName"
+        },
+        "at": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,3}$"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        },
+        "expect_hash": {
+          "$ref": "#/$defs/FileHash"
+        }
+      }
+    },
+    "XlsxInsertColsResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "XlsxInsertRowsArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sheet",
+        "at",
+        "count"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "sheet": {
+          "$ref": "#/$defs/SheetName"
+        },
+        "at": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "expect_hash": {
+          "$ref": "#/$defs/FileHash"
+        }
+      }
+    },
+    "XlsxInsertRowsResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "XlsxReadRangeArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "range"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "range": {
+          "$ref": "#/$defs/RangeRef"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "values",
+            "formulas",
+            "both"
+          ]
+        },
+        "header_row": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        },
+        "max_cells": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20000
+        }
+      }
+    },
+    "XlsxReadRangeResult": {
+      "type": "object",
+      "required": [
+        "file_hash",
+        "range",
+        "rows"
+      ],
+      "properties": {
+        "file_hash": {
+          "$ref": "#/$defs/FileHash"
+        },
+        "range": {
+          "type": "string"
+        },
+        "header": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "array"
+          }
+        },
+        "formulas": {
+          "type": "array",
+          "items": {
+            "type": "array"
+          }
+        },
+        "formats": {
+          "type": "array",
+          "items": {
+            "type": "array"
+          }
+        }
+      }
+    },
+    "XlsxRecalcArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        }
+      }
+    },
+    "XlsxRecalcResult": {
+      "$ref": "#/$defs/RecalcResult"
+    },
+    "XlsxRenameSheetArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "name",
+        "new_name"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "name": {
+          "$ref": "#/$defs/SheetName"
+        },
+        "new_name": {
+          "$ref": "#/$defs/SheetName"
+        }
+      }
+    },
+    "XlsxRenameSheetResult": {
+      "type": "object",
+      "required": [
+        "artifact"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        }
+      }
+    },
+    "XlsxWriteCellsArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sheet",
+        "cells"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "sheet": {
+          "$ref": "#/$defs/SheetName"
+        },
+        "cells": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5000,
+          "items": {
+            "$ref": "#/$defs/CellWrite"
+          }
+        },
+        "expect_hash": {
+          "$ref": "#/$defs/FileHash"
+        },
+        "recalc": {
+          "type": "boolean"
+        }
+      }
+    },
+    "XlsxWriteCellsResult": {
+      "type": "object",
+      "required": [
+        "artifact",
+        "written"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        },
+        "written": {
+          "type": "integer"
+        },
+        "recalc": {
+          "$ref": "#/$defs/RecalcResult"
+        }
+      }
+    },
+    "XlsxWriteTableArgs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sheet",
+        "top_left",
+        "rows"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/Path"
+        },
+        "sheet": {
+          "$ref": "#/$defs/SheetName"
+        },
+        "top_left": {
+          "type": "string",
+          "pattern": "^[A-Z]{1,3}[0-9]{1,7}$"
+        },
+        "header": {
+          "type": "array",
+          "maxItems": 200,
+          "items": {
+            "type": "string",
+            "maxLength": 200
+          }
+        },
+        "rows": {
+          "type": "array",
+          "maxItems": 100000,
+          "items": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "$ref": "#/$defs/Scalar"
+            }
+          }
+        },
+        "expect_hash": {
+          "$ref": "#/$defs/FileHash"
+        },
+        "recalc": {
+          "type": "boolean"
+        }
+      }
+    },
+    "XlsxWriteTableResult": {
+      "type": "object",
+      "required": [
+        "artifact",
+        "range"
+      ],
+      "properties": {
+        "artifact": {
+          "$ref": "#/$defs/Artifact"
+        },
+        "range": {
+          "type": "string"
+        },
+        "recalc": {
+          "$ref": "#/$defs/RecalcResult"
+        }
+      }
+    }
+  }
+}

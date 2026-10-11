@@ -1,0 +1,39 @@
+# uv workspace root (virtual: no [project] here)
+[tool.uv.workspace]
+members = ["packages/protocol/python", "eval/mock-gateway"]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3",
+  "ruff>=0.7",
+  "mypy>=1.13",
+  "datamodel-code-generator>=0.26",
+  "types-PyYAML",
+  "types-jsonschema",
+]
+
+[tool.ruff]
+line-length = 110
+extend-exclude = ["**/generated/**"]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = [
+  "S101",  # assert は pytest で使う
+  "E501",  # 行の長さは formatter に任せる（日本語は全角幅で数えられるため）
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/generated/*.py" = ["E", "UP", "I", "S", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["lla_protocol", "mock_gateway"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+exclude = ["generated/"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/protocol/python/tests", "eval/mock-gateway/tests"]

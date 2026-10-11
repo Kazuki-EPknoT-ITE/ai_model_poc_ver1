@@ -1,0 +1,11 @@
+{
+  "name": "local-llm-agent",
+  "start": "uv run mock-gateway --scenario eval/mock-gateway/scenarios/smoke.yaml --port 8787",
+  "url": "http://127.0.0.1:8787",
+  "readyPath": "/healthz",
+  "flows": [
+    { "name": "mock-gateway", "steps": "ヘルスチェック → ログイン → 設定取得 → 推論ジョブ3手（plan_update → fs.list → final）→ SSE の途中再開と冪等キー → ブラウザで /readyz を表示" }
+  ],
+  "playwrightTest": "pnpm test:e2e",
+  "note": "M4（T-30〜T-35）でデスクトップアプリ（Playwright _electron）の E2E に置き換える"
+}

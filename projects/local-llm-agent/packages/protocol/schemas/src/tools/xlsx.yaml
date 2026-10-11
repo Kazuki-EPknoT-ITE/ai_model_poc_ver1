@@ -1,0 +1,438 @@
+# xlsx / csv（local_llm_protocol.md §3.3）
+$defs:
+  SheetName:
+    type: string
+    minLength: 1
+    maxLength: 31
+  NumberFormat:
+    type: string
+    maxLength: 100
+  CellWrite:
+    type: object
+    additionalProperties: false
+    required: [ref]
+    properties:
+      ref: { $ref: "#/$defs/CellRef" }
+      value: { $ref: "#/$defs/Scalar" }
+      formula: { type: string, pattern: "^=", maxLength: 2000 }
+      number_format: { $ref: "#/$defs/NumberFormat" }
+  SheetSpec:
+    type: object
+    additionalProperties: false
+    required: [name, columns]
+    properties:
+      name: { $ref: "#/$defs/SheetName" }
+      columns:
+        type: array
+        minItems: 1
+        maxItems: 200
+        items:
+          type: object
+          additionalProperties: false
+          required: [header]
+          properties:
+            header: { type: string, maxLength: 200 }
+            width: { type: number, minimum: 1, maximum: 255 }
+            number_format: { $ref: "#/$defs/NumberFormat" }
+      rows:
+        type: array
+        maxItems: 100000
+        items: { type: array, maxItems: 200, items: { $ref: "#/$defs/Scalar" } }
+      formulas:
+        type: array
+        maxItems: 5000
+        items:
+          type: object
+          additionalProperties: false
+          required: [ref, formula]
+          properties:
+            ref: { type: string, maxLength: 20 }
+            formula: { type: string, pattern: "^=", maxLength: 2000 }
+      freeze: { type: string, maxLength: 20 }
+      as_table:
+        type: object
+        additionalProperties: false
+        required: [name]
+        properties:
+          name: { type: string, pattern: "^[A-Za-z_][A-Za-z0-9_]{0,63}$" }
+          style: { type: string, maxLength: 50 }
+  RecalcResult:
+    type: object
+    required: [ok, errors]
+    properties:
+      ok: { type: boolean }
+      errors:
+        type: array
+        items:
+          type: object
+          required: [cell, value]
+          properties:
+            cell: { type: string }
+            value: { type: string, enum: ["#REF!", "#DIV/0!", "#VALUE!", "#NAME?", "#N/A", "#NUM!", "#NULL!"] }
+            formula: { type: string }
+tools:
+  xlsx.info:
+    description: Excel のシート一覧・使用範囲・結合セル・テーブル・マクロの有無を取得する
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 60000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+    result:
+      type: object
+      required: [file_hash, sheets, has_macros]
+      properties:
+        file_hash: { $ref: "#/$defs/FileHash" }
+        sheets: { type: array, items: { type: object } }
+        has_macros: { type: boolean }
+    examples:
+      - { path: "送金明細.xlsx" }
+  xlsx.read_range:
+    description: Excel の範囲を読む（値・数式・表示形式）
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: true
+    timeout_ms: 60000
+    priority: Must
+    paginated: true
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, range]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        range: { $ref: "#/$defs/RangeRef" }
+        mode: { type: string, enum: [values, formulas, both] }
+        header_row: { type: integer, minimum: 1, maximum: 1048576 }
+        max_cells: { type: integer, minimum: 1, maximum: 20000 }
+    result:
+      type: object
+      required: [file_hash, range, rows]
+      properties:
+        file_hash: { $ref: "#/$defs/FileHash" }
+        range: { type: string }
+        header: { type: array, items: { type: string } }
+        rows: { type: array, items: { type: array } }
+        formulas: { type: array, items: { type: array } }
+        formats: { type: array, items: { type: array } }
+    examples:
+      - { path: "送金明細.xlsx", range: "明細!A1:F200", header_row: 1 }
+  xlsx.find:
+    description: Excel の中を文字で検索し、該当セルを返す
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: true
+    timeout_ms: 60000
+    priority: Should
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, query]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        sheet: { $ref: "#/$defs/SheetName" }
+        query: { type: string, minLength: 1, maxLength: 200 }
+        match: { type: string, enum: [exact, contains] }
+        max_results: { type: integer, minimum: 1, maximum: 1000 }
+    result: { type: object, required: [hits], properties: { hits: { type: array, items: { type: object } } } }
+    examples:
+      - { path: "船費.xlsx", query: "入渠" }
+  xlsx.write_cells:
+    description: Excel のセルに値・数式・表示形式を書く（書式は保持し、最後に再計算する）
+    effect: write
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 120000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, sheet, cells]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        sheet: { $ref: "#/$defs/SheetName" }
+        cells: { type: array, minItems: 1, maxItems: 5000, items: { $ref: "#/$defs/CellWrite" } }
+        expect_hash: { $ref: "#/$defs/FileHash" }
+        recalc: { type: boolean }
+    result:
+      type: object
+      required: [artifact, written]
+      properties:
+        artifact: { $ref: "#/$defs/Artifact" }
+        written: { type: integer }
+        recalc: { $ref: "#/$defs/RecalcResult" }
+    examples:
+      - path: "送金明細.xlsx"
+        sheet: "明細"
+        cells:
+          - { ref: "B2", value: "XX Shipping" }
+          - { ref: "D2", value: 12500.5, number_format: "#,##0.00" }
+          - { ref: "D12", formula: "=SUM(D2:D11)" }
+          - { ref: "A2", value: { date: "2026-10-01" } }
+  xlsx.write_table:
+    description: Excel に表（見出し＋行）をまとめて書く
+    effect: write
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 120000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, sheet, top_left, rows]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        sheet: { $ref: "#/$defs/SheetName" }
+        top_left: { type: string, pattern: "^[A-Z]{1,3}[0-9]{1,7}$" }
+        header: { type: array, maxItems: 200, items: { type: string, maxLength: 200 } }
+        rows: { type: array, maxItems: 100000, items: { type: array, maxItems: 200, items: { $ref: "#/$defs/Scalar" } } }
+        expect_hash: { $ref: "#/$defs/FileHash" }
+        recalc: { type: boolean }
+    result:
+      type: object
+      required: [artifact, range]
+      properties:
+        artifact: { $ref: "#/$defs/Artifact" }
+        range: { type: string }
+        recalc: { $ref: "#/$defs/RecalcResult" }
+    examples:
+      - { path: "a.xlsx", sheet: "Sheet1", top_left: "A1", header: ["日付", "金額"], rows: [[{ date: "2026-10-01" }, 100]] }
+  xlsx.insert_rows:
+    description: Excel に行を挿入する
+    effect: write
+    path_args: [/path]
+    idempotent: false
+    untrusted_output: false
+    timeout_ms: 120000
+    priority: Must
+    args: &rows_args
+      type: object
+      additionalProperties: false
+      required: [path, sheet, at, count]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        sheet: { $ref: "#/$defs/SheetName" }
+        at: { type: integer, minimum: 1, maximum: 1048576 }
+        count: { type: integer, minimum: 1, maximum: 10000 }
+        expect_hash: { $ref: "#/$defs/FileHash" }
+    result: &artifact_result { type: object, required: [artifact], properties: { artifact: { $ref: "#/$defs/Artifact" } } }
+    examples:
+      - { path: "a.xlsx", sheet: "明細", at: 5, count: 2 }
+  xlsx.delete_rows:
+    description: Excel の行を削除する
+    effect: write
+    path_args: [/path]
+    idempotent: false
+    untrusted_output: false
+    timeout_ms: 120000
+    priority: Must
+    args: *rows_args
+    result: *artifact_result
+    examples:
+      - { path: "a.xlsx", sheet: "明細", at: 5, count: 1 }
+  xlsx.insert_cols:
+    description: Excel に列を挿入する
+    effect: write
+    path_args: [/path]
+    idempotent: false
+    untrusted_output: false
+    timeout_ms: 120000
+    priority: Should
+    args: &cols_args
+      type: object
+      additionalProperties: false
+      required: [path, sheet, at, count]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        sheet: { $ref: "#/$defs/SheetName" }
+        at: { type: string, pattern: "^[A-Z]{1,3}$" }
+        count: { type: integer, minimum: 1, maximum: 1000 }
+        expect_hash: { $ref: "#/$defs/FileHash" }
+    result: *artifact_result
+    examples:
+      - { path: "a.xlsx", sheet: "明細", at: "C", count: 1 }
+  xlsx.delete_cols:
+    description: Excel の列を削除する
+    effect: write
+    path_args: [/path]
+    idempotent: false
+    untrusted_output: false
+    timeout_ms: 120000
+    priority: Should
+    args: *cols_args
+    result: *artifact_result
+    examples:
+      - { path: "a.xlsx", sheet: "明細", at: "C", count: 1 }
+  xlsx.add_sheet:
+    description: Excel にシートを追加する
+    effect: write
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 60000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, name]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        name: { $ref: "#/$defs/SheetName" }
+        position: { type: integer, minimum: 0, maximum: 255 }
+    result: *artifact_result
+    examples:
+      - { path: "a.xlsx", name: "集計" }
+  xlsx.rename_sheet:
+    description: Excel のシート名を変える
+    effect: write
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 60000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, name, new_name]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        name: { $ref: "#/$defs/SheetName" }
+        new_name: { $ref: "#/$defs/SheetName" }
+    result: *artifact_result
+    examples:
+      - { path: "a.xlsx", name: "Sheet1", new_name: "明細" }
+  xlsx.create:
+    description: Excel を新規作成する（見出し・列幅・表示形式・数式・テーブル）
+    effect: write
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 120000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, sheets]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        sheets: { type: array, minItems: 1, maxItems: 50, items: { $ref: "#/$defs/SheetSpec" } }
+        overwrite: { type: boolean }
+    result:
+      type: object
+      required: [artifact]
+      properties:
+        artifact: { $ref: "#/$defs/Artifact" }
+        recalc: { $ref: "#/$defs/RecalcResult" }
+    examples:
+      - path: "出力/送金明細.xlsx"
+        sheets:
+          - name: "明細"
+            columns:
+              - { header: "請求日", width: 12, number_format: "yyyy-mm-dd" }
+              - { header: "請求元", width: 30 }
+              - { header: "金額", width: 14, number_format: "#,##0.00" }
+            rows: [[{ date: "2026-10-01" }, "XX Shipping", 12500.5]]
+            formulas: [{ ref: "C3", formula: "=SUM(C2:C2)" }]
+            freeze: "A2"
+            as_table: { name: "Remit" }
+  xlsx.recalc:
+    description: Excel を再計算し、エラー値のあるセルを一覧にする
+    effect: write
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 180000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+    result: { $ref: "#/$defs/RecalcResult" }
+    examples:
+      - { path: "送金明細.xlsx" }
+  xlsx.chart:
+    description: Excel にグラフを作る
+    effect: write
+    path_args: [/path]
+    idempotent: false
+    untrusted_output: false
+    timeout_ms: 120000
+    priority: Should
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, sheet, kind, data_range, anchor]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        sheet: { $ref: "#/$defs/SheetName" }
+        kind: { type: string, enum: [bar, line, pie, scatter] }
+        data_range: { $ref: "#/$defs/RangeRef" }
+        title: { type: string, maxLength: 100 }
+        anchor: { type: string, pattern: "^[A-Z]{1,3}[0-9]{1,7}$" }
+    result: *artifact_result
+    examples:
+      - { path: "a.xlsx", sheet: "集計", kind: bar, data_range: "集計!A1:B13", anchor: "D2", title: "月別費用" }
+  csv.read:
+    description: CSV を読む（文字コードと区切り文字を自動判定）
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: true
+    timeout_ms: 60000
+    priority: Must
+    paginated: true
+    args:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        encoding: { type: string, enum: [auto, utf-8, utf-8-sig, cp932] }
+        delimiter: { type: string, enum: [auto, ",", "\t", ";", "|"] }
+        max_rows: { type: integer, minimum: 1, maximum: 20000 }
+        offset: { type: integer, minimum: 0 }
+    result:
+      type: object
+      required: [encoding, delimiter, rows, total_rows]
+      properties:
+        encoding: { type: string }
+        delimiter: { type: string }
+        header: { type: array, items: { type: string } }
+        rows: { type: array, items: { type: array } }
+        total_rows: { type: integer }
+    examples:
+      - { path: "銀行明細.csv" }
+  csv.write:
+    description: CSV を書き出す（UTF-8 BOM 付き または CP932）
+    effect: write
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 60000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, rows]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        header: { type: array, maxItems: 200, items: { type: string, maxLength: 200 } }
+        rows: { type: array, maxItems: 100000, items: { type: array, maxItems: 200, items: { $ref: "#/$defs/Scalar" } } }
+        encoding: { type: string, enum: [utf-8-sig, cp932] }
+        overwrite: { type: boolean }
+    result: *artifact_result
+    examples:
+      - { path: "出力/振込.csv", header: ["口座", "金額"], rows: [["1234567", 1000]], encoding: cp932 }

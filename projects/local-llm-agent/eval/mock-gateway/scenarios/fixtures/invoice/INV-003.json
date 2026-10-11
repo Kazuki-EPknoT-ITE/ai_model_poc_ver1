@@ -1,0 +1,2 @@
+{ "issue_date": "2026-09-03", "issuer_name": "Example Shipping Co. 3", "currency": "USD", "subtotal": 3000.00, "tax": 0, "total": 3000.00,
+  "lines": [{ "description": "Charter hire", "qty": 1, "unit_price": 3000.00, "amount": 3000.00 }] }

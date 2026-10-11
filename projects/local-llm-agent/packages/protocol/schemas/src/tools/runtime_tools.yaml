@@ -1,0 +1,136 @@
+# batch / memory（Runtime 内蔵。local_llm_protocol.md §3.6, §3.7）
+$defs:
+  OutputColumn:
+    type: object
+    additionalProperties: false
+    required: [header, from]
+    properties:
+      header: { type: string, maxLength: 200 }
+      from: { type: string, pattern: "^(/[^/]*)+$", maxLength: 200 }
+  BatchSpec:
+    type: object
+    additionalProperties: false
+    required: [items, pipeline]
+    properties:
+      items:
+        type: string
+        minLength: 1
+        maxLength: 20000
+        pattern: "^(glob:|list:)"
+      pipeline:
+        oneOf:
+          - type: object
+            additionalProperties: false
+            required: [tool, args]
+            properties:
+              tool: { const: invoice.extract }
+              args:
+                type: object
+                additionalProperties: false
+                required: [schema]
+                properties:
+                  schema: { type: string, pattern: "^[a-z][a-z0-9_.-]{1,40}$" }
+          - type: object
+            additionalProperties: false
+            required: [tool]
+            properties:
+              tool: { enum: [pdf.extract_tables, pdf.read_pages, convert.to_pdf, convert.to_docx, convert.to_xlsx] }
+              args: { type: object }
+      output:
+        oneOf:
+          - type: object
+            additionalProperties: false
+            required: [xlsx, sheet, columns]
+            properties:
+              xlsx: { $ref: "#/$defs/Path" }
+              sheet: { $ref: "#/$defs/SheetName" }
+              columns: { type: array, minItems: 1, maxItems: 100, items: { $ref: "#/$defs/OutputColumn" } }
+              append: { type: boolean }
+          - type: object
+            additionalProperties: false
+            required: [csv, columns]
+            properties:
+              csv: { $ref: "#/$defs/Path" }
+              columns: { type: array, minItems: 1, maxItems: 100, items: { $ref: "#/$defs/OutputColumn" } }
+      on_error: { const: skip }
+tools:
+  batch.run:
+    description: 同じ処理を複数ファイルに1件ずつ実行し、結果をまとめて出力する（失敗は飛ばして記録）
+    effect: write
+    path_args: [/output/xlsx, /output/csv]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 86400000
+    priority: Must
+    args: { $ref: "#/$defs/BatchSpec" }
+    result:
+      type: object
+      required: [batch_id, total, succeeded, failed, result_id]
+      properties:
+        batch_id: { type: string }
+        total: { type: integer }
+        succeeded: { type: integer }
+        failed: { type: array, items: { type: object, required: [item, code, reason], properties: { item: { type: string }, code: { type: string }, reason: { type: string } } } }
+        result_id: { type: string }
+        output_artifact: { $ref: "#/$defs/Artifact" }
+    examples:
+      - items: "glob:請求書/*.pdf"
+        pipeline: { tool: invoice.extract, args: { schema: invoice.v1 } }
+        output:
+          xlsx: "送金明細.xlsx"
+          sheet: "明細"
+          columns:
+            - { header: "請求日", from: "/fields/issue_date/value" }
+            - { header: "金額", from: "/fields/total/value" }
+  batch.status:
+    description: 一括処理の進捗を確認する
+    effect: none
+    path_args: []
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 10000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [batch_id]
+      properties:
+        batch_id: { type: string, maxLength: 64 }
+    result: { type: object, required: [done, total], properties: { done: { type: integer }, total: { type: integer }, failed: { type: integer } } }
+    examples:
+      - { batch_id: "01JABC" }
+  memory.note:
+    description: 大事な事実を固定メモリに記録する（文脈を圧縮しても消えない）
+    effect: none
+    path_args: []
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 10000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [key, value]
+      properties:
+        key: { type: string, minLength: 1, maxLength: 40 }
+        value: { type: string, minLength: 1, maxLength: 500 }
+    result: { type: object, required: [keys], properties: { keys: { type: array, items: { type: string } } } }
+    examples:
+      - { key: "出力先", value: "出力/送金明細_202610.xlsx" }
+  memory.forget:
+    description: 固定メモリから記録を消す
+    effect: none
+    path_args: []
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 10000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [key]
+      properties:
+        key: { type: string, minLength: 1, maxLength: 40 }
+    result: { type: object, required: [keys], properties: { keys: { type: array, items: { type: string } } } }
+    examples:
+      - { key: "出力先" }

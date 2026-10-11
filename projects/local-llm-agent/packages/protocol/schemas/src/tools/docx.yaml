@@ -1,0 +1,277 @@
+# docx（local_llm_protocol.md §3.2）
+$defs:
+  NewBlock:
+    oneOf:
+      - type: object
+        additionalProperties: false
+        required: [kind, level, text]
+        properties:
+          kind: { const: heading }
+          level: { type: integer, minimum: 1, maximum: 9 }
+          text: { type: string, maxLength: 500 }
+      - type: object
+        additionalProperties: false
+        required: [kind, text]
+        properties:
+          kind: { const: paragraph }
+          text: { type: string, maxLength: 8000 }
+          style: { type: string, maxLength: 100 }
+          list:
+            type: object
+            additionalProperties: false
+            required: [level, numbered]
+            properties:
+              level: { type: integer, minimum: 0, maximum: 8 }
+              numbered: { type: boolean }
+      - type: object
+        additionalProperties: false
+        required: [kind, rows]
+        properties:
+          kind: { const: table }
+          header: { type: array, maxItems: 50, items: { type: string, maxLength: 500 } }
+          rows:
+            type: array
+            maxItems: 2000
+            items: { type: array, maxItems: 50, items: { type: string, maxLength: 2000 } }
+          style: { type: string, maxLength: 100 }
+      - type: object
+        additionalProperties: false
+        required: [kind]
+        properties:
+          kind: { const: page_break }
+  DocxOp:
+    oneOf:
+      - type: object
+        additionalProperties: false
+        required: [op, block_id, text]
+        properties:
+          op: { const: replace_text }
+          block_id: { $ref: "#/$defs/BlockId" }
+          text: { type: string, maxLength: 8000 }
+      - type: object
+        additionalProperties: false
+        required: [op, block_id, find, replace]
+        properties:
+          op: { const: replace_in_block }
+          block_id: { $ref: "#/$defs/BlockId" }
+          find: { type: string, minLength: 1, maxLength: 1000 }
+          replace: { type: string, maxLength: 4000 }
+          count: { type: integer, minimum: 1, maximum: 100 }
+      - type: object
+        additionalProperties: false
+        required: [op, block_id, blocks]
+        properties:
+          op: { enum: [insert_after, insert_before] }
+          block_id: { $ref: "#/$defs/BlockId" }
+          blocks: { type: array, minItems: 1, maxItems: 100, items: { $ref: "#/$defs/NewBlock" } }
+      - type: object
+        additionalProperties: false
+        required: [op, block_id]
+        properties:
+          op: { const: delete_block }
+          block_id: { $ref: "#/$defs/BlockId" }
+      - type: object
+        additionalProperties: false
+        required: [op, cell_id, text]
+        properties:
+          op: { const: table_set_cell }
+          cell_id: { $ref: "#/$defs/BlockId" }
+          text: { type: string, maxLength: 4000 }
+      - type: object
+        additionalProperties: false
+        required: [op, table_id, values]
+        properties:
+          op: { const: table_add_row }
+          table_id: { $ref: "#/$defs/BlockId" }
+          after_row: { type: integer, minimum: -1, maximum: 10000 }
+          values: { type: array, maxItems: 50, items: { type: string, maxLength: 2000 } }
+      - type: object
+        additionalProperties: false
+        required: [op, table_id, row]
+        properties:
+          op: { const: table_delete_row }
+          table_id: { $ref: "#/$defs/BlockId" }
+          row: { type: integer, minimum: 0, maximum: 10000 }
+      - type: object
+        additionalProperties: false
+        required: [op, block_id, style]
+        properties:
+          op: { const: set_style }
+          block_id: { $ref: "#/$defs/BlockId" }
+          style: { type: string, maxLength: 100 }
+tools:
+  docx.read:
+    description: Word を ID 付きのブロック列で読む（見出し・段落・表・ヘッダー/フッター）
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: true
+    timeout_ms: 60000
+    priority: Must
+    paginated: true
+    args:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        from_block: { $ref: "#/$defs/BlockId" }
+        max_blocks: { type: integer, minimum: 1, maximum: 500 }
+        include: { type: array, items: { type: string, enum: [headers, comments, images] }, maxItems: 3 }
+    result:
+      type: object
+      required: [file_hash, total_blocks, blocks]
+      properties:
+        file_hash: { $ref: "#/$defs/FileHash" }
+        total_blocks: { type: integer }
+        blocks: { type: array, items: { type: object } }
+    examples:
+      - { path: "契約書/傭船契約_XX.docx" }
+      - { path: "a.docx", from_block: "p:120", max_blocks: 100, include: [headers] }
+  docx.outline:
+    description: Word の見出し構成と表の数を取得する
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: true
+    timeout_ms: 60000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+    result:
+      type: object
+      required: [file_hash, headings]
+      properties:
+        file_hash: { $ref: "#/$defs/FileHash" }
+        headings: { type: array, items: { type: object } }
+        tables: { type: integer }
+        pages_estimate: { type: integer }
+    examples:
+      - { path: "社内規定.docx" }
+  docx.create:
+    description: Word を新規作成する（テンプレートのスタイルを使える）
+    effect: write
+    path_args: [/path, /template]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 120000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, blocks]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        template: { $ref: "#/$defs/Path" }
+        blocks: { type: array, minItems: 1, maxItems: 2000, items: { $ref: "#/$defs/NewBlock" } }
+        overwrite: { type: boolean }
+    result: { type: object, required: [artifact], properties: { artifact: { $ref: "#/$defs/Artifact" } } }
+    examples:
+      - path: "出力/報告書.docx"
+        template: "雛形/社内報告.dotx"
+        blocks:
+          - { kind: heading, level: 1, text: "入渠報告" }
+          - { kind: paragraph, text: "本書は…" }
+          - { kind: table, header: ["項目", "金額"], rows: [["塗装", "1,200,000"]] }
+  docx.edit:
+    description: Word をブロック ID 指定で編集する（置換・挿入・削除・表の更新）
+    effect: write
+    path_args: [/path]
+    idempotent: false
+    untrusted_output: false
+    timeout_ms: 120000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, ops]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        ops: { type: array, minItems: 1, maxItems: 100, items: { $ref: "#/$defs/DocxOp" } }
+        track_changes: { type: boolean }
+        author: { type: string, maxLength: 50 }
+        expect_hash: { $ref: "#/$defs/FileHash" }
+    result:
+      type: object
+      required: [artifact, applied, results]
+      properties:
+        artifact: { $ref: "#/$defs/Artifact" }
+        applied: { type: integer }
+        results: { type: array, items: { type: object } }
+    examples:
+      - path: "契約書/修正案.docx"
+        track_changes: true
+        ops:
+          - { op: replace_in_block, block_id: "p:12", find: "30日", replace: "45日" }
+          - { op: table_set_cell, cell_id: "tbl:3/r2c4", text: "USD 12,500" }
+          - { op: insert_after, block_id: "p:20", blocks: [{ kind: paragraph, text: "第5条の2 …" }] }
+  docx.diff:
+    description: 2つの Word の差分を一覧にする
+    effect: read
+    path_args: [/a, /b]
+    idempotent: true
+    untrusted_output: true
+    timeout_ms: 120000
+    priority: Should
+    paginated: true
+    args:
+      type: object
+      additionalProperties: false
+      required: [a, b]
+      properties:
+        a: { $ref: "#/$defs/Path" }
+        b: { $ref: "#/$defs/Path" }
+        granularity: { type: string, enum: [paragraph, char] }
+    result: { type: object, required: [changes], properties: { changes: { type: array, items: { type: object } } } }
+    examples:
+      - { a: "契約書/v1.docx", b: "契約書/v2.docx" }
+  docx.comments:
+    description: Word のコメントを読む・追加する
+    effect: write
+    path_args: [/path]
+    idempotent: false
+    untrusted_output: true
+    timeout_ms: 60000
+    priority: Could
+    args:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        add:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required: [block_id, text]
+            properties:
+              block_id: { $ref: "#/$defs/BlockId" }
+              text: { type: string, maxLength: 1000 }
+    result: { type: object, required: [comments], properties: { comments: { type: array, items: { type: object } }, artifact: { $ref: "#/$defs/Artifact" } } }
+    examples:
+      - { path: "a.docx" }
+      - { path: "a.docx", add: [{ block_id: "p:3", text: "金額を確認してください" }] }
+  docx.images:
+    description: Word の画像を取り出す（内容の説明も可）
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: true
+    timeout_ms: 120000
+    priority: Could
+    args:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        describe: { type: boolean }
+    result: { type: object, required: [images], properties: { images: { type: array, items: { type: object } } } }
+    examples:
+      - { path: "報告書.docx", describe: true }

@@ -1,0 +1,12 @@
+# local-llm-agent 固有（リポジトリ直下の .gitignore に追加）
+node_modules/
+.venv/
+playwright-report/
+test-results/
+requests.jsonl
+# 実データ・モデル・秘密情報は置かない（開発ガイド §2）
+**/data/real/
+*.safetensors
+*.gguf
+*.pem
+*.key

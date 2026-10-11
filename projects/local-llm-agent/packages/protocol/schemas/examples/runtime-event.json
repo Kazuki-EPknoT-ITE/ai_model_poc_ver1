@@ -1,0 +1,15 @@
+{
+  "def": "RuntimeEvent",
+  "valid": [
+    { "v": 1, "id": "e1", "seq": 1, "conversation_id": "cv1", "type": "run.state", "payload": { "run_id": "r1", "state": "waiting_question" } },
+    { "v": 1, "id": "e2", "seq": 2, "type": "step", "payload": { "run_id": "r1", "step_id": "r1:1", "kind": "tool", "tool": "fs.list", "status": "running", "started_at": "2026-10-11T06:30:00Z" } },
+    { "v": 1, "id": "e3", "seq": 3, "type": "notify", "payload": { "kind": "done", "title": "完了", "body": "送金明細を作成しました" } },
+    { "v": 1, "id": "e4", "seq": 4, "type": "queue", "payload": { "position": 2, "eta_seconds": 10 } }
+  ],
+  "invalid": [
+    { "v": 1, "id": "e1", "type": "run.state", "payload": { "run_id": "r1", "state": "done" } },
+    { "v": 1, "id": "e1", "seq": 1, "type": "run.state", "payload": { "run_id": "r1", "state": "sleeping" } },
+    { "v": 1, "id": "e1", "seq": 1, "type": "step", "payload": { "run_id": "r1", "step_id": "s", "kind": "tool", "status": "weird", "started_at": "2026-10-11T06:30:00Z" } },
+    { "v": 1, "id": "e1", "seq": 1, "type": "notify", "payload": { "kind": "spam", "title": "x", "body": "y" } }
+  ]
+}

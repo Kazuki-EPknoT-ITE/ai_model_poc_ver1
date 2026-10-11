@@ -1,0 +1,14 @@
+{
+  "def": "ApprovalRequest",
+  "valid": [
+    {
+      "approval_id": "ap-12", "run_id": "01JR", "step_id": "01JR:7", "tool": "fs.delete", "args": { "path": "C:\\共有\\古い.xlsx" },
+      "reason": "delete", "paths": [{ "path": "C:\\共有\\古い.xlsx", "real_path": "\\\\nas\\共有\\古い.xlsx", "inside_workspace": false }],
+      "tainted": true, "created_at": "2026-10-11T06:30:00Z"
+    }
+  ],
+  "invalid": [
+    { "approval_id": "12", "run_id": "r", "step_id": "s", "tool": "fs.delete", "args": {}, "reason": "delete", "paths": [], "tainted": false, "created_at": "2026-10-11T06:30:00Z" },
+    { "approval_id": "ap-1", "run_id": "r", "step_id": "s", "tool": "fs.delete", "args": {}, "reason": "because", "paths": [], "tainted": false, "created_at": "2026-10-11T06:30:00Z" }
+  ]
+}

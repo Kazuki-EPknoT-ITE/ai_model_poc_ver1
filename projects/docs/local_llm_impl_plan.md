@@ -43,10 +43,10 @@ flowchart LR
 
 | ID | タスク | 成果物・完了条件 | 要件 | 担当 | 状態 |
 | --- | --- | --- | --- | --- | --- |
-| T-01 | モノレポの雛形 | pnpm workspace・uv workspace・ESLint/ruff・vitest/pytest・`.gitignore` の追記・`e2e.config.json`。`pnpm test` と `uv run pytest` が空の状態で通る | — | llm-agent-architect | 未着手 |
-| T-02 | `packages/protocol` | `local_llm_protocol.md` の全スキーマを JSON Schema 化し、TS と pydantic を生成する。スキーマのサンプルによる検証テスト | 5章・6章 | 同上 | 未着手 |
+| T-01 | モノレポの雛形 | pnpm workspace・uv workspace・ESLint/ruff・vitest/pytest・`.gitignore` の追記・`e2e.config.json`。`pnpm test` と `uv run pytest` が空の状態で通る | — | llm-agent-architect | **完了**（2026-10-11） |
+| T-02 | `packages/protocol` | `local_llm_protocol.md` の全スキーマを JSON Schema 化し、TS と pydantic を生成する。スキーマのサンプルによる検証テスト | 5章・6章 | 同上 | **完了**（47ツール・155定義。TS 198件／Py 56件） |
 | T-03 | Action の文法生成器 | 有効なツール集合から oneOf を作る関数とキャッシュ（protocol §1.3） | RUN-04 | agent-runtime-engineer | 未着手 |
-| T-05 | モック Gateway | `/v1/config`・`/v1/steps`（SSE 再開・冪等キー）・`/v1/auth/*` の最小実装と、シナリオ YAML による応答（`local_llm_test_spec.md`） | — | llm-inference-engineer | 未着手 |
+| T-05 | モック Gateway | `/v1/config`・`/v1/steps`（SSE 再開・冪等キー）・`/v1/auth/*` の最小実装と、シナリオ YAML による応答（`local_llm_test_spec.md`） | — | llm-inference-engineer | **完了**（障害注入9種・pytest 15件・E2E 3件） |
 
 ## M2: 文書ツール（office-tools）
 

@@ -1,0 +1,101 @@
+# モデル出力（local_llm_protocol.md §1）
+# ToolCall の args はここでは汎用の object。実際の推論では、有効なツールごとの
+# args スキーマから oneOf を組み立てて guided_json に渡す（§1.3、T-03）。
+$defs:
+  PlanItem:
+    type: object
+    additionalProperties: false
+    required: [id, title, status]
+    properties:
+      id: { type: string, pattern: "^[A-Za-z0-9_-]{1,16}$" }
+      title: { type: string, minLength: 1, maxLength: 100 }
+      status: { type: string, enum: [todo, doing, done, skipped] }
+  ToolCall:
+    type: object
+    additionalProperties: false
+    required: [type, tool, args]
+    properties:
+      type: { const: tool_call }
+      thought: { type: string, maxLength: 200 }
+      tool: { type: string, pattern: "^[a-z]+(\\.[a-z0-9_]+)+$", maxLength: 80 }
+      args: { type: object }
+  PlanUpdate:
+    type: object
+    additionalProperties: false
+    required: [type, plan]
+    properties:
+      type: { const: plan_update }
+      plan:
+        type: array
+        minItems: 1
+        maxItems: 30
+        items: { $ref: "#/$defs/PlanItem" }
+      note: { type: string, maxLength: 300 }
+  AskUser:
+    type: object
+    additionalProperties: false
+    required: [type, question]
+    properties:
+      type: { const: ask_user }
+      question: { type: string, minLength: 1, maxLength: 300 }
+      choices:
+        type: array
+        minItems: 2
+        maxItems: 5
+        items: { type: string, maxLength: 100 }
+  Citation:
+    type: object
+    additionalProperties: false
+    required: [kind, ref]
+    properties:
+      kind: { type: string, enum: [file, web, rag] }
+      ref: { type: string, maxLength: 1024 }
+      location: { type: string, maxLength: 200 }
+  Final:
+    type: object
+    additionalProperties: false
+    required: [type, summary, outputs, failures, needs_review]
+    properties:
+      type: { const: final }
+      summary: { type: string, minLength: 1, maxLength: 2000 }
+      outputs:
+        type: array
+        maxItems: 200
+        items:
+          type: object
+          additionalProperties: false
+          required: [path, description]
+          properties:
+            path: { $ref: "#/$defs/Path" }
+            description: { type: string, maxLength: 200 }
+      failures:
+        type: array
+        maxItems: 500
+        items:
+          type: object
+          additionalProperties: false
+          required: [item, reason]
+          properties:
+            item: { type: string, maxLength: 1024 }
+            reason: { type: string, maxLength: 300 }
+      needs_review:
+        type: array
+        maxItems: 200
+        items:
+          type: object
+          additionalProperties: false
+          required: [path, reason]
+          properties:
+            path: { $ref: "#/$defs/Path" }
+            location: { type: string, maxLength: 200 }
+            reason: { type: string, maxLength: 300 }
+      citations:
+        type: array
+        maxItems: 50
+        items: { $ref: "#/$defs/Citation" }
+  Action:
+    oneOf:
+      - $ref: "#/$defs/ToolCall"
+      - $ref: "#/$defs/PlanUpdate"
+      - $ref: "#/$defs/AskUser"
+      - $ref: "#/$defs/Final"

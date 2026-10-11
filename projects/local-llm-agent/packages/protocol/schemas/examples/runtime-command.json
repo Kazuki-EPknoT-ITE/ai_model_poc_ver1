@@ -1,0 +1,19 @@
+{
+  "def": "RuntimeCommand",
+  "valid": [
+    { "v": 1, "id": "c1", "type": "run.start", "payload": { "conversation_id": "cv1", "text": "請求書をExcelにまとめて", "attachments": [], "workspace": "C:\\work", "model": "auto" } },
+    { "v": 1, "id": "c2", "type": "run.stop", "payload": { "run_id": "r1" } },
+    { "v": 1, "id": "c3", "type": "approval.decide", "payload": { "approval_id": "ap-1", "decision": "approve", "remember": "this_run" } },
+    { "v": 1, "id": "c4", "type": "question.answer", "payload": { "question_id": "q-1", "answer": "secret", "secret": true } },
+    { "v": 1, "id": "c5", "type": "settings.update", "payload": { "net_level": "search" } },
+    { "v": 1, "id": "c6", "type": "conversation.list", "payload": {} }
+  ],
+  "invalid": [
+    { "v": 2, "id": "c1", "type": "run.stop", "payload": { "run_id": "r1" } },
+    { "v": 1, "id": "c1", "type": "run.start", "payload": { "conversation_id": "cv1", "text": "", "attachments": [], "workspace": "C:\\work", "model": "auto" } },
+    { "v": 1, "id": "c1", "type": "run.stop", "payload": {} },
+    { "v": 1, "id": "c1", "type": "approval.decide", "payload": { "approval_id": "ap-1", "decision": "maybe" } },
+    { "v": 1, "id": "c1", "type": "settings.update", "payload": { "net_level": "everything" } },
+    { "v": 1, "id": "c1", "type": "shell.exec", "payload": {} }
+  ]
+}

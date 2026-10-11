@@ -1,0 +1,36 @@
+{
+  "name": "local-llm-agent",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20.16"
+  },
+  "scripts": {
+    "test": "pnpm -r test",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "protocol:gen": "pnpm --filter @lla/protocol gen",
+    "protocol:check": "pnpm --filter @lla/protocol check",
+    "mock:gateway": "uv run mock-gateway --scenario eval/mock-gateway/scenarios/smoke.yaml --port 8787",
+    "test:e2e": "playwright test -c e2e/playwright.config.ts",
+    "typecheck": "tsc --noEmit -p e2e && pnpm -r typecheck",
+    "check": "pnpm lint && pnpm typecheck && pnpm protocol:check && pnpm test && uv run ruff check . && uv run ruff format --check . && uv run mypy eval/mock-gateway/src packages/protocol/python/src && uv run pytest -q"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@lla/protocol": "workspace:*",
+    "@playwright/test": "1.64.0",
+    "@types/node": "20.19.43",
+    "eslint": "9.39.5",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1",
+    "vitest": "3.2.7"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  }
+}

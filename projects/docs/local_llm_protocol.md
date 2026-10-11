@@ -81,6 +81,8 @@ interface Final {
 
 ### 2.2 ツールのメタデータ（ToolSpec）
 
+ツール定義の正本は `packages/protocol/schemas/src/tools/*.yaml`。生成された `tools.json` の args_schema は `$ref` を展開済みで、§2.5 の分割に対応するツール（`paginated`）は `anyOf: [{continuation}, 本来の引数]` の形になる。
+
 ```ts
 interface ToolSpec {
   name: ToolName;
@@ -88,7 +90,7 @@ interface ToolSpec {
   args_schema: JSONSchema;
   result_schema: JSONSchema;  // ToolResult.data の型
   effect: "read" | "write" | "delete" | "net" | "none";
-  path_args: string[];        // ポリシー判定の対象になる引数名（JSON Pointer）
+  path_args: string[];        // ポリシー判定の対象になる引数（JSON Pointer。"*" は配列の全要素。例 "/inputs/*/source/xlsx"）
   idempotent: boolean;        // 同じ引数で2回呼んでも結果が同じか
   untrusted_output: boolean;  // 結果を <untrusted> で包むか
   timeout_ms: number;         // 一時的失敗とみなすまでの時間

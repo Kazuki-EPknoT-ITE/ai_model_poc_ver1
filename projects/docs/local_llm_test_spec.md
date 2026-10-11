@@ -63,8 +63,8 @@ name: invoice-to-excel-basic
 protocol_version: "1.0"
 config:                       # /v1/config の応答を上書きする
   context_budget: 32768
-  net_max_level: search_fetch
-  models: [fast]
+  net_level_cap: browse
+  models: [local-12b]
 steps:                        # /v1/steps が呼ばれるたびに、条件に合う最初の未使用ステップを返す
   - match:                    # すべて省略可。正規表現で照合
       last_user: "請求書.*Excel"
@@ -102,6 +102,8 @@ fallback:                     # どのステップにも合わない場合
 ```
 
 ### 2.2 注入できる障害
+
+実装（`eval/mock-gateway`、T-05）での指定方法: `faults[].at` は `step_index`（同じ purpose の中での新規ジョブの通し番号）・`after_ms`（モック起動からの経過時間）・`purpose`（既定 `agent`）で絞り込み、`times` 回だけ発動する。種類ごとの引数は `status`（http_status）、`latency_ms`/`tokens_per_sec`（latency）、`after_events`（drop_connection・restart。何件送った後か）、`positions`/`interval_ms`（queue）、`output`（raw）。`steps[].repeat` は `true`（何度でも）または整数（その回数まで）で、`repeat_action` の試験はこれで行う。`match.last_user` は、ツール結果以外の利用者メッセージのどれかに一致すればよい。
 
 | kind | 内容 | 主な用途 |
 | --- | --- | --- |

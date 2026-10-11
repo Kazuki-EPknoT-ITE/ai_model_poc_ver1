@@ -1,0 +1,184 @@
+# 承認（§4）と Main ⇄ Runtime メッセージ（§5）
+$defs:
+  ApprovalReason:
+    type: string
+    enum: [outside_workspace, delete, move, plugin_write, tainted_outside]
+  ApprovalRequest:
+    type: object
+    additionalProperties: false
+    required: [approval_id, run_id, step_id, tool, args, reason, paths, tainted, created_at]
+    properties:
+      approval_id: { type: string, pattern: "^ap-[0-9]+$" }
+      run_id: { type: string }
+      step_id: { type: string }
+      tool: { type: string }
+      args: { type: object }
+      reason: { $ref: "#/$defs/ApprovalReason" }
+      paths:
+        type: array
+        items:
+          type: object
+          additionalProperties: false
+          required: [path, real_path, inside_workspace]
+          properties:
+            path: { type: string }
+            real_path: { type: string }
+            inside_workspace: { type: boolean }
+      tainted: { type: boolean }
+      created_at: { type: string, format: date-time }
+  ApprovalDecision:
+    type: object
+    additionalProperties: false
+    required: [approval_id, decision]
+    properties:
+      approval_id: { type: string, pattern: "^ap-[0-9]+$" }
+      decision: { type: string, enum: [approve, reject] }
+      remember: { type: string, enum: [this_run] }
+  ModelPref:
+    type: string
+    enum: [auto, fast, accurate]
+  NetLevel:
+    type: string
+    enum: ["off", search, browse]
+  RunState:
+    type: string
+    enum: [planning, inferring, tool_running, waiting_approval, waiting_question, compacting, replanning, stalled, paused, reconnecting, done, stopped]
+
+  # ---- RuntimeCommand（Main → Runtime） ----
+  RuntimeCommand:
+    type: object
+    additionalProperties: false
+    required: [v, id, type, payload]
+    properties:
+      v: { const: 1 }
+      id: { type: string }
+      type:
+        type: string
+        enum: [run.start, run.pause, run.resume, run.stop, approval.decide, question.answer, undo.run, events.since,
+               settings.update, conversation.list, conversation.get, conversation.search, conversation.delete]
+      payload: { type: object }
+    allOf:
+      - if: { properties: { type: { const: run.start } } }
+        then: { properties: { payload: { $ref: "#/$defs/RunStartPayload" } } }
+      - if: { properties: { type: { enum: [run.pause, run.resume, run.stop] } } }
+        then: { properties: { payload: { $ref: "#/$defs/RunRefPayload" } } }
+      - if: { properties: { type: { const: approval.decide } } }
+        then: { properties: { payload: { $ref: "#/$defs/ApprovalDecision" } } }
+      - if: { properties: { type: { const: question.answer } } }
+        then: { properties: { payload: { $ref: "#/$defs/QuestionAnswerPayload" } } }
+      - if: { properties: { type: { const: undo.run } } }
+        then: { properties: { payload: { $ref: "#/$defs/UndoPayload" } } }
+      - if: { properties: { type: { const: events.since } } }
+        then: { properties: { payload: { $ref: "#/$defs/EventsSincePayload" } } }
+      - if: { properties: { type: { const: settings.update } } }
+        then: { properties: { payload: { $ref: "#/$defs/SettingsPayload" } } }
+  RunStartPayload:
+    type: object
+    additionalProperties: false
+    required: [conversation_id, text, attachments, workspace, model]
+    properties:
+      conversation_id: { type: string }
+      text: { type: string, minLength: 1, maxLength: 20000 }
+      attachments: { type: array, items: { type: string } }
+      workspace: { type: string }
+      model: { $ref: "#/$defs/ModelPref" }
+  RunRefPayload:
+    type: object
+    additionalProperties: false
+    required: [run_id]
+    properties:
+      run_id: { type: string }
+  QuestionAnswerPayload:
+    type: object
+    additionalProperties: false
+    required: [question_id, answer]
+    properties:
+      question_id: { type: string }
+      answer: { type: string, maxLength: 2000 }
+      secret: { type: boolean }
+  UndoPayload:
+    type: object
+    additionalProperties: false
+    required: [run_id]
+    properties:
+      run_id: { type: string }
+      paths: { type: array, items: { type: string } }
+  EventsSincePayload:
+    type: object
+    additionalProperties: false
+    required: [conversation_id, seq]
+    properties:
+      conversation_id: { type: string }
+      seq: { type: integer, minimum: 0 }
+  SettingsPayload:
+    type: object
+    additionalProperties: false
+    properties:
+      net_level: { $ref: "#/$defs/NetLevel" }
+      model_default: { $ref: "#/$defs/ModelPref" }
+      notify_long_run_minutes: { type: integer, minimum: 10, maximum: 1440 }
+
+  # ---- RuntimeEvent（Runtime → Main） ----
+  RuntimeEvent:
+    type: object
+    additionalProperties: false
+    required: [v, id, type, payload, seq]
+    properties:
+      v: { const: 1 }
+      id: { type: string }
+      seq: { type: integer, minimum: 1 }
+      conversation_id: { type: string }
+      type:
+        type: string
+        enum: [run.state, token, step, plan, approval.request, question, artifact, batch_progress, queue, retry,
+               net.activity, notify, server.status]
+      payload: { type: object }
+    allOf:
+      - if: { properties: { type: { const: run.state } } }
+        then: { properties: { payload: { $ref: "#/$defs/RunStateEvent" } } }
+      - if: { properties: { type: { const: step } } }
+        then: { properties: { payload: { $ref: "#/$defs/StepEvent" } } }
+      - if: { properties: { type: { const: approval.request } } }
+        then: { properties: { payload: { $ref: "#/$defs/ApprovalRequest" } } }
+      - if: { properties: { type: { const: artifact } } }
+        then: { properties: { payload: { $ref: "#/$defs/ArtifactEvent" } } }
+      - if: { properties: { type: { const: notify } } }
+        then: { properties: { payload: { $ref: "#/$defs/NotifyEvent" } } }
+  RunStateEvent:
+    type: object
+    additionalProperties: false
+    required: [run_id, state]
+    properties:
+      run_id: { type: string }
+      state: { $ref: "#/$defs/RunState" }
+      detail: { type: object }
+  StepEvent:
+    type: object
+    additionalProperties: false
+    required: [run_id, step_id, kind, status, started_at]
+    properties:
+      run_id: { type: string }
+      step_id: { type: string }
+      kind: { type: string, enum: [tool, plan, final, ask, system] }
+      tool: { type: string }
+      args_preview: { type: string, maxLength: 500 }
+      result_preview: { type: string, maxLength: 500 }
+      status: { type: string, enum: [running, ok, error, deferred] }
+      started_at: { type: string, format: date-time }
+      ended_at: { type: string, format: date-time }
+  ArtifactEvent:
+    type: object
+    additionalProperties: false
+    required: [run_id, artifact]
+    properties:
+      run_id: { type: string }
+      artifact: { $ref: "#/$defs/Artifact" }
+      diff_ref: { type: string }
+  NotifyEvent:
+    type: object
+    additionalProperties: false
+    required: [kind, title, body]
+    properties:
+      kind: { type: string, enum: [done, approval, stalled, long_run] }
+      title: { type: string, maxLength: 100 }
+      body: { type: string, maxLength: 500 }

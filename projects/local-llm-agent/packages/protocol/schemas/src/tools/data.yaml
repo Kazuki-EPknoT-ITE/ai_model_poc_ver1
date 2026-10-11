@@ -1,0 +1,146 @@
+# data.transform（local_llm_protocol.md §3.4）
+$defs:
+  Expr:
+    type: string
+    minLength: 1
+    maxLength: 500
+    description: 限定式（列名・数値・文字列・算術・比較・and/or/not・contains/startswith/round/date/coalesce）
+  ColumnName:
+    type: string
+    minLength: 1
+    maxLength: 100
+  SourceRef:
+    oneOf:
+      - type: object
+        additionalProperties: false
+        required: [xlsx, range]
+        properties:
+          xlsx: { $ref: "#/$defs/Path" }
+          range: { $ref: "#/$defs/RangeRef" }
+          header_row: { type: integer, minimum: 1 }
+      - type: object
+        additionalProperties: false
+        required: [csv]
+        properties:
+          csv: { $ref: "#/$defs/Path" }
+      - type: object
+        additionalProperties: false
+        required: [rows, header]
+        properties:
+          header: { type: array, maxItems: 200, items: { $ref: "#/$defs/ColumnName" } }
+          rows: { type: array, maxItems: 10000, items: { type: array, items: { $ref: "#/$defs/Scalar" } } }
+      - type: object
+        additionalProperties: false
+        required: [result_of]
+        properties:
+          result_of: { type: string, maxLength: 64 }
+  Step:
+    oneOf:
+      - { type: object, additionalProperties: false, required: [op, where], properties: { op: { const: filter }, where: { $ref: "#/$defs/Expr" } } }
+      - { type: object, additionalProperties: false, required: [op, columns], properties: { op: { const: select }, columns: { type: array, minItems: 1, maxItems: 200, items: { $ref: "#/$defs/ColumnName" } } } }
+      - { type: object, additionalProperties: false, required: [op, map], properties: { op: { const: rename }, map: { type: object, additionalProperties: { $ref: "#/$defs/ColumnName" } } } }
+      - { type: object, additionalProperties: false, required: [op, column, expr], properties: { op: { const: derive }, column: { $ref: "#/$defs/ColumnName" }, expr: { $ref: "#/$defs/Expr" } } }
+      - type: object
+        additionalProperties: false
+        required: [op, by, aggs]
+        properties:
+          op: { const: group }
+          by: { type: array, maxItems: 20, items: { $ref: "#/$defs/ColumnName" } }
+          aggs:
+            type: array
+            minItems: 1
+            maxItems: 50
+            items:
+              type: object
+              additionalProperties: false
+              required: [column, fn, as]
+              properties:
+                column: { $ref: "#/$defs/ColumnName" }
+                fn: { type: string, enum: [sum, count, avg, min, max, first] }
+                as: { $ref: "#/$defs/ColumnName" }
+      - type: object
+        additionalProperties: false
+        required: [op, by]
+        properties:
+          op: { const: sort }
+          by:
+            type: array
+            minItems: 1
+            maxItems: 10
+            items: { type: object, additionalProperties: false, required: [column], properties: { column: { $ref: "#/$defs/ColumnName" }, desc: { type: boolean } } }
+      - type: object
+        additionalProperties: false
+        required: [op, with, "on", how]
+        properties:
+          op: { const: join }
+          with: { type: string, maxLength: 64 }
+          "on":
+            type: array
+            minItems: 1
+            maxItems: 10
+            items: { type: object, additionalProperties: false, required: [left, right], properties: { left: { $ref: "#/$defs/ColumnName" }, right: { $ref: "#/$defs/ColumnName" } } }
+          how: { type: string, enum: [inner, left, outer] }
+      - type: object
+        additionalProperties: false
+        required: [op, with, key, compare]
+        properties:
+          op: { const: reconcile }
+          with: { type: string, maxLength: 64 }
+          key: { type: array, minItems: 1, maxItems: 10, items: { $ref: "#/$defs/ColumnName" } }
+          compare: { type: array, minItems: 1, maxItems: 50, items: { $ref: "#/$defs/ColumnName" } }
+          tolerance: { type: number, minimum: 0 }
+      - { type: object, additionalProperties: false, required: [op, by], properties: { op: { const: dedupe }, by: { type: array, minItems: 1, maxItems: 20, items: { $ref: "#/$defs/ColumnName" } } } }
+  OutputRef:
+    oneOf:
+      - type: object
+        additionalProperties: false
+        required: [xlsx, sheet]
+        properties:
+          xlsx: { $ref: "#/$defs/Path" }
+          sheet: { $ref: "#/$defs/SheetName" }
+          top_left: { type: string, pattern: "^[A-Z]{1,3}[0-9]{1,7}$" }
+          as_table: { type: boolean }
+      - { type: object, additionalProperties: false, required: [csv], properties: { csv: { $ref: "#/$defs/Path" } } }
+      - { type: object, additionalProperties: false, required: [return_only], properties: { return_only: { const: true } } }
+tools:
+  data.transform:
+    description: 集計・突合・並べ替えなどを宣言的な手順で実行する（計算はツールが行う）
+    effect: write
+    path_args: [/inputs/*/source/xlsx, /inputs/*/source/csv, /output/xlsx, /output/csv]
+    idempotent: true
+    untrusted_output: true
+    timeout_ms: 300000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [inputs, steps, output]
+      properties:
+        inputs:
+          type: array
+          minItems: 1
+          maxItems: 10
+          items:
+            type: object
+            additionalProperties: false
+            required: [name, source]
+            properties:
+              name: { type: string, pattern: "^[A-Za-z_][A-Za-z0-9_]{0,31}$" }
+              source: { $ref: "#/$defs/SourceRef" }
+        steps: { type: array, maxItems: 50, items: { $ref: "#/$defs/Step" } }
+        output: { $ref: "#/$defs/OutputRef" }
+    result:
+      type: object
+      required: [rows_out, preview]
+      properties:
+        rows_out: { type: integer }
+        preview: { type: array, items: { type: array } }
+        artifact: { $ref: "#/$defs/Artifact" }
+    examples:
+      - inputs:
+          - { name: inv, source: { xlsx: "送金明細.xlsx", range: "明細!A1:F200", header_row: 1 } }
+          - { name: bank, source: { csv: "銀行明細.csv" } }
+        steps:
+          - { op: reconcile, with: bank, key: ["請求番号"], compare: ["金額"], tolerance: 0 }
+          - { op: filter, where: "_status != 'match'" }
+        output: { xlsx: "突合結果.xlsx", sheet: "差異", as_table: true }

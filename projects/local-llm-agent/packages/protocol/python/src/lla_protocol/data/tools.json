@@ -1,0 +1,5779 @@
+{
+  "protocol_version": "1.0",
+  "tools": [
+    {
+      "name": "batch.run",
+      "description": "同じ処理を複数ファイルに1件ずつ実行し、結果をまとめて出力する（失敗は飛ばして記録）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "pipeline"
+        ],
+        "properties": {
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000,
+            "pattern": "^(glob:|list:)"
+          },
+          "pipeline": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "tool",
+                  "args"
+                ],
+                "properties": {
+                  "tool": {
+                    "const": "invoice.extract"
+                  },
+                  "args": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "schema"
+                    ],
+                    "properties": {
+                      "schema": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_.-]{1,40}$"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "tool"
+                ],
+                "properties": {
+                  "tool": {
+                    "enum": [
+                      "pdf.extract_tables",
+                      "pdf.read_pages",
+                      "convert.to_pdf",
+                      "convert.to_docx",
+                      "convert.to_xlsx"
+                    ]
+                  },
+                  "args": {
+                    "type": "object"
+                  }
+                }
+              }
+            ]
+          },
+          "output": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "xlsx",
+                  "sheet",
+                  "columns"
+                ],
+                "properties": {
+                  "xlsx": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+                  },
+                  "sheet": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 31
+                  },
+                  "columns": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "header",
+                        "from"
+                      ],
+                      "properties": {
+                        "header": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "from": {
+                          "type": "string",
+                          "pattern": "^(/[^/]*)+$",
+                          "maxLength": 200
+                        }
+                      }
+                    }
+                  },
+                  "append": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "csv",
+                  "columns"
+                ],
+                "properties": {
+                  "csv": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+                  },
+                  "columns": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "header",
+                        "from"
+                      ],
+                      "properties": {
+                        "header": {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        "from": {
+                          "type": "string",
+                          "pattern": "^(/[^/]*)+$",
+                          "maxLength": 200
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          "on_error": {
+            "const": "skip"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "batch_id",
+          "total",
+          "succeeded",
+          "failed",
+          "result_id"
+        ],
+        "properties": {
+          "batch_id": {
+            "type": "string"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "succeeded": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "item",
+                "code",
+                "reason"
+              ],
+              "properties": {
+                "item": {
+                  "type": "string"
+                },
+                "code": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "result_id": {
+            "type": "string"
+          },
+          "output_artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/output/xlsx",
+        "/output/csv"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 86400000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "items": "glob:請求書/*.pdf",
+          "pipeline": {
+            "tool": "invoice.extract",
+            "args": {
+              "schema": "invoice.v1"
+            }
+          },
+          "output": {
+            "xlsx": "送金明細.xlsx",
+            "sheet": "明細",
+            "columns": [
+              {
+                "header": "請求日",
+                "from": "/fields/issue_date/value"
+              },
+              {
+                "header": "金額",
+                "from": "/fields/total/value"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "batch.status",
+      "description": "一括処理の進捗を確認する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "batch_id"
+        ],
+        "properties": {
+          "batch_id": {
+            "type": "string",
+            "maxLength": 64
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "done",
+          "total"
+        ],
+        "properties": {
+          "done": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          },
+          "failed": {
+            "type": "integer"
+          }
+        }
+      },
+      "effect": "none",
+      "path_args": [],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 10000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "batch_id": "01JABC"
+        }
+      ]
+    },
+    {
+      "name": "convert.to_docx",
+      "description": "旧形式の Word（.doc）などを .docx に変換する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "src"
+        ],
+        "properties": {
+          "src": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "dst": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/src",
+        "/dst"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 180000,
+      "priority": "Should",
+      "paginated": false,
+      "examples": [
+        {
+          "src": "古い契約書.doc"
+        }
+      ]
+    },
+    {
+      "name": "convert.to_pdf",
+      "description": "Word や Excel を PDF に変換する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "src"
+        ],
+        "properties": {
+          "src": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "dst": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/src",
+        "/dst"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 180000,
+      "priority": "Should",
+      "paginated": false,
+      "examples": [
+        {
+          "src": "出力/報告書.docx"
+        }
+      ]
+    },
+    {
+      "name": "convert.to_xlsx",
+      "description": "旧形式の Excel（.xls）や CSV を .xlsx に変換する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "src"
+        ],
+        "properties": {
+          "src": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "dst": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/src",
+        "/dst"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 180000,
+      "priority": "Should",
+      "paginated": false,
+      "examples": [
+        {
+          "src": "船費.xls",
+          "dst": "船費.xlsx"
+        }
+      ]
+    },
+    {
+      "name": "csv.read",
+      "description": "CSV を読む（文字コードと区切り文字を自動判定）",
+      "args_schema": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "continuation"
+            ],
+            "properties": {
+              "continuation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "encoding": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "utf-8",
+                  "utf-8-sig",
+                  "cp932"
+                ]
+              },
+              "delimiter": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  ",",
+                  "\t",
+                  ";",
+                  "|"
+                ]
+              },
+              "max_rows": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20000
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        ]
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "encoding",
+          "delimiter",
+          "rows",
+          "total_rows"
+        ],
+        "properties": {
+          "encoding": {
+            "type": "string"
+          },
+          "delimiter": {
+            "type": "string"
+          },
+          "header": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array"
+            }
+          },
+          "total_rows": {
+            "type": "integer"
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 60000,
+      "priority": "Must",
+      "paginated": true,
+      "examples": [
+        {
+          "path": "銀行明細.csv"
+        }
+      ]
+    },
+    {
+      "name": "csv.write",
+      "description": "CSV を書き出す（UTF-8 BOM 付き または CP932）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "rows"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "header": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "rows": {
+            "type": "array",
+            "maxItems": 100000,
+            "items": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "date"
+                    ],
+                    "properties": {
+                      "date": {
+                        "type": "string",
+                        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "encoding": {
+            "type": "string",
+            "enum": [
+              "utf-8-sig",
+              "cp932"
+            ]
+          },
+          "overwrite": {
+            "type": "boolean"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 60000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "出力/振込.csv",
+          "header": [
+            "口座",
+            "金額"
+          ],
+          "rows": [
+            [
+              "1234567",
+              1000
+            ]
+          ],
+          "encoding": "cp932"
+        }
+      ]
+    },
+    {
+      "name": "data.transform",
+      "description": "集計・突合・並べ替えなどを宣言的な手順で実行する（計算はツールが行う）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "inputs",
+          "steps",
+          "output"
+        ],
+        "properties": {
+          "inputs": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "source"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,31}$"
+                },
+                "source": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "xlsx",
+                        "range"
+                      ],
+                      "properties": {
+                        "xlsx": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1024,
+                          "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+                        },
+                        "range": {
+                          "type": "string",
+                          "minLength": 2,
+                          "maxLength": 160,
+                          "description": "Sheet1!A1:F200"
+                        },
+                        "header_row": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "csv"
+                      ],
+                      "properties": {
+                        "csv": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1024,
+                          "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "rows",
+                        "header"
+                      ],
+                      "properties": {
+                        "header": {
+                          "type": "array",
+                          "maxItems": 200,
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          }
+                        },
+                        "rows": {
+                          "type": "array",
+                          "maxItems": 10000,
+                          "items": {
+                            "type": "array",
+                            "items": {
+                              "anyOf": [
+                                {
+                                  "type": "string",
+                                  "maxLength": 4000
+                                },
+                                {
+                                  "type": "number"
+                                },
+                                {
+                                  "type": "boolean"
+                                },
+                                {
+                                  "type": "null"
+                                },
+                                {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "required": [
+                                    "date"
+                                  ],
+                                  "properties": {
+                                    "date": {
+                                      "type": "string",
+                                      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                                    }
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "result_of"
+                      ],
+                      "properties": {
+                        "result_of": {
+                          "type": "string",
+                          "maxLength": 64
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "steps": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "where"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "filter"
+                    },
+                    "where": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500,
+                      "description": "限定式（列名・数値・文字列・算術・比較・and/or/not・contains/startswith/round/date/coalesce）"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "columns"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "select"
+                    },
+                    "columns": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 200,
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "map"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "rename"
+                    },
+                    "map": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "column",
+                    "expr"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "derive"
+                    },
+                    "column": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "expr": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500,
+                      "description": "限定式（列名・数値・文字列・算術・比較・and/or/not・contains/startswith/round/date/coalesce）"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "by",
+                    "aggs"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "group"
+                    },
+                    "by": {
+                      "type": "array",
+                      "maxItems": 20,
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      }
+                    },
+                    "aggs": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 50,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "column",
+                          "fn",
+                          "as"
+                        ],
+                        "properties": {
+                          "column": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          },
+                          "fn": {
+                            "type": "string",
+                            "enum": [
+                              "sum",
+                              "count",
+                              "avg",
+                              "min",
+                              "max",
+                              "first"
+                            ]
+                          },
+                          "as": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "by"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "sort"
+                    },
+                    "by": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 10,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "column"
+                        ],
+                        "properties": {
+                          "column": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          },
+                          "desc": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "with",
+                    "on",
+                    "how"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "join"
+                    },
+                    "with": {
+                      "type": "string",
+                      "maxLength": 64
+                    },
+                    "on": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 10,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "left",
+                          "right"
+                        ],
+                        "properties": {
+                          "left": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          },
+                          "right": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                          }
+                        }
+                      }
+                    },
+                    "how": {
+                      "type": "string",
+                      "enum": [
+                        "inner",
+                        "left",
+                        "outer"
+                      ]
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "with",
+                    "key",
+                    "compare"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "reconcile"
+                    },
+                    "with": {
+                      "type": "string",
+                      "maxLength": 64
+                    },
+                    "key": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 10,
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      }
+                    },
+                    "compare": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 50,
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      }
+                    },
+                    "tolerance": {
+                      "type": "number",
+                      "minimum": 0
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "by"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "dedupe"
+                    },
+                    "by": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 20,
+                      "items": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "output": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "xlsx",
+                  "sheet"
+                ],
+                "properties": {
+                  "xlsx": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+                  },
+                  "sheet": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 31
+                  },
+                  "top_left": {
+                    "type": "string",
+                    "pattern": "^[A-Z]{1,3}[0-9]{1,7}$"
+                  },
+                  "as_table": {
+                    "type": "boolean"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "csv"
+                ],
+                "properties": {
+                  "csv": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024,
+                    "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "return_only"
+                ],
+                "properties": {
+                  "return_only": {
+                    "const": true
+                  }
+                }
+              }
+            ]
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "rows_out",
+          "preview"
+        ],
+        "properties": {
+          "rows_out": {
+            "type": "integer"
+          },
+          "preview": {
+            "type": "array",
+            "items": {
+              "type": "array"
+            }
+          },
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/inputs/*/source/xlsx",
+        "/inputs/*/source/csv",
+        "/output/xlsx",
+        "/output/csv"
+      ],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 300000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "inputs": [
+            {
+              "name": "inv",
+              "source": {
+                "xlsx": "送金明細.xlsx",
+                "range": "明細!A1:F200",
+                "header_row": 1
+              }
+            },
+            {
+              "name": "bank",
+              "source": {
+                "csv": "銀行明細.csv"
+              }
+            }
+          ],
+          "steps": [
+            {
+              "op": "reconcile",
+              "with": "bank",
+              "key": [
+                "請求番号"
+              ],
+              "compare": [
+                "金額"
+              ],
+              "tolerance": 0
+            },
+            {
+              "op": "filter",
+              "where": "_status != 'match'"
+            }
+          ],
+          "output": {
+            "xlsx": "突合結果.xlsx",
+            "sheet": "差異",
+            "as_table": true
+          }
+        }
+      ]
+    },
+    {
+      "name": "docx.comments",
+      "description": "Word のコメントを読む・追加する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "add": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "block_id",
+                "text"
+              ],
+              "properties": {
+                "block_id": {
+                  "type": "string",
+                  "pattern": "^(p|tbl|hdr|ftr|img|brk):[0-9]+(/r[0-9]+c[0-9]+)?$"
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 1000
+                }
+              }
+            }
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "comments"
+        ],
+        "properties": {
+          "comments": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": false,
+      "untrusted_output": true,
+      "timeout_ms": 60000,
+      "priority": "Could",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "a.docx"
+        },
+        {
+          "path": "a.docx",
+          "add": [
+            {
+              "block_id": "p:3",
+              "text": "金額を確認してください"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "docx.create",
+      "description": "Word を新規作成する（テンプレートのスタイルを使える）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "blocks"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "template": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "blocks": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 2000,
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "kind",
+                    "level",
+                    "text"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "const": "heading"
+                    },
+                    "level": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 9
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 500
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "kind",
+                    "text"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "const": "paragraph"
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 8000
+                    },
+                    "style": {
+                      "type": "string",
+                      "maxLength": 100
+                    },
+                    "list": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "level",
+                        "numbered"
+                      ],
+                      "properties": {
+                        "level": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 8
+                        },
+                        "numbered": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "kind",
+                    "rows"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "const": "table"
+                    },
+                    "header": {
+                      "type": "array",
+                      "maxItems": 50,
+                      "items": {
+                        "type": "string",
+                        "maxLength": 500
+                      }
+                    },
+                    "rows": {
+                      "type": "array",
+                      "maxItems": 2000,
+                      "items": {
+                        "type": "array",
+                        "maxItems": 50,
+                        "items": {
+                          "type": "string",
+                          "maxLength": 2000
+                        }
+                      }
+                    },
+                    "style": {
+                      "type": "string",
+                      "maxLength": 100
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "kind"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "const": "page_break"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "overwrite": {
+            "type": "boolean"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path",
+        "/template"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 120000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "出力/報告書.docx",
+          "template": "雛形/社内報告.dotx",
+          "blocks": [
+            {
+              "kind": "heading",
+              "level": 1,
+              "text": "入渠報告"
+            },
+            {
+              "kind": "paragraph",
+              "text": "本書は…"
+            },
+            {
+              "kind": "table",
+              "header": [
+                "項目",
+                "金額"
+              ],
+              "rows": [
+                [
+                  "塗装",
+                  "1,200,000"
+                ]
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "docx.diff",
+      "description": "2つの Word の差分を一覧にする",
+      "args_schema": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "continuation"
+            ],
+            "properties": {
+              "continuation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "a",
+              "b"
+            ],
+            "properties": {
+              "a": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "b": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "granularity": {
+                "type": "string",
+                "enum": [
+                  "paragraph",
+                  "char"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "changes"
+        ],
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/a",
+        "/b"
+      ],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 120000,
+      "priority": "Should",
+      "paginated": true,
+      "examples": [
+        {
+          "a": "契約書/v1.docx",
+          "b": "契約書/v2.docx"
+        }
+      ]
+    },
+    {
+      "name": "docx.edit",
+      "description": "Word をブロック ID 指定で編集する（置換・挿入・削除・表の更新）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "ops"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "ops": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "block_id",
+                    "text"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "replace_text"
+                    },
+                    "block_id": {
+                      "type": "string",
+                      "pattern": "^(p|tbl|hdr|ftr|img|brk):[0-9]+(/r[0-9]+c[0-9]+)?$"
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 8000
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "block_id",
+                    "find",
+                    "replace"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "replace_in_block"
+                    },
+                    "block_id": {
+                      "type": "string",
+                      "pattern": "^(p|tbl|hdr|ftr|img|brk):[0-9]+(/r[0-9]+c[0-9]+)?$"
+                    },
+                    "find": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1000
+                    },
+                    "replace": {
+                      "type": "string",
+                      "maxLength": 4000
+                    },
+                    "count": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "block_id",
+                    "blocks"
+                  ],
+                  "properties": {
+                    "op": {
+                      "enum": [
+                        "insert_after",
+                        "insert_before"
+                      ]
+                    },
+                    "block_id": {
+                      "type": "string",
+                      "pattern": "^(p|tbl|hdr|ftr|img|brk):[0-9]+(/r[0-9]+c[0-9]+)?$"
+                    },
+                    "blocks": {
+                      "type": "array",
+                      "minItems": 1,
+                      "maxItems": 100,
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "kind",
+                              "level",
+                              "text"
+                            ],
+                            "properties": {
+                              "kind": {
+                                "const": "heading"
+                              },
+                              "level": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 9
+                              },
+                              "text": {
+                                "type": "string",
+                                "maxLength": 500
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "kind",
+                              "text"
+                            ],
+                            "properties": {
+                              "kind": {
+                                "const": "paragraph"
+                              },
+                              "text": {
+                                "type": "string",
+                                "maxLength": 8000
+                              },
+                              "style": {
+                                "type": "string",
+                                "maxLength": 100
+                              },
+                              "list": {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "level",
+                                  "numbered"
+                                ],
+                                "properties": {
+                                  "level": {
+                                    "type": "integer",
+                                    "minimum": 0,
+                                    "maximum": 8
+                                  },
+                                  "numbered": {
+                                    "type": "boolean"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "kind",
+                              "rows"
+                            ],
+                            "properties": {
+                              "kind": {
+                                "const": "table"
+                              },
+                              "header": {
+                                "type": "array",
+                                "maxItems": 50,
+                                "items": {
+                                  "type": "string",
+                                  "maxLength": 500
+                                }
+                              },
+                              "rows": {
+                                "type": "array",
+                                "maxItems": 2000,
+                                "items": {
+                                  "type": "array",
+                                  "maxItems": 50,
+                                  "items": {
+                                    "type": "string",
+                                    "maxLength": 2000
+                                  }
+                                }
+                              },
+                              "style": {
+                                "type": "string",
+                                "maxLength": 100
+                              }
+                            }
+                          },
+                          {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "kind"
+                            ],
+                            "properties": {
+                              "kind": {
+                                "const": "page_break"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "block_id"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "delete_block"
+                    },
+                    "block_id": {
+                      "type": "string",
+                      "pattern": "^(p|tbl|hdr|ftr|img|brk):[0-9]+(/r[0-9]+c[0-9]+)?$"
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "cell_id",
+                    "text"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "table_set_cell"
+                    },
+                    "cell_id": {
+                      "type": "string",
+                      "pattern": "^(p|tbl|hdr|ftr|img|brk):[0-9]+(/r[0-9]+c[0-9]+)?$"
+                    },
+                    "text": {
+                      "type": "string",
+                      "maxLength": 4000
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "table_id",
+                    "values"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "table_add_row"
+                    },
+                    "table_id": {
+                      "type": "string",
+                      "pattern": "^(p|tbl|hdr|ftr|img|brk):[0-9]+(/r[0-9]+c[0-9]+)?$"
+                    },
+                    "after_row": {
+                      "type": "integer",
+                      "minimum": -1,
+                      "maximum": 10000
+                    },
+                    "values": {
+                      "type": "array",
+                      "maxItems": 50,
+                      "items": {
+                        "type": "string",
+                        "maxLength": 2000
+                      }
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "table_id",
+                    "row"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "table_delete_row"
+                    },
+                    "table_id": {
+                      "type": "string",
+                      "pattern": "^(p|tbl|hdr|ftr|img|brk):[0-9]+(/r[0-9]+c[0-9]+)?$"
+                    },
+                    "row": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 10000
+                    }
+                  }
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "op",
+                    "block_id",
+                    "style"
+                  ],
+                  "properties": {
+                    "op": {
+                      "const": "set_style"
+                    },
+                    "block_id": {
+                      "type": "string",
+                      "pattern": "^(p|tbl|hdr|ftr|img|brk):[0-9]+(/r[0-9]+c[0-9]+)?$"
+                    },
+                    "style": {
+                      "type": "string",
+                      "maxLength": 100
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "track_changes": {
+            "type": "boolean"
+          },
+          "author": {
+            "type": "string",
+            "maxLength": 50
+          },
+          "expect_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact",
+          "applied",
+          "results"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          },
+          "applied": {
+            "type": "integer"
+          },
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": false,
+      "untrusted_output": false,
+      "timeout_ms": 120000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "契約書/修正案.docx",
+          "track_changes": true,
+          "ops": [
+            {
+              "op": "replace_in_block",
+              "block_id": "p:12",
+              "find": "30日",
+              "replace": "45日"
+            },
+            {
+              "op": "table_set_cell",
+              "cell_id": "tbl:3/r2c4",
+              "text": "USD 12,500"
+            },
+            {
+              "op": "insert_after",
+              "block_id": "p:20",
+              "blocks": [
+                {
+                  "kind": "paragraph",
+                  "text": "第5条の2 …"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "docx.images",
+      "description": "Word の画像を取り出す（内容の説明も可）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "describe": {
+            "type": "boolean"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "images"
+        ],
+        "properties": {
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 120000,
+      "priority": "Could",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "報告書.docx",
+          "describe": true
+        }
+      ]
+    },
+    {
+      "name": "docx.outline",
+      "description": "Word の見出し構成と表の数を取得する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "file_hash",
+          "headings"
+        ],
+        "properties": {
+          "file_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "headings": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "tables": {
+            "type": "integer"
+          },
+          "pages_estimate": {
+            "type": "integer"
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 60000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "社内規定.docx"
+        }
+      ]
+    },
+    {
+      "name": "docx.read",
+      "description": "Word を ID 付きのブロック列で読む（見出し・段落・表・ヘッダー/フッター）",
+      "args_schema": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "continuation"
+            ],
+            "properties": {
+              "continuation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "from_block": {
+                "type": "string",
+                "pattern": "^(p|tbl|hdr|ftr|img|brk):[0-9]+(/r[0-9]+c[0-9]+)?$"
+              },
+              "max_blocks": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 500
+              },
+              "include": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "headers",
+                    "comments",
+                    "images"
+                  ]
+                },
+                "maxItems": 3
+              }
+            }
+          }
+        ]
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "file_hash",
+          "total_blocks",
+          "blocks"
+        ],
+        "properties": {
+          "file_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "total_blocks": {
+            "type": "integer"
+          },
+          "blocks": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 60000,
+      "priority": "Must",
+      "paginated": true,
+      "examples": [
+        {
+          "path": "契約書/傭船契約_XX.docx"
+        },
+        {
+          "path": "a.docx",
+          "from_block": "p:120",
+          "max_blocks": 100,
+          "include": [
+            "headers"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "fs.copy",
+      "description": "ファイルをコピーする",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "src",
+          "dst"
+        ],
+        "properties": {
+          "src": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "dst": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "overwrite": {
+            "type": "boolean"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/src",
+        "/dst"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 120000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "src": "雛形/送金明細.xlsx",
+          "dst": "出力/送金明細_202610.xlsx"
+        }
+      ]
+    },
+    {
+      "name": "fs.delete",
+      "description": "ファイルをごみ箱へ移す（常に承認が必要）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "delete",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 30000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "tmp/作業用.xlsx"
+        }
+      ]
+    },
+    {
+      "name": "fs.list",
+      "description": "フォルダの中身を一覧する（glob で絞り込み可）",
+      "args_schema": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "continuation"
+            ],
+            "properties": {
+              "continuation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "glob": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "depth": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "include_hidden": {
+                "type": "boolean"
+              }
+            }
+          }
+        ]
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "entries"
+        ],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "path",
+                "type"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "file",
+                    "dir"
+                  ]
+                },
+                "size": {
+                  "type": "integer"
+                },
+                "mtime": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 30000,
+      "priority": "Must",
+      "paginated": true,
+      "examples": [
+        {
+          "path": "請求書",
+          "glob": "*.pdf"
+        },
+        {}
+      ]
+    },
+    {
+      "name": "fs.mkdir",
+      "description": "フォルダを作る",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 30000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "出力/2026-10"
+        }
+      ]
+    },
+    {
+      "name": "fs.move",
+      "description": "ファイルを移動・改名する（移動元の扱いは削除と同じで承認が必要）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "src",
+          "dst"
+        ],
+        "properties": {
+          "src": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "dst": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "overwrite": {
+            "type": "boolean"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "delete",
+      "path_args": [
+        "/src",
+        "/dst"
+      ],
+      "idempotent": false,
+      "untrusted_output": false,
+      "timeout_ms": 120000,
+      "priority": "Should",
+      "paginated": false,
+      "examples": [
+        {
+          "src": "a.xlsx",
+          "dst": "済/a.xlsx"
+        }
+      ]
+    },
+    {
+      "name": "fs.read_text",
+      "description": "テキストファイル（txt/md/csv/json/log）を行単位で読む",
+      "args_schema": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "continuation"
+            ],
+            "properties": {
+              "continuation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "encoding": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "utf-8",
+                  "cp932"
+                ]
+              },
+              "offset_lines": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "max_lines": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 2000
+              }
+            }
+          }
+        ]
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "text_ref"
+        ],
+        "properties": {
+          "text_ref": {
+            "type": "string"
+          },
+          "encoding": {
+            "type": "string"
+          },
+          "total_lines": {
+            "type": "integer"
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 30000,
+      "priority": "Must",
+      "paginated": true,
+      "examples": [
+        {
+          "path": "メモ.txt",
+          "max_lines": 200
+        }
+      ]
+    },
+    {
+      "name": "fs.search",
+      "description": "ファイル名と本文（Office/PDF を含む）を検索する",
+      "args_schema": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "continuation"
+            ],
+            "properties": {
+              "continuation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "name_glob": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              },
+              "content": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "max_results": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 200
+              }
+            }
+          }
+        ]
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "hits"
+        ],
+        "properties": {
+          "hits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "path"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "line": {
+                  "type": "integer"
+                },
+                "snippet_ref": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 120000,
+      "priority": "Should",
+      "paginated": true,
+      "examples": [
+        {
+          "content": "傭船料",
+          "name_glob": "*.docx"
+        }
+      ]
+    },
+    {
+      "name": "fs.stat",
+      "description": "ファイルの情報（サイズ・更新日時・ハッシュ・ロック中か）を取得する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "path",
+          "type",
+          "locked"
+        ],
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "file",
+              "dir"
+            ]
+          },
+          "size": {
+            "type": "integer"
+          },
+          "mtime": {
+            "type": "string"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "locked": {
+            "type": "boolean"
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 30000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "送金明細.xlsx"
+        }
+      ]
+    },
+    {
+      "name": "invoice.extract",
+      "description": "請求書などの帳票から項目をスキーマどおりに抽出し、検算する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "schema"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "schema": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.-]{1,40}$"
+          },
+          "pages": {
+            "type": "string",
+            "pattern": "^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$",
+            "maxLength": 200
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "fields",
+          "checks",
+          "needs_review"
+        ],
+        "properties": {
+          "fields": {
+            "type": "object"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "name",
+                "ok"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "detail": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "needs_review": {
+            "type": "boolean"
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 300000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "請求書/INV-001.pdf",
+          "schema": "invoice.v1"
+        }
+      ]
+    },
+    {
+      "name": "memory.forget",
+      "description": "固定メモリから記録を消す",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "keys"
+        ],
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "effect": "none",
+      "path_args": [],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 10000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "key": "出力先"
+        }
+      ]
+    },
+    {
+      "name": "memory.note",
+      "description": "大事な事実を固定メモリに記録する（文脈を圧縮しても消えない）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "key",
+          "value"
+        ],
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "keys"
+        ],
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "effect": "none",
+      "path_args": [],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 10000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "key": "出力先",
+          "value": "出力/送金明細_202610.xlsx"
+        }
+      ]
+    },
+    {
+      "name": "pdf.extract_tables",
+      "description": "PDF の表を行列として取り出す",
+      "args_schema": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "continuation"
+            ],
+            "properties": {
+              "continuation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "pages"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "pages": {
+                "type": "string",
+                "pattern": "^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$",
+                "maxLength": 200
+              },
+              "password_ref": {
+                "type": "string",
+                "pattern": "^pw-[0-9]+$"
+              }
+            }
+          }
+        ]
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "tables"
+        ],
+        "properties": {
+          "tables": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 120000,
+      "priority": "Must",
+      "paginated": true,
+      "examples": [
+        {
+          "path": "精算書.pdf",
+          "pages": "2"
+        }
+      ]
+    },
+    {
+      "name": "pdf.info",
+      "description": "PDF のページ数・暗号化・テキストのあるページとスキャンページを調べる",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "password_ref": {
+            "type": "string",
+            "pattern": "^pw-[0-9]+$"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "file_hash",
+          "pages",
+          "encrypted",
+          "text_pages",
+          "scanned_pages"
+        ],
+        "properties": {
+          "file_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "pages": {
+            "type": "integer"
+          },
+          "encrypted": {
+            "type": "boolean"
+          },
+          "text_pages": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "scanned_pages": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "producer": {
+            "type": "string"
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 60000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "請求書/INV-001.pdf"
+        }
+      ]
+    },
+    {
+      "name": "pdf.ocr",
+      "description": "テキストのないページ（スキャン・FAX）を日本語 OCR で読む",
+      "args_schema": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "continuation"
+            ],
+            "properties": {
+              "continuation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "pages"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "pages": {
+                "type": "string",
+                "pattern": "^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$",
+                "maxLength": 200
+              },
+              "engine": {
+                "type": "string",
+                "enum": [
+                  "auto",
+                  "ocr",
+                  "vlm"
+                ]
+              },
+              "password_ref": {
+                "type": "string",
+                "pattern": "^pw-[0-9]+$"
+              }
+            }
+          }
+        ]
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "pages"
+        ],
+        "properties": {
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 300000,
+      "priority": "Must",
+      "paginated": true,
+      "examples": [
+        {
+          "path": "FAX/20261001.pdf",
+          "pages": "1"
+        }
+      ]
+    },
+    {
+      "name": "pdf.read_pages",
+      "description": "PDF の本文をページ単位で読む（読み順を考慮）",
+      "args_schema": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "continuation"
+            ],
+            "properties": {
+              "continuation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "pages"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "pages": {
+                "type": "string",
+                "pattern": "^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$",
+                "maxLength": 200
+              },
+              "password_ref": {
+                "type": "string",
+                "pattern": "^pw-[0-9]+$"
+              },
+              "layout": {
+                "type": "string",
+                "enum": [
+                  "reading",
+                  "raw"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "pages"
+        ],
+        "properties": {
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 120000,
+      "priority": "Must",
+      "paginated": true,
+      "examples": [
+        {
+          "path": "契約書/CP.pdf",
+          "pages": "1-5,8"
+        }
+      ]
+    },
+    {
+      "name": "rag.search",
+      "description": "社内文書を検索する（閲覧権限で絞り込まれる。出典を返す）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "top_k": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "filters": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "path_prefix": {
+                "type": "string",
+                "maxLength": 512
+              },
+              "doc_type": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "updated_after": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+              }
+            }
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "hits"
+        ],
+        "properties": {
+          "hits": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "ref",
+                "path"
+              ],
+              "properties": {
+                "ref": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "location": {
+                  "type": "string"
+                },
+                "score": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 30000,
+      "priority": "Should",
+      "paginated": false,
+      "examples": [
+        {
+          "query": "傭船料の支払期日",
+          "top_k": 5
+        }
+      ]
+    },
+    {
+      "name": "web.fetch",
+      "description": "Web ページや公開 PDF の本文を取得する（読み取り専用）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "pattern": "^https?://",
+            "maxLength": 2048
+          },
+          "max_chars": {
+            "type": "integer",
+            "minimum": 500,
+            "maximum": 8000
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "url",
+          "final_url",
+          "chars",
+          "truncated"
+        ],
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "final_url": {
+            "type": "string"
+          },
+          "title_ref": {
+            "type": "string"
+          },
+          "content_type": {
+            "type": "string"
+          },
+          "chars": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "effect": "net",
+      "path_args": [],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 60000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "url": "https://www.mlit.go.jp/maritime/",
+          "max_chars": 8000
+        }
+      ]
+    },
+    {
+      "name": "web.search",
+      "description": "Web を検索する（社内情報は入れない。サーバーの中継を通る）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "query"
+        ],
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "max_results": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10
+          },
+          "site": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9.-]{1,253}$"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "results"
+        ],
+        "properties": {
+          "results": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "rank",
+                "url"
+              ],
+              "properties": {
+                "rank": {
+                  "type": "integer"
+                },
+                "url": {
+                  "type": "string"
+                },
+                "title_ref": {
+                  "type": "string"
+                },
+                "snippet_ref": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "effect": "net",
+      "path_args": [],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 30000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "query": "国際海事機関 2026年 規則改正",
+          "site": "imo.org"
+        }
+      ]
+    },
+    {
+      "name": "xlsx.add_sheet",
+      "description": "Excel にシートを追加する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "name"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31
+          },
+          "position": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 255
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 60000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "a.xlsx",
+          "name": "集計"
+        }
+      ]
+    },
+    {
+      "name": "xlsx.chart",
+      "description": "Excel にグラフを作る",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sheet",
+          "kind",
+          "data_range",
+          "anchor"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "sheet": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "bar",
+              "line",
+              "pie",
+              "scatter"
+            ]
+          },
+          "data_range": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 160,
+            "description": "Sheet1!A1:F200"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 100
+          },
+          "anchor": {
+            "type": "string",
+            "pattern": "^[A-Z]{1,3}[0-9]{1,7}$"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": false,
+      "untrusted_output": false,
+      "timeout_ms": 120000,
+      "priority": "Should",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "a.xlsx",
+          "sheet": "集計",
+          "kind": "bar",
+          "data_range": "集計!A1:B13",
+          "anchor": "D2",
+          "title": "月別費用"
+        }
+      ]
+    },
+    {
+      "name": "xlsx.create",
+      "description": "Excel を新規作成する（見出し・列幅・表示形式・数式・テーブル）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sheets"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "sheets": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "columns"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 31
+                },
+                "columns": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 200,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "header"
+                    ],
+                    "properties": {
+                      "header": {
+                        "type": "string",
+                        "maxLength": 200
+                      },
+                      "width": {
+                        "type": "number",
+                        "minimum": 1,
+                        "maximum": 255
+                      },
+                      "number_format": {
+                        "type": "string",
+                        "maxLength": 100
+                      }
+                    }
+                  }
+                },
+                "rows": {
+                  "type": "array",
+                  "maxItems": 100000,
+                  "items": {
+                    "type": "array",
+                    "maxItems": 200,
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 4000
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "date"
+                          ],
+                          "properties": {
+                            "date": {
+                              "type": "string",
+                              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "formulas": {
+                  "type": "array",
+                  "maxItems": 5000,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "ref",
+                      "formula"
+                    ],
+                    "properties": {
+                      "ref": {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      "formula": {
+                        "type": "string",
+                        "pattern": "^=",
+                        "maxLength": 2000
+                      }
+                    }
+                  }
+                },
+                "freeze": {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                "as_table": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "name"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+                    },
+                    "style": {
+                      "type": "string",
+                      "maxLength": 50
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "overwrite": {
+            "type": "boolean"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          },
+          "recalc": {
+            "type": "object",
+            "required": [
+              "ok",
+              "errors"
+            ],
+            "properties": {
+              "ok": {
+                "type": "boolean"
+              },
+              "errors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "cell",
+                    "value"
+                  ],
+                  "properties": {
+                    "cell": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string",
+                      "enum": [
+                        "#REF!",
+                        "#DIV/0!",
+                        "#VALUE!",
+                        "#NAME?",
+                        "#N/A",
+                        "#NUM!",
+                        "#NULL!"
+                      ]
+                    },
+                    "formula": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 120000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "出力/送金明細.xlsx",
+          "sheets": [
+            {
+              "name": "明細",
+              "columns": [
+                {
+                  "header": "請求日",
+                  "width": 12,
+                  "number_format": "yyyy-mm-dd"
+                },
+                {
+                  "header": "請求元",
+                  "width": 30
+                },
+                {
+                  "header": "金額",
+                  "width": 14,
+                  "number_format": "#,##0.00"
+                }
+              ],
+              "rows": [
+                [
+                  {
+                    "date": "2026-10-01"
+                  },
+                  "XX Shipping",
+                  12500.5
+                ]
+              ],
+              "formulas": [
+                {
+                  "ref": "C3",
+                  "formula": "=SUM(C2:C2)"
+                }
+              ],
+              "freeze": "A2",
+              "as_table": {
+                "name": "Remit"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "xlsx.delete_cols",
+      "description": "Excel の列を削除する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sheet",
+          "at",
+          "count"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "sheet": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31
+          },
+          "at": {
+            "type": "string",
+            "pattern": "^[A-Z]{1,3}$"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "expect_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": false,
+      "untrusted_output": false,
+      "timeout_ms": 120000,
+      "priority": "Should",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "a.xlsx",
+          "sheet": "明細",
+          "at": "C",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "xlsx.delete_rows",
+      "description": "Excel の行を削除する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sheet",
+          "at",
+          "count"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "sheet": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31
+          },
+          "at": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1048576
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "expect_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": false,
+      "untrusted_output": false,
+      "timeout_ms": 120000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "a.xlsx",
+          "sheet": "明細",
+          "at": 5,
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "xlsx.find",
+      "description": "Excel の中を文字で検索し、該当セルを返す",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "query"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "sheet": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31
+          },
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "match": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "contains"
+            ]
+          },
+          "max_results": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "hits"
+        ],
+        "properties": {
+          "hits": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 60000,
+      "priority": "Should",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "船費.xlsx",
+          "query": "入渠"
+        }
+      ]
+    },
+    {
+      "name": "xlsx.info",
+      "description": "Excel のシート一覧・使用範囲・結合セル・テーブル・マクロの有無を取得する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "file_hash",
+          "sheets",
+          "has_macros"
+        ],
+        "properties": {
+          "file_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "sheets": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "has_macros": {
+            "type": "boolean"
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 60000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "送金明細.xlsx"
+        }
+      ]
+    },
+    {
+      "name": "xlsx.insert_cols",
+      "description": "Excel に列を挿入する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sheet",
+          "at",
+          "count"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "sheet": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31
+          },
+          "at": {
+            "type": "string",
+            "pattern": "^[A-Z]{1,3}$"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "expect_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": false,
+      "untrusted_output": false,
+      "timeout_ms": 120000,
+      "priority": "Should",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "a.xlsx",
+          "sheet": "明細",
+          "at": "C",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "name": "xlsx.insert_rows",
+      "description": "Excel に行を挿入する",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sheet",
+          "at",
+          "count"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "sheet": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31
+          },
+          "at": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 1048576
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "expect_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": false,
+      "untrusted_output": false,
+      "timeout_ms": 120000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "a.xlsx",
+          "sheet": "明細",
+          "at": 5,
+          "count": 2
+        }
+      ]
+    },
+    {
+      "name": "xlsx.read_range",
+      "description": "Excel の範囲を読む（値・数式・表示形式）",
+      "args_schema": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "continuation"
+            ],
+            "properties": {
+              "continuation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 512
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "range"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "range": {
+                "type": "string",
+                "minLength": 2,
+                "maxLength": 160,
+                "description": "Sheet1!A1:F200"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "values",
+                  "formulas",
+                  "both"
+                ]
+              },
+              "header_row": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1048576
+              },
+              "max_cells": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20000
+              }
+            }
+          }
+        ]
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "file_hash",
+          "range",
+          "rows"
+        ],
+        "properties": {
+          "file_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "range": {
+            "type": "string"
+          },
+          "header": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array"
+            }
+          },
+          "formulas": {
+            "type": "array",
+            "items": {
+              "type": "array"
+            }
+          },
+          "formats": {
+            "type": "array",
+            "items": {
+              "type": "array"
+            }
+          }
+        }
+      },
+      "effect": "read",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": true,
+      "timeout_ms": 60000,
+      "priority": "Must",
+      "paginated": true,
+      "examples": [
+        {
+          "path": "送金明細.xlsx",
+          "range": "明細!A1:F200",
+          "header_row": 1
+        }
+      ]
+    },
+    {
+      "name": "xlsx.recalc",
+      "description": "Excel を再計算し、エラー値のあるセルを一覧にする",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "ok",
+          "errors"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "cell",
+                "value"
+              ],
+              "properties": {
+                "cell": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string",
+                  "enum": [
+                    "#REF!",
+                    "#DIV/0!",
+                    "#VALUE!",
+                    "#NAME?",
+                    "#N/A",
+                    "#NUM!",
+                    "#NULL!"
+                  ]
+                },
+                "formula": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 180000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "送金明細.xlsx"
+        }
+      ]
+    },
+    {
+      "name": "xlsx.rename_sheet",
+      "description": "Excel のシート名を変える",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "name",
+          "new_name"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31
+          },
+          "new_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 60000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "a.xlsx",
+          "name": "Sheet1",
+          "new_name": "明細"
+        }
+      ]
+    },
+    {
+      "name": "xlsx.write_cells",
+      "description": "Excel のセルに値・数式・表示形式を書く（書式は保持し、最後に再計算する）",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sheet",
+          "cells"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "sheet": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31
+          },
+          "cells": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5000,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "ref"
+              ],
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "minLength": 2,
+                  "maxLength": 140,
+                  "description": "Sheet1!B12 / '送金 明細'!A1"
+                },
+                "value": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "maxLength": 4000
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "date"
+                      ],
+                      "properties": {
+                        "date": {
+                          "type": "string",
+                          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "formula": {
+                  "type": "string",
+                  "pattern": "^=",
+                  "maxLength": 2000
+                },
+                "number_format": {
+                  "type": "string",
+                  "maxLength": 100
+                }
+              }
+            }
+          },
+          "expect_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "recalc": {
+            "type": "boolean"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact",
+          "written"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          },
+          "written": {
+            "type": "integer"
+          },
+          "recalc": {
+            "type": "object",
+            "required": [
+              "ok",
+              "errors"
+            ],
+            "properties": {
+              "ok": {
+                "type": "boolean"
+              },
+              "errors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "cell",
+                    "value"
+                  ],
+                  "properties": {
+                    "cell": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string",
+                      "enum": [
+                        "#REF!",
+                        "#DIV/0!",
+                        "#VALUE!",
+                        "#NAME?",
+                        "#N/A",
+                        "#NUM!",
+                        "#NULL!"
+                      ]
+                    },
+                    "formula": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 120000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "送金明細.xlsx",
+          "sheet": "明細",
+          "cells": [
+            {
+              "ref": "B2",
+              "value": "XX Shipping"
+            },
+            {
+              "ref": "D2",
+              "value": 12500.5,
+              "number_format": "#,##0.00"
+            },
+            {
+              "ref": "D12",
+              "formula": "=SUM(D2:D11)"
+            },
+            {
+              "ref": "A2",
+              "value": {
+                "date": "2026-10-01"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "xlsx.write_table",
+      "description": "Excel に表（見出し＋行）をまとめて書く",
+      "args_schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "sheet",
+          "top_left",
+          "rows"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+          },
+          "sheet": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 31
+          },
+          "top_left": {
+            "type": "string",
+            "pattern": "^[A-Z]{1,3}[0-9]{1,7}$"
+          },
+          "header": {
+            "type": "array",
+            "maxItems": 200,
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          "rows": {
+            "type": "array",
+            "maxItems": 100000,
+            "items": {
+              "type": "array",
+              "maxItems": 200,
+              "items": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 4000
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "date"
+                    ],
+                    "properties": {
+                      "date": {
+                        "type": "string",
+                        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "expect_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "recalc": {
+            "type": "boolean"
+          }
+        }
+      },
+      "result_schema": {
+        "type": "object",
+        "required": [
+          "artifact",
+          "range"
+        ],
+        "properties": {
+          "artifact": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "path",
+              "op"
+            ],
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024,
+                "description": "作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "overwrite",
+                  "delete",
+                  "move",
+                  "copy"
+                ]
+              },
+              "pre_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "post_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "backup_path": {
+                "type": "string",
+                "maxLength": 1024
+              },
+              "renamed_from": {
+                "type": "string",
+                "maxLength": 1024
+              }
+            }
+          },
+          "range": {
+            "type": "string"
+          },
+          "recalc": {
+            "type": "object",
+            "required": [
+              "ok",
+              "errors"
+            ],
+            "properties": {
+              "ok": {
+                "type": "boolean"
+              },
+              "errors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "cell",
+                    "value"
+                  ],
+                  "properties": {
+                    "cell": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string",
+                      "enum": [
+                        "#REF!",
+                        "#DIV/0!",
+                        "#VALUE!",
+                        "#NAME?",
+                        "#N/A",
+                        "#NUM!",
+                        "#NULL!"
+                      ]
+                    },
+                    "formula": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "effect": "write",
+      "path_args": [
+        "/path"
+      ],
+      "idempotent": true,
+      "untrusted_output": false,
+      "timeout_ms": 120000,
+      "priority": "Must",
+      "paginated": false,
+      "examples": [
+        {
+          "path": "a.xlsx",
+          "sheet": "Sheet1",
+          "top_left": "A1",
+          "header": [
+            "日付",
+            "金額"
+          ],
+          "rows": [
+            [
+              {
+                "date": "2026-10-01"
+              },
+              100
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

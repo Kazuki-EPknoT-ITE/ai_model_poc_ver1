@@ -1,0 +1,185 @@
+# fs（local_llm_protocol.md §3.1）
+tools:
+  fs.list:
+    description: フォルダの中身を一覧する（glob で絞り込み可）
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 30000
+    priority: Must
+    paginated: true
+    args:
+      type: object
+      additionalProperties: false
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        glob: { $ref: "#/$defs/Glob" }
+        depth: { type: integer, minimum: 1, maximum: 5 }
+        include_hidden: { type: boolean }
+    result:
+      type: object
+      required: [entries]
+      properties:
+        entries:
+          type: array
+          items:
+            type: object
+            required: [path, type]
+            properties:
+              path: { type: string }
+              type: { type: string, enum: [file, dir] }
+              size: { type: integer }
+              mtime: { type: string }
+    examples:
+      - { path: "請求書", glob: "*.pdf" }
+      - {}
+  fs.stat:
+    description: ファイルの情報（サイズ・更新日時・ハッシュ・ロック中か）を取得する
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 30000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+    result:
+      type: object
+      required: [path, type, locked]
+      properties:
+        path: { type: string }
+        type: { type: string, enum: [file, dir] }
+        size: { type: integer }
+        mtime: { type: string }
+        hash: { $ref: "#/$defs/FileHash" }
+        locked: { type: boolean }
+    examples:
+      - { path: "送金明細.xlsx" }
+  fs.read_text:
+    description: テキストファイル（txt/md/csv/json/log）を行単位で読む
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: true
+    timeout_ms: 30000
+    priority: Must
+    paginated: true
+    args:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        encoding: { type: string, enum: [auto, utf-8, cp932] }
+        offset_lines: { type: integer, minimum: 0 }
+        max_lines: { type: integer, minimum: 1, maximum: 2000 }
+    result:
+      type: object
+      required: [text_ref]
+      properties:
+        text_ref: { type: string }
+        encoding: { type: string }
+        total_lines: { type: integer }
+    examples:
+      - { path: "メモ.txt", max_lines: 200 }
+  fs.search:
+    description: ファイル名と本文（Office/PDF を含む）を検索する
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: true
+    timeout_ms: 120000
+    priority: Should
+    paginated: true
+    args:
+      type: object
+      additionalProperties: false
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        name_glob: { $ref: "#/$defs/Glob" }
+        content: { type: string, minLength: 1, maxLength: 200 }
+        max_results: { type: integer, minimum: 1, maximum: 200 }
+    result:
+      type: object
+      required: [hits]
+      properties:
+        hits: { type: array, items: { type: object, required: [path], properties: { path: { type: string }, line: { type: integer }, snippet_ref: { type: string } } } }
+    examples:
+      - { content: "傭船料", name_glob: "*.docx" }
+  fs.mkdir:
+    description: フォルダを作る
+    effect: write
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 30000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+    result: { type: object, required: [path], properties: { path: { type: string } } }
+    examples:
+      - { path: "出力/2026-10" }
+  fs.copy:
+    description: ファイルをコピーする
+    effect: write
+    path_args: [/src, /dst]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 120000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [src, dst]
+      properties:
+        src: { $ref: "#/$defs/Path" }
+        dst: { $ref: "#/$defs/Path" }
+        overwrite: { type: boolean }
+    result: { type: object, required: [artifact], properties: { artifact: { $ref: "#/$defs/Artifact" } } }
+    examples:
+      - { src: "雛形/送金明細.xlsx", dst: "出力/送金明細_202610.xlsx" }
+  fs.move:
+    description: ファイルを移動・改名する（移動元の扱いは削除と同じで承認が必要）
+    effect: delete
+    path_args: [/src, /dst]
+    idempotent: false
+    untrusted_output: false
+    timeout_ms: 120000
+    priority: Should
+    args:
+      type: object
+      additionalProperties: false
+      required: [src, dst]
+      properties:
+        src: { $ref: "#/$defs/Path" }
+        dst: { $ref: "#/$defs/Path" }
+        overwrite: { type: boolean }
+    result: { type: object, required: [artifact], properties: { artifact: { $ref: "#/$defs/Artifact" } } }
+    examples:
+      - { src: "a.xlsx", dst: "済/a.xlsx" }
+  fs.delete:
+    description: ファイルをごみ箱へ移す（常に承認が必要）
+    effect: delete
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 30000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+    result: { type: object, required: [artifact], properties: { artifact: { $ref: "#/$defs/Artifact" } } }
+    examples:
+      - { path: "tmp/作業用.xlsx" }

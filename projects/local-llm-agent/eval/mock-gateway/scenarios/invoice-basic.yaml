@@ -1,0 +1,42 @@
+# 結合試験 I-01: 請求書3件 → batch.run → final（local_llm_test_spec.md §2.3）
+name: invoice-basic
+protocol_version: "1.0"
+config:
+  context_budget: 32768
+  models: [local-12b]
+steps:
+  - match: { step_index: 0, last_user: "請求書.*Excel" }
+    action:
+      type: plan_update
+      plan:
+        - { id: t1, title: 請求書を一括抽出してExcelへ転記, status: doing }
+        - { id: t2, title: 完了報告, status: todo }
+  - match: { step_index: 1 }
+    action:
+      type: tool_call
+      thought: 請求書をまとめて読み取り、送金明細に転記します
+      tool: batch.run
+      args:
+        items: "glob:請求書/*.pdf"
+        pipeline: { tool: invoice.extract, args: { schema: invoice.v1 } }
+        output:
+          xlsx: "送金明細.xlsx"
+          sheet: "明細"
+          columns:
+            - { header: "請求日", from: "/fields/issue_date/value" }
+            - { header: "請求元", from: "/fields/issuer_name/value" }
+            - { header: "通貨", from: "/fields/currency/value" }
+            - { header: "金額", from: "/fields/total/value" }
+  - match: { last_tool_result_contains: '"succeeded"' }
+    action:
+      type: final
+      summary: "請求書3件を送金明細.xlsxに転記しました。"
+      outputs: [{ path: "送金明細.xlsx", description: "送金明細（3件）" }]
+      failures: []
+      needs_review: []
+  # invoice.extract が内部で呼ぶ抽出推論。件ごとの正解値を返す
+  - match: { purpose: invoice_extract }
+    repeat: true
+    action_from_fixture: "fixtures/invoice/{item_basename}.json"
+fallback:
+  action: { type: final, summary: "（モック）シナリオ外の呼び出しです", outputs: [], failures: [], needs_review: [] }

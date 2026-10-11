@@ -1,0 +1,28 @@
+{
+  "def": "ToolResult",
+  "valid": [
+    { "ok": true, "data": { "entries": [] }, "tokens_estimate": 12 },
+    {
+      "ok": true,
+      "data": { "file_hash": "9f2c000000000000000000000000000000000000000000000000000000000000", "total_blocks": 2, "blocks": [] },
+      "untrusted": [{ "source": "file", "ref": "a.docx#p:1-p:2", "text": "第1条 …" }],
+      "continuation": "c-1",
+      "tokens_estimate": 300
+    },
+    {
+      "ok": true,
+      "artifacts": [{ "path": "送金明細.xlsx", "op": "overwrite", "pre_hash": "0000000000000000000000000000000000000000000000000000000000000000", "post_hash": "1111111111111111111111111111111111111111111111111111111111111111", "backup_path": "C:\\Users\\x\\AppData\\Local\\LocalLLMAgent\\backups\\c1\\s3\\送金明細.xlsx" }],
+      "warnings": ["別名で保存しました: 送金明細 (AI編集 2026-10-11 1530).xlsx"],
+      "tokens_estimate": 40
+    },
+    { "ok": false, "error": { "code": "BLOCK_NOT_FOUND", "kind": "permanent", "message": "p:57 はありません。docx.read で最新の ID を取得してください" }, "tokens_estimate": 30 },
+    { "ok": false, "error": { "code": "APPROVAL_REQUIRED", "kind": "deferred", "message": "承認待ち(ap-3)", "detail": { "approval_id": "ap-3" } }, "tokens_estimate": 20 }
+  ],
+  "invalid": [
+    { "ok": true },
+    { "ok": false, "error": { "code": "SOMETHING", "kind": "permanent", "message": "x" }, "tokens_estimate": 1 },
+    { "ok": false, "error": { "code": "TIMEOUT", "kind": "fatal", "message": "x" }, "tokens_estimate": 1 },
+    { "ok": true, "untrusted": [{ "source": "email", "ref": "x", "text": "y" }], "tokens_estimate": 1 },
+    { "ok": true, "artifacts": [{ "path": "a", "op": "overwrite", "post_hash": "abc" }], "tokens_estimate": 1 }
+  ]
+}

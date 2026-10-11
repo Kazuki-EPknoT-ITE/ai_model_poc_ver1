@@ -1,0 +1,154 @@
+# 共通の型（local_llm_protocol.md §2）
+$defs:
+  Path:
+    type: string
+    minLength: 1
+    maxLength: 1024
+    description: 作業フォルダからの相対パス、または承認対象になる絶対パス・UNCパス
+  Glob:
+    type: string
+    minLength: 1
+    maxLength: 512
+  Continuation:
+    type: string
+    minLength: 1
+    maxLength: 512
+  FileHash:
+    type: string
+    pattern: "^[0-9a-f]{64}$"
+  BlockId:
+    type: string
+    pattern: "^(p|tbl|hdr|ftr|img|brk):[0-9]+(/r[0-9]+c[0-9]+)?$"
+  CellRef:
+    type: string
+    minLength: 2
+    maxLength: 140
+    description: "Sheet1!B12 / '送金 明細'!A1"
+  RangeRef:
+    type: string
+    minLength: 2
+    maxLength: 160
+    description: "Sheet1!A1:F200"
+  PageSpec:
+    type: string
+    pattern: "^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$"
+    maxLength: 200
+  ShortText:
+    type: string
+    maxLength: 200
+  DateValue:
+    type: object
+    additionalProperties: false
+    required: [date]
+    properties:
+      date:
+        type: string
+        pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+  Scalar:
+    anyOf:
+      - type: string
+        maxLength: 4000
+      - type: number
+      - type: boolean
+      - type: "null"
+      - $ref: "#/$defs/DateValue"
+  ErrorCode:
+    type: string
+    enum:
+      - INVALID_ARGS
+      - UNKNOWN_TOOL
+      - NOT_FOUND
+      - BLOCK_NOT_FOUND
+      - STALE_DOCUMENT
+      - CORRUPT_FILE
+      - UNSUPPORTED_FORMAT
+      - PASSWORD_REQUIRED
+      - FORMULA_ERROR
+      - RESULT_TOO_LARGE
+      - FORBIDDEN_PATH
+      - APPROVAL_REQUIRED
+      - APPROVAL_REJECTED
+      - NET_DISABLED
+      - DLP_BLOCKED
+      - DOMAIN_BLOCKED
+      - QUOTA_EXCEEDED
+      - FILE_LOCKED
+      - NET_UNREACHABLE
+      - SERVER_BUSY
+      - TIMEOUT
+      - TOOL_CRASHED
+      - TOOL_FAILED
+  ErrorKind:
+    type: string
+    enum: [transient, permanent, policy, deferred]
+  ToolError:
+    type: object
+    additionalProperties: false
+    required: [code, kind, message]
+    properties:
+      code: { $ref: "#/$defs/ErrorCode" }
+      kind: { $ref: "#/$defs/ErrorKind" }
+      message: { type: string, maxLength: 1000 }
+      retry_after_ms: { type: integer, minimum: 0 }
+      detail: { type: object }
+  UntrustedBlock:
+    type: object
+    additionalProperties: false
+    required: [source, ref, text]
+    properties:
+      source: { type: string, enum: [file, web, rag, ocr] }
+      ref: { type: string, maxLength: 1024 }
+      text: { type: string }
+  Artifact:
+    type: object
+    additionalProperties: false
+    required: [path, op]
+    properties:
+      path: { $ref: "#/$defs/Path" }
+      op: { type: string, enum: [create, overwrite, delete, move, copy] }
+      pre_hash: { $ref: "#/$defs/FileHash" }
+      post_hash: { $ref: "#/$defs/FileHash" }
+      backup_path: { type: string, maxLength: 1024 }
+      renamed_from: { type: string, maxLength: 1024 }
+  ToolResult:
+    type: object
+    additionalProperties: false
+    required: [ok, tokens_estimate]
+    properties:
+      ok: { type: boolean }
+      data: { type: object }
+      error: { $ref: "#/$defs/ToolError" }
+      untrusted:
+        type: array
+        items: { $ref: "#/$defs/UntrustedBlock" }
+      continuation: { $ref: "#/$defs/Continuation" }
+      artifacts:
+        type: array
+        items: { $ref: "#/$defs/Artifact" }
+      warnings:
+        type: array
+        items: { type: string, maxLength: 500 }
+      tokens_estimate: { type: integer, minimum: 0 }
+  Effect:
+    type: string
+    enum: [read, write, delete, net, none]
+  Priority:
+    type: string
+    enum: [Must, Should, Could]
+  ToolSpec:
+    type: object
+    additionalProperties: false
+    required: [name, description, args_schema, result_schema, effect, path_args, idempotent, untrusted_output, timeout_ms, priority]
+    properties:
+      name: { type: string, pattern: "^[a-z]+(\\.[a-z0-9_]+)+$" }
+      description: { type: string, maxLength: 120 }
+      args_schema: { type: object }
+      result_schema: { type: object }
+      effect: { $ref: "#/$defs/Effect" }
+      path_args:
+        type: array
+        items: { type: string }
+      idempotent: { type: boolean }
+      untrusted_output: { type: boolean }
+      timeout_ms: { type: integer, minimum: 1000 }
+      priority: { $ref: "#/$defs/Priority" }

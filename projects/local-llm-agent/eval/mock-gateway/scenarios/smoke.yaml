@@ -1,0 +1,29 @@
+# 起動確認用（e2e.config.json の既定シナリオ）: 計画 → fs.list → final
+name: smoke
+protocol_version: "1.0"
+config:
+  context_budget: 32768
+  models: [local-12b]
+  net_level_cap: search
+steps:
+  - match: { step_index: 0 }
+    action:
+      type: plan_update
+      plan:
+        - { id: t1, title: フォルダの中身を確認, status: doing }
+        - { id: t2, title: 完了報告, status: todo }
+  - match: { step_index: 1 }
+    action:
+      type: tool_call
+      thought: 作業フォルダの中身を確認します
+      tool: fs.list
+      args: { path: "." }
+  - match: { last_tool_result_contains: "fs.list" }
+    action:
+      type: final
+      summary: "（モック）フォルダの確認が終わりました。"
+      outputs: []
+      failures: []
+      needs_review: []
+fallback:
+  action: { type: final, summary: "（モック）シナリオ外の呼び出しです", outputs: [], failures: [], needs_review: [] }

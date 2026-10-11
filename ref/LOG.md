@@ -18,6 +18,26 @@
 
 ---
 
+## 2026-10-11 21:00 — 実装開始: T-01 雛形・T-02 protocol・T-05 モック Gateway
+
+- **変更ファイル**: `projects/local-llm-agent/`（新規62ファイル）。主なもの:
+  - ルート: `package.json`（pnpm workspace・スクリプト）, `pyproject.toml`（uv workspace・ruff/mypy/pytest）, `tsconfig.base.json`, `eslint.config.js`, `e2e.config.json`, `README.md`, `pnpm-lock.yaml`, `uv.lock`
+  - `packages/protocol/`: 正本 `schemas/src/*.yaml`（共通・アクション・承認/Runtime メッセージ・ツール47個）、生成スクリプト `scripts/gen.mjs`・`python/gen_models.py`、生成物（`schemas/gen/`・`src/generated/`・`python/src/lla_protocol/{data,generated}/`）、`src/index.ts`（ajv による検証）、`lla_protocol`（jsonschema による検証）、テスト
+  - `eval/mock-gateway/`: FastAPI のモック（`scenario.py`/`engine.py`/`app.py`/`cli.py`）、シナリオ `smoke.yaml`・`invoice-basic.yaml`＋fixture、pytest
+  - `e2e/`: Playwright の設定と `mock-gateway.spec.ts`
+  - 仕様の書き戻し（`projects/docs/`）: api（`purpose` フィールド・取り消し時の `CANCELLED`）、protocol（path_args の `*`・paginated の形）、test_spec（モックの障害パラメータ・シナリオ例の値を修正）、dev_guide（シナリオのパス）、impl_plan（T-01/02/05 を完了に）
+- **やったこと**:
+  - 版の選定: Node 20.16 で動くよう TypeScript 6.0.3 / vitest 3.2.7 / eslint 9.39.5 / typescript-eslint 8.71.1 / Playwright 1.64.0 に固定した。TS 7.0（最新）は typescript-eslint が未対応（<6.1）、vitest 5 と eslint 10 は Node 22 以上が必要なため。
+  - プロトコル: 155定義・47ツール。生成物は `pnpm protocol:check` で差分を検査する（Python 側はリポジトリの ruff 設定で整形して出力を固定）。
+  - モック Gateway: 認証（リフレッシュトークンのローテーション）、冪等キー（同じ中身は200、異なれば409）、SSE（Last-Event-ID で途中再開。イベント列はジョブ作成時に時刻付きで確定）、文脈予算413、ネットの上限と DLP、要求の記録（本文なし）、障害注入9種（http_status/latency/drop_connection/hang/queue/raw/restart/dlp_block/net_disabled）。
+- **理由/背景**: 実装計画の「直近の着手順」1（T-01→T-02→T-05）。ユーザーから「続きを行って」と依頼された。
+- **E2Eテスト**: **合格**。`pnpm test:e2e`（Playwright。`webServer` でモック Gateway を smoke シナリオで自動起動）で3件成功。確認した内容: ①ヘルスチェック・未認証時の401・ログイン・設定取得、②推論3手（plan_update → fs.list → final）の SSE で、トークン連結が done の出力と一致すること、出力が Action スキーマに合うこと、同じ冪等キーの再投入が200で同じ job を返すこと、Last-Event-ID=2 で続きから取り直せること、③ブラウザ（Chromium）で `/readyz` を表示。スクリーンショットは scratchpad の `e2e-t05/mock-gateway-readyz.png`。
+- **結果/確認**: `pnpm check` がすべて成功（eslint、tsc、生成物の差分なし、vitest 198件、ruff check/format、mypy strict、pytest 71件）。
+- **次にやること / 申し送り**:
+  - 次は着手順2: **T-10（office-tools の MCP 骨組み）→ T-11 → T-12（Excel）**。T-12 の前に LibreOffice の導入が必要（未導入）。T-03（Action の文法生成器）は Runtime と一緒に進める。
+  - Node 20 は 2026年4月でサポートが終了している。Node 22 LTS へ更新すれば vitest 5・eslint 10 に上げられる（ユーザーの確認待ち）。
+  - pytest の警告1件（Starlette の TestClient が httpx の使用を非推奨にしている）は動作に影響しない。テスト依存を整理するときに対応する。
+
 ## 2026-10-11 19:30 — 実装に必要な詳細設計ドキュメント一式を作成（要件書 v0.3・基本設計 v0.2）
 
 - **変更ファイル**（すべて `projects/docs/`）: 新規 `README.md`（目次）, `local_llm_protocol.md`, `local_llm_data_model.md`,

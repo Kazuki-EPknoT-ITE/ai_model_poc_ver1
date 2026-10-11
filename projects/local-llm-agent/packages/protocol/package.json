@@ -1,0 +1,26 @@
+{
+  "name": "@lla/protocol",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./schemas/*": "./schemas/gen/*"
+  },
+  "scripts": {
+    "gen": "node scripts/gen.mjs && uv run --project ../.. python python/gen_models.py",
+    "check": "node scripts/gen.mjs --check && uv run --project ../.. python python/gen_models.py --check",
+    "test": "vitest run",
+    "test:schema": "vitest run test/schema.test.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "json-schema-to-typescript": "15.0.4",
+    "yaml": "2.9.1"
+  }
+}

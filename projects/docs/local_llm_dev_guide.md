@@ -60,7 +60,7 @@ pnpm exec playwright install chromium
 | コマンド | 内容 |
 | --- | --- |
 | `pnpm dev` | Electron アプリを開発モードで起動する（接続先は `.env` の `LLM_GATEWAY_URL`） |
-| `pnpm mock:gateway` | モック Gateway を起動する（シナリオは `eval/mock/scenarios/*.yaml`。`local_llm_test_spec.md`） |
+| `pnpm mock:gateway` | モック Gateway を起動する（シナリオは `eval/mock-gateway/scenarios/*.yaml`。`local_llm_test_spec.md`） |
 | `pnpm test` | TS の単体テスト（vitest） |
 | `uv run pytest` | Python の単体テスト |
 | `pnpm test:integration` | Runtime ＋ office-tools ＋ モック Gateway の結合テスト |

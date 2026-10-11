@@ -1,0 +1,28 @@
+[project]
+name = "mock-gateway"
+version = "0.1.0"
+description = "Scenario-driven mock of the local-llm-agent Gateway API (local_llm_test_spec.md §2)"
+requires-python = ">=3.12"
+dependencies = [
+  "lla-protocol",
+  "fastapi>=0.115",
+  "uvicorn>=0.32",
+  "pyyaml>=6.0",
+  "python-multipart>=0.0.12",
+]
+
+[project.scripts]
+mock-gateway = "mock_gateway.cli:main"
+
+[tool.uv.sources]
+lla-protocol = { workspace = true }
+
+[dependency-groups]
+dev = ["httpx>=0.27"]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mock_gateway"]

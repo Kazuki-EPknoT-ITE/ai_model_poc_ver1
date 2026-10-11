@@ -1,0 +1,17 @@
+[project]
+name = "lla-protocol"
+version = "1.0.0"
+description = "local-llm-agent protocol: JSON Schema, tool catalog and generated pydantic models"
+requires-python = ">=3.12"
+dependencies = [
+  "pydantic>=2.9",
+  "jsonschema>=4.23",
+  "referencing>=0.35",
+]
+
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lla_protocol"]

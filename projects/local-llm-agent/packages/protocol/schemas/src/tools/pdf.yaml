@@ -1,0 +1,164 @@
+# pdf / invoice / convert（local_llm_protocol.md §3.5）
+$defs:
+  PasswordRef:
+    type: string
+    pattern: "^pw-[0-9]+$"
+  ConvertArgs:
+    type: object
+    additionalProperties: false
+    required: [src]
+    properties:
+      src: { $ref: "#/$defs/Path" }
+      dst: { $ref: "#/$defs/Path" }
+tools:
+  pdf.info:
+    description: PDF のページ数・暗号化・テキストのあるページとスキャンページを調べる
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 60000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        password_ref: { $ref: "#/$defs/PasswordRef" }
+    result:
+      type: object
+      required: [file_hash, pages, encrypted, text_pages, scanned_pages]
+      properties:
+        file_hash: { $ref: "#/$defs/FileHash" }
+        pages: { type: integer }
+        encrypted: { type: boolean }
+        text_pages: { type: array, items: { type: integer } }
+        scanned_pages: { type: array, items: { type: integer } }
+        title: { type: string }
+        producer: { type: string }
+    examples:
+      - { path: "請求書/INV-001.pdf" }
+  pdf.read_pages:
+    description: PDF の本文をページ単位で読む（読み順を考慮）
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: true
+    timeout_ms: 120000
+    priority: Must
+    paginated: true
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, pages]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        pages: { $ref: "#/$defs/PageSpec" }
+        password_ref: { $ref: "#/$defs/PasswordRef" }
+        layout: { type: string, enum: [reading, raw] }
+    result: { type: object, required: [pages], properties: { pages: { type: array, items: { type: object } } } }
+    examples:
+      - { path: "契約書/CP.pdf", pages: "1-5,8" }
+  pdf.extract_tables:
+    description: PDF の表を行列として取り出す
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: true
+    timeout_ms: 120000
+    priority: Must
+    paginated: true
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, pages]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        pages: { $ref: "#/$defs/PageSpec" }
+        password_ref: { $ref: "#/$defs/PasswordRef" }
+    result: { type: object, required: [tables], properties: { tables: { type: array, items: { type: object } } } }
+    examples:
+      - { path: "精算書.pdf", pages: "2" }
+  pdf.ocr:
+    description: テキストのないページ（スキャン・FAX）を日本語 OCR で読む
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: true
+    timeout_ms: 300000
+    priority: Must
+    paginated: true
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, pages]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        pages: { $ref: "#/$defs/PageSpec" }
+        engine: { type: string, enum: [auto, ocr, vlm] }
+        password_ref: { $ref: "#/$defs/PasswordRef" }
+    result: { type: object, required: [pages], properties: { pages: { type: array, items: { type: object } } } }
+    examples:
+      - { path: "FAX/20261001.pdf", pages: "1" }
+  invoice.extract:
+    description: 請求書などの帳票から項目をスキーマどおりに抽出し、検算する
+    effect: read
+    path_args: [/path]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 300000
+    priority: Must
+    args:
+      type: object
+      additionalProperties: false
+      required: [path, schema]
+      properties:
+        path: { $ref: "#/$defs/Path" }
+        schema: { type: string, pattern: "^[a-z][a-z0-9_.-]{1,40}$" }
+        pages: { $ref: "#/$defs/PageSpec" }
+    result:
+      type: object
+      required: [fields, checks, needs_review]
+      properties:
+        fields: { type: object }
+        checks: { type: array, items: { type: object, required: [name, ok], properties: { name: { type: string }, ok: { type: boolean }, detail: { type: string } } } }
+        needs_review: { type: boolean }
+    examples:
+      - { path: "請求書/INV-001.pdf", schema: "invoice.v1" }
+  convert.to_docx:
+    description: 旧形式の Word（.doc）などを .docx に変換する
+    effect: write
+    path_args: [/src, /dst]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 180000
+    priority: Should
+    args: { $ref: "#/$defs/ConvertArgs" }
+    result: &artifact_result { type: object, required: [artifact], properties: { artifact: { $ref: "#/$defs/Artifact" } } }
+    examples:
+      - { src: "古い契約書.doc" }
+  convert.to_xlsx:
+    description: 旧形式の Excel（.xls）や CSV を .xlsx に変換する
+    effect: write
+    path_args: [/src, /dst]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 180000
+    priority: Should
+    args: { $ref: "#/$defs/ConvertArgs" }
+    result: *artifact_result
+    examples:
+      - { src: "船費.xls", dst: "船費.xlsx" }
+  convert.to_pdf:
+    description: Word や Excel を PDF に変換する
+    effect: write
+    path_args: [/src, /dst]
+    idempotent: true
+    untrusted_output: false
+    timeout_ms: 180000
+    priority: Should
+    args: { $ref: "#/$defs/ConvertArgs" }
+    result: *artifact_result
+    examples:
+      - { src: "出力/報告書.docx" }
