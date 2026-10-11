@@ -9,6 +9,19 @@
 import { writeSync } from "node:fs";
 
 const counts = new Map<string, number>();
+const loadedAt = Date.now();
+
+/**
+ * 経過時間の判定に使う「今」。AGENT_TEST_CLOCK_SPEED=N なら、起動からの経過を N 倍に早送りする
+ * （FI-01: 2時間を超える実行の模擬）。配布物では常に Date.now()。
+ */
+export function testNow(): number {
+  if (process.env.AGENT_TEST_HOOKS === "1") {
+    const speed = Number(process.env.AGENT_TEST_CLOCK_SPEED ?? 1) || 1;
+    return loadedAt + (Date.now() - loadedAt) * speed;
+  }
+  return Date.now();
+}
 
 export function testHook(point: string, info: Record<string, unknown> = {}): void {
   if (process.env.AGENT_TEST_HOOKS === "1") {

@@ -40,6 +40,9 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8789)
     ap.add_argument("--dir", type=Path, default=None)
+    # 障害注入試験（FI-07）用: 推論を遅くし、同時実行を絞って待ち行列を作る
+    ap.add_argument("--fake-delay", type=float, default=0.01, help="FakeEngine の1チャンクあたりの待ち（秒）")
+    ap.add_argument("--max-concurrent", type=int, default=None)
     a = ap.parse_args()
     work = a.dir or Path(tempfile.mkdtemp(prefix="llmgw-dev-"))
     work.mkdir(parents=True, exist_ok=True)
@@ -59,11 +62,13 @@ def main() -> None:
                 "id": "local-12b",
                 "label": "高速",
                 "context_budget": 32768,
-                "engine": {"kind": "fake", "fake_token_delay_s": 0.01, "fake_output": FAKE_OUTPUT},
+                "engine": {"kind": "fake", "fake_token_delay_s": a.fake_delay, "fake_output": FAKE_OUTPUT},
             }
         ],
         "upstreams": {},
     }
+    if a.max_concurrent is not None:
+        config["scheduler"] = {"max_concurrent": a.max_concurrent}
     cfg = work / "gateway.yaml"
     cfg.write_text(
         json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8"

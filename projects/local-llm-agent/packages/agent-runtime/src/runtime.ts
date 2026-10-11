@@ -22,6 +22,7 @@ import type { MessageRow, RunRow, RunStore, StepRow } from "./store/store.js";
 import type { ToolRouter } from "./tools/router.js";
 import { errResult, type ToolContext } from "./tools/types.js";
 import { nowIso, sha256, stableStringify, ulid } from "./util.js";
+import { testNow } from "./testhooks.js";
 
 export interface RuntimeOptions {
   store: RunStore;
@@ -809,7 +810,7 @@ export class AgentRuntime {
   private checkLongRun(run: RunRow): void {
     if (run.long_run_notified_at) return;
     const minutes = this.store.getSetting("notify_long_run_minutes", this.opts.longRunMinutes);
-    if (Date.now() - Date.parse(run.started_at) < minutes * 60_000) return;
+    if (testNow() - Date.parse(run.started_at) < minutes * 60_000) return;
     this.store.updateRun(run.id, { long_run_notified_at: nowIso() });
     this.emit(run.conversation_id, "notify", { kind: "long_run", title: "作業が長時間続いています", body: `${minutes}分を超えました。実行は続けています。` });
   }

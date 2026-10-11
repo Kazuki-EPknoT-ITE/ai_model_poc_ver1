@@ -20,6 +20,13 @@ export interface HostConfig {
   approveAfterMs?: number;
   lockWaitMs?: number;
   retryBaseMs?: number;
+  /** 本物の Gateway（dev_server.py）ではパスワードが違う */
+  login?: string;
+  password?: string;
+  /** office-tools（MCP）を起動するか（FI-17 など Office 文書を扱うシナリオ） */
+  office?: boolean;
+  /** 利用者のネット設定（off / search / browse） */
+  netLevel?: string;
 }
 
 const cfg = JSON.parse(process.env.FI_HOST_CONFIG ?? "{}") as HostConfig;
@@ -31,11 +38,11 @@ async function main(): Promise<void> {
   const pending: Promise<unknown>[] = [];
   const h = createHeadless({
     gatewayUrl: cfg.gatewayUrl,
-    login: "dev",
-    password: "dev",
+    login: cfg.login ?? "dev",
+    password: cfg.password ?? "dev",
     appDataDir: cfg.appDataDir,
     dbKey: "fi",
-    office: false,
+    office: cfg.office ?? false,
     deviceName: "fault-injection",
     runtime: { retryBaseMs: cfg.retryBaseMs ?? 200, lockWaitMs: cfg.lockWaitMs ?? 5_000 },
     emit: (e: RuntimeEvent) => {
@@ -50,6 +57,7 @@ async function main(): Promise<void> {
     },
   });
   await h.runtime.start();
+  if (cfg.netLevel) await h.runtime.handle(cmd("settings.update", { net_level: cfg.netLevel }));
   let runId: string | null = null;
   if (cfg.mode === "start") {
     const r = (await h.runtime.handle(

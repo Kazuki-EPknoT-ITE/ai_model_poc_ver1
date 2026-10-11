@@ -2,6 +2,7 @@
 //   node <vite-node> eval/harness/src/run.ts --set invoice_extraction_sample
 //   node <vite-node> eval/harness/src/run.ts --set tool_tasks --gateway https://gpu-srv:8443 --login u --password p --model-id gemma3-12b-q4-lora7
 // 省略時はセットのモック Gateway を起動する。--all で eval/sets の全セットを順に実行する。
+// --register で結果をモデル台帳（--model-id の版）に登録する（管理者は LLA_EVAL_ADMIN_LOGIN / LLA_EVAL_ADMIN_PASSWORD）。
 import { readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { SETS_DIR } from "./env.js";
@@ -27,6 +28,7 @@ function parse(argv: string[]): EvalOptions & { all: boolean; strict: boolean } 
     else if (a === "--cache") o.cache = next();
     else if (a === "--fi-report") o.fiReport = next();
     else if (a === "--keep") o.keep = true;
+    else if (a === "--register") o.register = true;
     else if (a === "--all") o.all = true;
     else if (a === "--strict") o.strict = true;
     else throw new Error(`不明な引数: ${a}`);

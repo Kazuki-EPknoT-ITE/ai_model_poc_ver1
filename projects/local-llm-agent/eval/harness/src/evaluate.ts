@@ -54,6 +54,11 @@ export interface EvalOptions {
   /** 継続実行セット: 障害注入の結果 JSON（既定 eval/fault-injection/results/latest.json） */
   fiReport?: string;
   keep?: boolean;
+  /** 結果をモデル台帳（POST /admin/v1/models/{modelId}/evals）に登録する。--gateway と --model-id が必要 */
+  register?: boolean;
+  /** 台帳への登録に使う管理者（既定は環境変数 LLA_EVAL_ADMIN_LOGIN / LLA_EVAL_ADMIN_PASSWORD） */
+  adminLogin?: string;
+  adminPassword?: string;
   log?: (s: string) => void;
 }
 
@@ -229,6 +234,29 @@ async function runAgentTasks(
   return outputs;
 }
 
+// ------------------------------------------------------------------ モデル台帳への登録（設計書 §8.4）
+export async function registerResults(o: EvalOptions, rows: unknown[]): Promise<number> {
+  if (!o.gateway || !o.modelId) throw new Error("--register には --gateway と --model-id が必要です");
+  if (rows.length === 0) return 0;
+  const login = o.adminLogin ?? process.env.LLA_EVAL_ADMIN_LOGIN;
+  const password = o.adminPassword ?? process.env.LLA_EVAL_ADMIN_PASSWORD;
+  if (!login || !password) throw new Error("台帳への登録には管理者の資格情報が必要です（LLA_EVAL_ADMIN_LOGIN / LLA_EVAL_ADMIN_PASSWORD）");
+  const auth = await fetch(`${o.gateway}/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ login, password, device_name: "eval-harness" }),
+  });
+  if (!auth.ok) throw new Error(`管理者でログインできません: HTTP ${auth.status}`);
+  const token = ((await auth.json()) as { access_token: string }).access_token;
+  const r = await fetch(`${o.gateway}/admin/v1/models/${encodeURIComponent(o.modelId)}/evals`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ results: rows }),
+  });
+  if (!r.ok) throw new Error(`台帳に登録できません: HTTP ${r.status} ${await r.text()}`);
+  return ((await r.json()) as { added: number }).added;
+}
+
 // ------------------------------------------------------------------ 本体
 export async function runEvaluation(o: EvalOptions): Promise<EvalRun[]> {
   const log = o.log ?? ((s: string) => process.stderr.write(`${s}\n`));
@@ -298,6 +326,11 @@ export async function runEvaluation(o: EvalOptions): Promise<EvalRun[]> {
         { echoStderr: true },
       );
       runs.push({ runId, resultPath: fin.result, verdict: fin.verdict, metrics: fin.metrics });
+      if (o.register) {
+        const rows = JSON.parse(readFileSync(join(out, `${runId}.registry.json`), "utf8")) as unknown[];
+        const added = await registerResults(o, rows);
+        log(`  モデル台帳に登録しました: ${o.modelId}（${added} 件）`);
+      }
     } finally {
       await setMock?.stop();
       if (!o.keep) rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });

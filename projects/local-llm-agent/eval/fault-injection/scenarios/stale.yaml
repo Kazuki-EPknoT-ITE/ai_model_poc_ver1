@@ -1,0 +1,29 @@
+# FI-17: 読み取りの後・書き込みの前に他人が文書を書き換える → STALE_DOCUMENT → 読み直して編集する。
+# expect_hash は fixtures/report.docx（決定的に作った文書）の sha256。直前のツール結果で次の手を決める。
+name: fi-stale
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { last_tool_result_contains: "STALE_DOCUMENT" }
+    repeat: true
+    action: { type: tool_call, tool: docx.read, args: { path: "report.docx" } }
+  - match: { last_tool_result_contains: "他人の追記" }
+    repeat: true
+    action:
+      type: tool_call
+      tool: docx.edit
+      args: { path: "report.docx", ops: [{ op: replace_in_block, block_id: "p:2", find: "旧", replace: "AIが更新" }] }
+  - match: { last_tool_result_contains: "tool=docx.edit ok=true" }
+    repeat: true
+    action: { type: final, summary: "読み直して編集しました。", outputs: [{ path: "report.docx", description: "報告書" }], failures: [], needs_review: [] }
+  - match: { last_tool_result_contains: "file_hash" }
+    repeat: true
+    action:
+      type: tool_call
+      tool: docx.edit
+      args:
+        path: "report.docx"
+        expect_hash: "dadc2fd1032f0c893ca90fa73f34c623a4d0579c0809780592986b9315fc4a3a"
+        ops: [{ op: replace_in_block, block_id: "p:2", find: "旧", replace: "AIが更新" }]
+  - match: { purpose: agent }
+    repeat: true
+    action: { type: tool_call, tool: docx.read, args: { path: "report.docx" } }

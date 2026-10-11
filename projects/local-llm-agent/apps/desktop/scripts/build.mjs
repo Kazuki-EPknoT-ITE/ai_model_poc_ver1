@@ -26,6 +26,6 @@ await Promise.all([
 ]);
 // 試験仕様 §4: 配布物に試験フックを読むコードが残っていないこと
 for (const f of ["dist/runtime-host/host.mjs", "dist/runtime-host/host.mjs.map"]) {
-  if (readFileSync(join(root, f), "utf8").includes("AGENT_TEST_HOOK")) throw new Error(`${f} に試験フックが残っています`);
+  if (readFileSync(join(root, f), "utf8").includes("AGENT_TEST_")) throw new Error(`${f} に試験フックが残っています`);
 }
 console.log("built main / preload / runtime-host");

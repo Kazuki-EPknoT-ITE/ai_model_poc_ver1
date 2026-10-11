@@ -18,6 +18,39 @@
 
 ---
 
+## 2026-10-12 01:30 — 障害注入を18件に拡大（3回ずつ全合格・重複0件）、評価ハーネスの台帳登録（--register）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `eval/fault-injection/src/run.ts`（FI-01・02・04・07・08・09・17・18・20 を追加）、`src/host.ts`（login・office・netLevel・環境変数の追加）
+  - `eval/fault-injection/scenarios`（新規: escalate・compact・stale・batch・web と `fixtures/report.docx`）、`tools/docx_fixture.py`
+  - `packages/agent-runtime/src/testhooks.ts`（`testNow`: `AGENT_TEST_CLOCK_SPEED` で経過時間を早送り）、`runtime.ts`（長時間の通知の判定に使用）
+  - `apps/desktop/scripts/build.mjs`: 配布物の検査を `AGENT_TEST_` 全体に広げた。
+  - `server/gateway/scripts/dev_server.py`（`--fake-delay`・`--max-concurrent`）
+  - `eval/mock-gateway/src/mock_gateway/app.py`（`web_fetch_by_url`: URL ごとの応答・失敗）
+  - `eval/harness/src/evaluate.ts`・`run.ts`（`--register`）、`eval/sets/resilience/items.jsonl`（18件を自動化済みに）
+  - 設計ドキュメント: test_spec §4、impl_plan（T-51 完了）、dev_guide
+- **やったこと**:
+  - FI-01: 300手（ファイル150件を読む＋コピー）。時計を400倍に早送りし、2時間の通知が実行の途中で1回だけ出ることを確認。
+  - FI-02: 文脈予算 8K で契約書3本を読む。圧縮が起き、固定メモリは保たれる。
+  - FI-04: 26B への昇格を記録して完了。
+  - FI-07: **本物の Gateway**（同時実行1・推論を遅く）に3人分の Runtime。3件が待ち行列にある状態で Gateway を強制終了・再起動 → キューが復元され、3件とも投入順に完了。ジョブの重複なし。
+  - FI-08・09: LAN の切断。CI ではモックの停止で代替した（推論待ちの間に20秒・書き込み中）。
+  - FI-17: 決定的な docx を読んだ直後に他人が段落を追加 → STALE_DOCUMENT → 読み直して編集し、他人の変更を失わない。
+  - FI-18: 請求書20件のうち5件が壊れている → 15件を転記し、5件はエラーコード付きで失敗に挙げる。
+  - FI-20: 検索結果の最初の2つの URL が 404 とタイムアウト → 3つ目で代替。再試行の無限ループなし。
+  - `pnpm eval --set X --gateway … --model-id … --register` で、結果をモデル台帳に登録できるようにした。
+- **E2Eテスト**: **合格**。
+  - `pnpm fi --repeat 3`: **18シナリオ × 3回 = 54回すべて合格、重複 0件**。
+  - `pnpm eval --set resilience`: 実行したものの完了率 1.0、重複 0。全体は 0.9 で、FI-10・FI-14 は自動化の対象外（理由を記録済み）。
+  - `--register` を本物の Gateway（dev_server）で確認: 台帳の版 reg-test に doc_quality の指標2件が登録された。
+  - Runtime の結合試験 9件合格。デスクトップ E2E 8件合格。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（pytest 487件成功・47件スキップ、mypy 102ファイル、vitest）。
+  - 秘密情報の grep で該当なし。
+- **次にやること / 申し送り**:
+  - FI-08・09 の実機での遮断と FI-14（スリープ）は試験機で行う。
+  - PostgreSQL での試験（Docker）、検証機の vLLM で T-45 の一本通し、実モデルでの評価セット。
+
 ## 2026-10-12 00:20 — 障害注入試験（T-51）を実装。FI 9件を3回ずつ全合格、試験で見つけた Runtime の不具合2件を修正
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

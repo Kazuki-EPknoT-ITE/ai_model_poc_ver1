@@ -1,0 +1,37 @@
+# FI-18: 請求書20件のうち5件が壊れている（ヘッダー破損1・0バイト2・暗号化2）→ 15件を転記し、5件を理由付きで failures に挙げる。
+# 抽出推論の決め打ち（fixtures/invoice/INV-NNN.json）は、試験のたびに run.ts が作業フォルダに作ってこのファイルと並べる。
+name: fi-batch
+protocol_version: "1.0"
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action:
+      type: tool_call
+      tool: batch.run
+      args:
+        items: "glob:請求書/*.pdf"
+        pipeline: { tool: invoice.extract, args: { schema: invoice.v1 } }
+        output:
+          xlsx: "送金明細.xlsx"
+          sheet: "明細"
+          columns:
+            - { header: "請求元", from: "/fields/issuer_name/value" }
+            - { header: "金額", from: "/fields/total/value" }
+  - match: { last_tool_result_contains: '"succeeded"' }
+    repeat: true
+    action:
+      type: final
+      summary: "請求書20件のうち15件を送金明細.xlsxに転記しました。5件は読み取れませんでした。"
+      outputs: [{ path: "送金明細.xlsx", description: "送金明細（15件）" }]
+      failures:
+        - { item: "請求書/INV-004.pdf", reason: "ファイルが壊れています" }
+        - { item: "請求書/INV-009.pdf", reason: "空のファイルです" }
+        - { item: "請求書/INV-012.pdf", reason: "パスワードで保護されています" }
+        - { item: "請求書/INV-015.pdf", reason: "空のファイルです" }
+        - { item: "請求書/INV-018.pdf", reason: "パスワードで保護されています" }
+      needs_review: []
+  - match: { purpose: invoice_extract }
+    repeat: true
+    action_from_fixture: "fixtures/invoice/{item_basename}.json"
+fallback:
+  action: { type: final, summary: "（モック）シナリオ外の呼び出しです", outputs: [], failures: [], needs_review: [] }

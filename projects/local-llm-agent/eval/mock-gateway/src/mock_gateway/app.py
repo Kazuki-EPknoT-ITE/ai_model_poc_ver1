@@ -244,6 +244,14 @@ def create_app(
             "chars": 0,
             "truncated": False,
         }
+        # URL ごとの応答（FI-20）。{"error": {status, code, message}} なら Web Relay の失敗（502）を返す
+        by_url = scenario.fixtures.get("web_fetch_by_url") or {}
+        entry = by_url.get(str(body.get("url")))
+        if isinstance(entry, dict) and isinstance(entry.get("error"), dict):
+            err = entry["error"]
+            raise GatewayError(int(err.get("status", 502)), str(err["code"]), str(err.get("message", "")))
+        if isinstance(entry, dict):
+            return {**default, **entry}
         return scenario.fixtures.get("web_fetch", default)
 
     @app.post("/v1/vision/ocr")

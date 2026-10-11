@@ -69,7 +69,7 @@ pnpm exec playwright install chromium
 | `pnpm test:e2e` | Playwright（`_electron`）での E2E |
 | `pnpm lint` / `uv run ruff check` / `uv run mypy` | 静的検査 |
 | `pnpm protocol:gen` / `pnpm protocol:check` | 型の生成 / スキーマと生成物の差分検査 |
-| `pnpm eval --set <name>`（`--all`、`--gateway <URL> --login --password --model-id <台帳の ID>`、`--out`、`--strict`） | 評価ハーネス（T-50。`eval/harness`、セットは `eval/sets/<name>/manifest.yaml`）。`--gateway` を省くとセットのモック Gateway を起動する。結果は `eval/harness/results/<set>/<run_id>.json`（git 対象外）と合否表。`<run_id>.registry.json` は `{"results": …}` に入れてそのまま `POST /admin/v1/models/{id}/evals` に渡せる。`data_hash` の不一致・学習データとの重複があれば実行しない |
+| `pnpm eval --set <name>`（`--all`、`--gateway <URL> --login --password --model-id <台帳の ID>`、`--out`、`--strict`） | 評価ハーネス（T-50。`eval/harness`、セットは `eval/sets/<name>/manifest.yaml`）。`--gateway` を省くとセットのモック Gateway を起動する。結果は `eval/harness/results/<set>/<run_id>.json`（git 対象外）と合否表。`--register` を付けると、結果を `--model-id` の版としてモデル台帳に登録する（`POST /admin/v1/models/{id}/evals`。管理者は環境変数 `LLA_EVAL_ADMIN_LOGIN` / `LLA_EVAL_ADMIN_PASSWORD`）。`data_hash` の不一致・学習データとの重複があれば実行しない |
 | `pnpm fi [--only FI-11,FI-12] [--repeat 3]` | 障害注入試験（T-51。Runtime を子プロセスで動かし、強制終了・モック Gateway の再起動・ファイルのロックを注入。約5分×回数）。結果は `eval/fault-injection/results/latest.json`、集計は `pnpm eval --set resilience` |
 | `pnpm check` | lint・型・生成物の差分・TS/Python の単体試験をまとめて実行（コミット前に必ず） |
 | `pnpm test:integration` | Runtime の結合試験（モック Gateway・office-tools を実プロセスで起動） |

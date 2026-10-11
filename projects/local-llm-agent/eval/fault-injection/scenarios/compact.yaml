@@ -1,0 +1,18 @@
+# FI-02: 文脈予算 8K で長い契約書3本を読む → 圧縮（compacting）が起き、固定メモリが保たれて完了する
+name: fi-compact
+config: { context_budget: 8000, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action: { type: tool_call, tool: memory.note, args: { key: "出力先", value: "出力/比較表.xlsx" } }
+  - match: { step_index: 1 }
+    action: { type: tool_call, tool: fs.read_text, args: { path: "契約A.txt" } }
+  - match: { step_index: 2 }
+    action: { type: tool_call, tool: fs.read_text, args: { path: "契約B.txt" } }
+  - match: { step_index: 3 }
+    action: { type: tool_call, tool: fs.read_text, args: { path: "契約C.txt" } }
+  - match: { purpose: compact }
+    repeat: true
+    raw: "- 契約A・B・C を読んだ（各条の要点は確認済み）"
+  - match: { purpose: agent }
+    repeat: true
+    action: { type: final, summary: "3本の契約書を読み終えました。", outputs: [], failures: [], needs_review: [] }

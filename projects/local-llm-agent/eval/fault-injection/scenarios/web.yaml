@@ -1,0 +1,35 @@
+# FI-20: 検索結果の最初の2つの URL が 404 と タイムアウト → 3つ目で代替して完了。取得できなかった旨が報告に残る
+name: fi-web
+config: { context_budget: 32768, models: [local-12b], net_level_cap: browse, features: { rag: false, ocr: false, web: true } }
+fixtures:
+  web_search:
+    results:
+      - { rank: 1, title: "公開情報A", url: "https://a.example.com/rule", snippet: "規則の改正" }
+      - { rank: 2, title: "公開情報B", url: "https://b.example.com/rule", snippet: "規則の改正" }
+      - { rank: 3, title: "公開情報C", url: "https://c.example.com/rule", snippet: "規則の改正" }
+    remaining_quota: 10
+  web_fetch_by_url:
+    "https://a.example.com/rule": { error: { status: 502, code: UPSTREAM_HTTP_ERROR, message: "取得先が HTTP 404 を返しました" } }
+    "https://b.example.com/rule": { error: { status: 502, code: UPSTREAM_TIMEOUT, message: "取得先が時間内に応答しませんでした" } }
+    "https://c.example.com/rule": { title: "規則の改正（代替）", text: "代替ページの本文: 改正は来年4月から。", chars: 20 }
+steps:
+  - match: { last_tool_result_contains: "代替ページの本文" }
+    repeat: true
+    action:
+      type: final
+      summary: "改正は来年4月からです（c.example.com）。a.example.com は 404、b.example.com は応答がなく取得できませんでした。"
+      outputs: []
+      failures: [{ item: "https://a.example.com/rule", reason: "404" }, { item: "https://b.example.com/rule", reason: "タイムアウト" }]
+      needs_review: []
+  - match: { last_tool_result_contains: "時間内に応答しませんでした" }
+    repeat: true
+    action: { type: tool_call, tool: web.fetch, args: { url: "https://c.example.com/rule" } }
+  - match: { last_tool_result_contains: "HTTP 404" }
+    repeat: true
+    action: { type: tool_call, tool: web.fetch, args: { url: "https://b.example.com/rule" } }
+  - match: { last_tool_result_contains: "公開情報A" }
+    repeat: true
+    action: { type: tool_call, tool: web.fetch, args: { url: "https://a.example.com/rule" } }
+  - match: { purpose: agent }
+    repeat: true
+    action: { type: tool_call, tool: web.search, args: { query: "船級 規則 改正" } }

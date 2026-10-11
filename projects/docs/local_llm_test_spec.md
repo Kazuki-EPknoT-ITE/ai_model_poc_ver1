@@ -202,9 +202,13 @@ temperature: 0
 
 **実装（T-51、`eval/fault-injection`）**: `pnpm fi [--only FI-11,FI-12] [--repeat 3]` → `eval/fault-injection/results/latest.json` → `pnpm eval --set resilience` で集計する。
 - Runtime は子プロセス（`src/host.ts`）で動かし、強制終了（`taskkill /F /T`）と再起動で異常終了を模擬する。推論はモック Gateway（停止・同じポートでの再起動も行う）。
-- 試験フックは `packages/agent-runtime/src/testhooks.ts`（`AGENT_TEST_HOOKS=1`）。注入点は `infer.submitted`・`intent.prepared`・`intent.replaced`。`AGENT_TEST_HOOK_FREEZE=<point>:<n>[:<ms>]` で n 回目に止める（ms を省くと止まったまま）。配布物のビルド（`apps/desktop/scripts/build.mjs`）で取り除き、文字列が残っていないことをビルド時に検査する。
+- 試験フックは `packages/agent-runtime/src/testhooks.ts`（`AGENT_TEST_HOOKS=1`）。注入点は `infer.submitted`・`intent.prepared`・`intent.replaced`。`AGENT_TEST_CLOCK_SPEED=N` で経過時間の判定（長時間の通知）を N 倍に早送りする。`AGENT_TEST_HOOK_FREEZE=<point>:<n>[:<ms>]` で n 回目に止める（ms を省くと止まったまま）。配布物のビルド（`apps/desktop/scripts/build.mjs`）で取り除き、文字列が残っていないことをビルド時に検査する。
 - ロックは `tools/lockfile.ps1`（UTF-8 BOM 付き。Windows PowerShell 5.1 が文字化けしないように）。
-- 自動化済み: FI-03・05・06・11・12・13・15・16・19（時間は短縮: ロック待ち 30秒/4秒、応答なし 3秒など）。手動・未実装の FI は評価セット `eval/sets/resilience/items.jsonl` の `note` に理由がある。
+- 自動化済み（18件）: FI-01〜09・11〜13・15〜20。時間は短縮している（ロック待ち 30秒/4秒、応答なし 3秒、LAN 切断 20秒、時計は `AGENT_TEST_CLOCK_SPEED=400` で早送り）。
+  - FI-07 は本物の Gateway（`dev_server.py --fake-delay 0.3 --max-concurrent 1`）で、3人分の Runtime を同時に動かす。
+  - FI-08・09 は CI ではモック Gateway の停止で代替する（ファイアウォールの操作に管理者権限が要るため。実機の遮断は試験機で）。
+  - FI-17 は決定的に作った docx（`scenarios/fixtures/report.docx`）の sha256 をシナリオの `expect_hash` に書いている。
+  - 自動化していないのは FI-10（デスクトップ E2E の E-07/E-08 で確認）と FI-14（試験機で手動）。理由は `eval/sets/resilience/items.jsonl` の `note` にある。
 
 | ID | 対応する 5.4 の原因 | シナリオ・注入方法 | 期待結果 |
 | --- | --- | --- | --- |

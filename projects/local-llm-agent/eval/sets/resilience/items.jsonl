@@ -1,20 +1,20 @@
-{"id": "FI-01", "cause": "手順数・時間の上限", "automated": false, "note": "時計の早送りフックが未実装"}
-{"id": "FI-02", "cause": "文脈の満杯", "automated": false, "note": "結合試験 I-07 で圧縮を確認済み。障害注入としては未"}
+{"id": "FI-01", "cause": "手順数・時間の上限", "automated": true}
+{"id": "FI-02", "cause": "文脈の満杯", "automated": true}
 {"id": "FI-03", "cause": "形式の崩れ", "automated": true}
-{"id": "FI-04", "cause": "迷走（26B へ昇格）", "automated": false, "note": "昇格先のある構成のモックが未"}
+{"id": "FI-04", "cause": "迷走（26B へ昇格）", "automated": true}
 {"id": "FI-05", "cause": "迷走（昇格先なし）", "automated": true}
 {"id": "FI-06", "cause": "サーバーの応答なし", "automated": true}
-{"id": "FI-07", "cause": "サーバーの再起動（キューの復元）", "automated": false, "note": "本物の Gateway の永続キューを使う。Gateway の試験（test_gw_persistence）で確認済み"}
-{"id": "FI-08", "cause": "LAN の切断", "automated": false, "note": "ファイアウォール操作に管理者権限が要る。試験機で手動"}
-{"id": "FI-09", "cause": "LAN の切断（書き込み中）", "automated": false, "note": "同上"}
-{"id": "FI-10", "cause": "ウィンドウを閉じる", "automated": false, "note": "デスクトップ E2E（E-07/E-08）で確認"}
+{"id": "FI-07", "cause": "サーバーの再起動（キューの復元）", "automated": true}
+{"id": "FI-08", "cause": "LAN の切断", "automated": true, "note": "CI ではモック Gateway の停止で代替。実機のファイアウォール遮断（net.ps1）は試験機で"}
+{"id": "FI-09", "cause": "LAN の切断（書き込み中）", "automated": true, "note": "同上"}
+{"id": "FI-10", "cause": "ウィンドウを閉じる", "automated": false, "note": "デスクトップ E2E（E-07/E-08: ウィンドウを閉じてもトレイで続く）で確認。FI としては未実行"}
 {"id": "FI-11", "cause": "アプリの異常終了（推論待ち）", "automated": true}
 {"id": "FI-12", "cause": "アプリの異常終了（書き込み中）", "automated": true}
 {"id": "FI-13", "cause": "アプリの異常終了（書き込み直後）", "automated": true}
-{"id": "FI-14", "cause": "PC の再起動・スリープ", "automated": false, "note": "試験機で手動（CI は FI-11 で代替）"}
+{"id": "FI-14", "cause": "PC の再起動・スリープ", "automated": false, "note": "試験機で手動（CI では FI-11 で代替）"}
 {"id": "FI-15", "cause": "ファイルのロック（解放される）", "automated": true}
 {"id": "FI-16", "cause": "ファイルのロック（解放されない）", "automated": true}
-{"id": "FI-17", "cause": "他人による同時編集", "automated": false, "note": "読み取りと書き込みの間に書き換えるモックの手順が未"}
-{"id": "FI-18", "cause": "壊れたファイル", "automated": false, "note": "office-tools の一括抽出で行う。未"}
+{"id": "FI-17", "cause": "他人による同時編集", "automated": true}
+{"id": "FI-18", "cause": "壊れたファイル", "automated": true}
 {"id": "FI-19", "cause": "承認待ち", "automated": true}
-{"id": "FI-20", "cause": "Web ページが開けない", "automated": false, "note": "Web Relay の試験用サーバーとの組み合わせが未"}
+{"id": "FI-20", "cause": "Web ページが開けない", "automated": true}
