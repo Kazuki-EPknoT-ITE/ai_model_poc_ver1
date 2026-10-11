@@ -1,0 +1,32 @@
+{
+  "name": "@lla/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/main/main.cjs",
+  "scripts": {
+    "build": "node scripts/build.mjs && vite build",
+    "dev": "node scripts/build.mjs && vite build && electron .",
+    "start": "electron .",
+    "test": "vitest run",
+    "e2e": "node scripts/build.mjs && vite build && playwright test -c e2e/playwright.config.ts",
+    "typecheck": "tsc --noEmit -p ."
+  },
+  "dependencies": {
+    "@lla/agent-runtime": "workspace:*",
+    "@lla/protocol": "workspace:*",
+    "better-sqlite3-multiple-ciphers": "12.9.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0",
+    "@types/node": "20.19.43",
+    "@types/react": "18.3.31",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "4.7.0",
+    "electron": "44.4.5",
+    "esbuild": "0.28.2",
+    "vite": "6.4.4"
+  }
+}

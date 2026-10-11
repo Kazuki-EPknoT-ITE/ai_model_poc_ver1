@@ -45,50 +45,50 @@ flowchart LR
 | --- | --- | --- | --- | --- | --- |
 | T-01 | モノレポの雛形 | pnpm workspace・uv workspace・ESLint/ruff・vitest/pytest・`.gitignore` の追記・`e2e.config.json`。`pnpm test` と `uv run pytest` が空の状態で通る | — | llm-agent-architect | **完了**（2026-10-11） |
 | T-02 | `packages/protocol` | `local_llm_protocol.md` の全スキーマを JSON Schema 化し、TS と pydantic を生成する。スキーマのサンプルによる検証テスト | 5章・6章 | 同上 | **完了**（47ツール・155定義。TS 198件／Py 56件） |
-| T-03 | Action の文法生成器 | 有効なツール集合から oneOf を作る関数とキャッシュ（protocol §1.3） | RUN-04 | agent-runtime-engineer | 未着手 |
+| T-03 | Action の文法生成器 | 有効なツール集合から oneOf を作る関数とキャッシュ（protocol §1.3） | RUN-04 | agent-runtime-engineer | **完了（grammar.ts。有効ツールの const 変種の oneOf）** |
 | T-05 | モック Gateway | `/v1/config`・`/v1/steps`（SSE 再開・冪等キー）・`/v1/auth/*` の最小実装と、シナリオ YAML による応答（`local_llm_test_spec.md`） | — | llm-inference-engineer | **完了**（障害注入9種・pytest 15件・E2E 3件） |
 
 ## M2: 文書ツール（office-tools）
 
 | ID | タスク | 成果物・完了条件 | 要件 | 担当 | 状態 |
 | --- | --- | --- | --- | --- | --- |
-| T-10 | MCP サーバーの骨組み | ToolSpec の注釈（`x-agent-*`）・ToolResult の封筒・continuation・エラーの分類 | AGT-09 | office-doc-tools-engineer | 未着手 |
-| T-11 | xlsx 読み取り | `xlsx.info` / `read_range` / `find` | XLS-01 | 同上 | 未着手 |
-| T-12 | xlsx 書き込みと再計算 | `write_cells` / `write_table` / 行列操作 / `create` / `recalc`（LibreOffice）。書式が保たれる試験 | XLS-02〜04, 08 | 同上 | 未着手 |
-| T-13 | csv と data.transform | 文字コード判定、式の構文解析器、Decimal での計算 | XLS-05, 07 | 同上 | 未着手 |
-| T-14 | pdf 読み取り | `pdf.info` / `read_pages` / `extract_tables`（pypdfium2＋pdfplumber） | PDF-01, 02 | 同上 | 未着手 |
-| T-15 | docx 読み取り | `docx.read` / `outline`（ブロックID） | DOC-01 | 同上 | 未着手 |
-| T-16 | docx 編集・作成 | `docx.edit`（全 op）/ `create`（テンプレート）。書式が保たれる試験 | DOC-02, 03 | 同上 | 未着手 |
-| T-17 | invoice.extract（OCR なし版） | テキストPDFからの抽出（推論はモック）と検算 | PDF-04 | 同上 | 未着手 |
-| T-18 | convert と変更履歴 | LibreOffice での変換、`track_changes`、`docx.diff` | DOC-04, 05, 08, 09 | 同上 | 未着手 |
+| T-10 | MCP サーバーの骨組み | ToolSpec の注釈（`x-agent-*`）・ToolResult の封筒・continuation・エラーの分類 | AGT-09 | office-doc-tools-engineer | **完了（MCP stdio、注釈は annotations）** |
+| T-11 | xlsx 読み取り | `xlsx.info` / `read_range` / `find` | XLS-01 | 同上 | **完了** |
+| T-12 | xlsx 書き込みと再計算 | `write_cells` / `write_table` / 行列操作 / `create` / `recalc`（LibreOffice）。書式が保たれる試験 | XLS-02〜04, 08 | 同上 | **完了（LibreOffice 未導入のため実機の再計算は未検証）** |
+| T-13 | csv と data.transform | 文字コード判定、式の構文解析器、Decimal での計算 | XLS-05, 07 | 同上 | **完了（純 Python＋Decimal）** |
+| T-14 | pdf 読み取り | `pdf.info` / `read_pages` / `extract_tables`（pypdfium2＋pdfplumber） | PDF-01, 02 | 同上 | **完了** |
+| T-15 | docx 読み取り | `docx.read` / `outline`（ブロックID） | DOC-01 | 同上 | **完了** |
+| T-16 | docx 編集・作成 | `docx.edit`（全 op）/ `create`（テンプレート）。書式が保たれる試験 | DOC-02, 03 | 同上 | **完了** |
+| T-17 | invoice.extract（OCR なし版） | テキストPDFからの抽出（推論はモック）と検算 | PDF-04 | 同上 | **完了（sampling で推論を依頼）** |
+| T-18 | convert と変更履歴 | LibreOffice での変換、`track_changes`、`docx.diff` | DOC-04, 05, 08, 09 | 同上 | **完了（LibreOffice 未導入のため実機の変換は未検証）** |
 | T-19 | PyInstaller でのビルド | 1フォルダにまとめ、Electron から起動できること | — | 同上 | 未着手 |
 
 ## M3: Runtime と継続実行
 
 | ID | タスク | 成果物・完了条件 | 要件 | 担当 | 状態 |
 | --- | --- | --- | --- | --- | --- |
-| T-20 | Run Store | SQLCipher・マイグレーション・`local_llm_data_model.md` §2 の全テーブル | RUN-01, APP-06 | agent-runtime-engineer | 未着手 |
-| T-21 | エージェントのループ（状態機械） | 設計書 §5.1 の遷移。遷移ごとの確定。kill して再開する試験 | AGT-01, RUN-02 | 同上 | 未着手 |
-| T-22 | Gateway クライアント | 冪等キー・SSE の再開・無制限のバックオフ・401 での refresh | RUN-03 | 同上 | 未着手 |
-| T-23 | ポリシーエンジン | 実体パスの解決・禁止領域・承認の判定・汚染フラグ。パスのすり抜け試験 | AGT-02, SEC-03, 04, NET-10 | 同上＋web-relay-security（レビュー） | 未着手 |
-| T-24 | 意図記録とバックアップ・元に戻す | intents・ReplaceFile・3通りの場合分け・ロック時の別名保存 | AGT-03, RUN-02, R11, R12 | 同上 | 未着手 |
-| T-25 | fs-tools | protocol §3.1 の全ツール | — | 同上 | 未着手 |
-| T-26 | MCP クライアント | office-tools とプラグインの起動・再起動・注釈の解釈 | AGT-09 | 同上 | 未着手 |
-| T-27 | プロンプトの組み立てと文脈の圧縮 | `local_llm_prompts.md` の全雛形。75% での圧縮、固定メモリ | AGT-06 | 同上 | 未着手 |
-| T-28 | 停滞監視 | 3つの信号と段階的な対処（昇格先がない場合を含む） | AGT-04, RUN-05 | 同上 | 未着手 |
-| T-29 | batch.run | 件ごとの完了記録・再開・出力をまとめて書く・失敗一覧 | RUN-06 | 同上 | 未着手 |
-| T-29b | 承認待ち・質問の保留と継続 | deferred・ask_user・承認後の実行と差し込み | RUN-08 | 同上 | 未着手 |
+| T-20 | Run Store | SQLCipher・マイグレーション・`local_llm_data_model.md` §2 の全テーブル | RUN-01, APP-06 | agent-runtime-engineer | **完了（SQLCipher、12.9.0）** |
+| T-21 | エージェントのループ（状態機械） | 設計書 §5.1 の遷移。遷移ごとの確定。kill して再開する試験 | AGT-01, RUN-02 | 同上 | **完了** |
+| T-22 | Gateway クライアント | 冪等キー・SSE の再開・無制限のバックオフ・401 での refresh | RUN-03 | 同上 | **完了** |
+| T-23 | ポリシーエンジン | 実体パスの解決・禁止領域・承認の判定・汚染フラグ。パスのすり抜け試験 | AGT-02, SEC-03, 04, NET-10 | 同上＋web-relay-security（レビュー） | **完了** |
+| T-24 | 意図記録とバックアップ・元に戻す | intents・ReplaceFile・3通りの場合分け・ロック時の別名保存 | AGT-03, RUN-02, R11, R12 | 同上 | **完了（staging 方式）** |
+| T-25 | fs-tools | protocol §3.1 の全ツール | — | 同上 | **完了** |
+| T-26 | MCP クライアント | office-tools とプラグインの起動・再起動・注釈の解釈 | AGT-09 | 同上 | **完了** |
+| T-27 | プロンプトの組み立てと文脈の圧縮 | `local_llm_prompts.md` の全雛形。75% での圧縮、固定メモリ | AGT-06 | 同上 | **完了（段階的な圧縮）** |
+| T-28 | 停滞監視 | 3つの信号と段階的な対処（昇格先がない場合を含む） | AGT-04, RUN-05 | 同上 | **完了** |
+| T-29 | batch.run | 件ごとの完了記録・再開・出力をまとめて書く・失敗一覧 | RUN-06 | 同上 | **完了** |
+| T-29b | 承認待ち・質問の保留と継続 | deferred・ask_user・承認後の実行と差し込み | RUN-08 | 同上 | **完了** |
 
 ## M4: デスクトップアプリ・Gateway・縦の一本通し
 
 | ID | タスク | 成果物・完了条件 | 要件 | 担当 | 状態 |
 | --- | --- | --- | --- | --- | --- |
-| T-30 | Electron の骨組み | main / preload / renderer、utilityProcess での Runtime 起動、トレイ・通知・スリープ抑止 | RUN-07 | desktop-app-engineer | 未着手 |
-| T-31 | ログインと設定 | `main:auth.*`、トークンの safeStorage への保存、ネット設定 | ADM-01, NET-01 | 同上 | 未着手 |
-| T-32 | 会話画面 | 逐次表示・手順カード・タスク一覧・添付・定型作業 | APP-01〜05, 09 | 同上 | 未着手 |
-| T-33 | 承認・質問・差分・元に戻す | 承認ダイアログと承認一覧、差分プレビュー | AGT-02, 03, APP-07 | 同上 | 未着手 |
-| T-34 | 状態の表示 | run.state の全値、待ち順、再接続、サーバー停止 | APP-10, OPS-02 | 同上 | 未着手 |
-| **T-35** | **縦の一本通し（モック）** | モック Gateway を相手に「請求書3件 → Excel」が画面から完了まで通る。途中で Runtime を kill しても再開できる。E2E を自動化する | 9.2-1 | desktop＋runtime＋qa | 未着手 |
+| T-30 | Electron の骨組み | main / preload / renderer、Runtime ホスト（Node の子プロセス）の起動、トレイ・通知・スリープ抑止 | RUN-07 | desktop-app-engineer | **完了（Runtime は Node の子プロセス。ADR-001 改訂）** |
+| T-31 | ログインと設定 | `main:auth.*`、トークンの safeStorage への保存、ネット設定 | ADM-01, NET-01 | 同上 | **完了（独自アカウント、safeStorage）** |
+| T-32 | 会話画面 | 逐次表示・手順カード・タスク一覧・添付・定型作業 | APP-01〜05, 09 | 同上 | **一部（会話・手順カード・計画。添付・定型作業は未）** |
+| T-33 | 承認・質問・差分・元に戻す | 承認ダイアログと承認一覧、差分プレビュー | AGT-02, 03, APP-07 | 同上 | **一部（承認・質問・変更一覧・元に戻す。差分プレビューは未）** |
+| T-34 | 状態の表示 | run.state の全値、待ち順、再接続、サーバー停止 | APP-10, OPS-02 | 同上 | **完了** |
+| **T-35** | **縦の一本通し（モック）** | モック Gateway を相手に「請求書3件 → Excel」が画面から完了まで通る。途中で Runtime を kill しても再開できる。E2E を自動化する | 9.2-1 | desktop＋runtime＋qa | **完了（E2E 自動化済み）** |
 | T-40 | Gateway 本体 | 認証（ADR-008）・永続キュー・公平スケジューリング・暗号化ペイロード・SSE・`/v1/config` | RUN-09, 10, SEC-02, 06 | llm-inference-engineer | 未着手 |
 | T-41 | OCR サービス | `/v1/vision/ocr`。エンジンの比較を準備する | PDF-03 | 同上 | 未着手 |
 | T-45 | 実機での一本通し | 検証機の vLLM＋Gateway で T-35 のシナリオが通る | 9.2-1 | 全員 | 未着手 |

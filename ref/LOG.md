@@ -18,6 +18,51 @@
 
 ---
 
+## 2026-10-11 23:30 — M2〜M4 実装: office-tools・Runtime 中核・デスクトップアプリ（縦の一本通しまで）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `tools/office/`（新規。office-tools、MCP stdio、32ツール。サブエージェントが実装）
+  - `packages/agent-runtime/`（新規。Run Store・ポリシー・意図記録・文法・Gateway クライアント・MCP ホスト・ルーター・一括処理・停滞監視・文脈圧縮・runtime.ts、単体試験と結合試験）
+  - `apps/desktop/`（新規。Electron 44.4.5 の main・preload・Runtime ホスト・React 画面・Playwright E2E・Electron 本体の取得スクリプト）
+  - `packages/protocol/scripts/gen.mjs`（TS 型の生成を修正、ページング付き引数の最上位に `type:object`）、`eval/mock-gateway/scenarios/runtime/*.yaml`（新規6本）、抽出 fixture の形式、ルートの package.json/pyproject.toml
+  - 設計ドキュメント: ADR-001 の改訂、design（§5.4 の staging、§7.3）、data_model（`staged`/`staging_path`）、prompts、dev_guide（版・コマンド）、impl_plan（状態）、test_spec
+- **やったこと**:
+  - ユーザーの指示「止まらずに実行」に従い、マイルストーンをまたいで連続で実装した。途中の「進める／戻す」確認は省き、最後にまとめて確認する。
+  - office-tools（T-10〜T-18）はサブエージェント（office-doc-tools-engineer の定義で general-purpose）に並行して任せた。pytest は 112 件成功・3 件スキップ（LibreOffice 未導入）、網羅率 92%。
+  - Runtime（T-03, T-20〜T-29b）とデスクトップ（T-30〜T-35）は自分で実装した。
+- **実装で決めたこと・設計からの変更**:
+  - **ADR-001 改訂**: Runtime は Electron の utilityProcess ではなく、Node の子プロセスで動かす。理由は SQLCipher モジュールのネイティブ ABI（Node 20 と、サポート中の Electron 44 を同時に満たせない）。副次的に、画面が落ちても作業が続く。IPC は JSON（V8 の版が違うため advanced 直列化は不可）。
+  - **書き込みは staging 方式**: ツールには作業用コピーを書かせ、prepared → staged → committed の3段階で記録する。ツールが書いた直後に落ちても、重複も取りこぼしもなく再開できる。
+  - **承認・質問の ID は全体で一意にした**（コマンドに会話 ID が含まれないため）。
+  - **office-tools のパス**: 全会話で1プロセスを共有するため、Runtime が作業フォルダ基準の絶対パスにして渡し、結果は相対表示に戻す。パスワードは `_meta["lla/passwords"]` でメモリ上だけで渡す。
+  - **外部由来の出力**: `untrusted_output` のツールは、data 全体を `<untrusted>` で包んでモデルに渡す（Excel の値や PDF の表も文書の中身のため）。
+  - data.transform は pandas を使わず純 Python＋Decimal（サブエージェントの判断を採用）。
+- **見つけて直した不具合**（試験で検出）:
+  - 鍵違いで RunStore を開くとハンドルが残る。
+  - 不正な出力の記録を停滞判定が読んで例外になり、ループが止まる → 想定外の例外でも止めない作りにした。
+  - 圧縮対象が無いと 413 を繰り返す → 段階的な圧縮と、ツール結果の切り詰めを追加。
+  - 生成した TS 型が `if/then` で崩れる。
+  - MCP SDK が `inputSchema.type` を要求する。
+  - Electron 内蔵の Node と外部の Node の IPC 直列化の不一致。
+  - 新しい Chromium で `scrollIntoView` が Promise を返し、React が落ちる。
+- **E2Eテスト**: **合格**。
+  - `pnpm test:e2e:desktop`（Playwright `_electron`、Electron 44.4.5）**4件成功**:
+    - E-01/02: ログイン → 作業フォルダ → 依頼 → 手順カード → 完了報告
+    - E-04/14: フォルダ外への書き込み → 承認カード（既定フォーカスは却下）→ キーボードで承認 → 実行
+    - E-07/08: ウィンドウを閉じてもトレイで継続 → 停止
+    - **T-35**: 画面から請求書 PDF 3件 → office-tools で抽出（sampling でモックに推論依頼）→ 送金明細.xlsx → 元に戻す
+  - スクリーンショットは scratchpad の `e2e-m4/`（e02-final, e04-approval, e07-stopped, t35-invoices）。
+  - モック Gateway の E2E（`pnpm test:e2e`）3件成功。
+- **結果/確認**:
+  - `pnpm check` 成功（eslint、tsc 4パッケージ、生成物の差分なし、vitest は protocol 198＋runtime 16＋desktop 3、ruff、mypy strict、pytest 183 件成功・3 件スキップ）。
+  - Runtime の結合試験 `pnpm test:integration` **9件成功**: I-basic、再起動からの再開と重複なし、承認、503/切断/不正出力、停滞（立て直し2回 → 停滞・低優先度）、Web の後の汚染承認、圧縮、停止、I-01（office-tools 込み）。
+- **次にやること / 申し送り**:
+  - **LibreOffice 未導入**: 再計算・変換の実機試験（3件）がスキップのまま（`winget install TheDocumentFoundation.LibreOffice`）。
+  - 画面の残り: 差分プレビュー、添付のドラッグ＆ドロップ、定型作業（/コマンド）、設定画面、管理画面（M6）。
+  - サーバー側: Gateway 本体（T-40）、OCR サービス（T-41）、インストーラ（T-46。Node 本体の同梱が必要）。M0（検証機）は接続情報が分かり次第。
+  - 画像の説明（`image_describe` の sampling）は Runtime 側が未対応（Could）。
+  - pytest の警告1件（Starlette の TestClient が httpx の使用を非推奨にしている）は残っている。
+
 ## 2026-10-11 21:00 — 実装開始: T-01 雛形・T-02 protocol・T-05 モック Gateway
 
 - **変更ファイル**: `projects/local-llm-agent/`（新規62ファイル）。主なもの:

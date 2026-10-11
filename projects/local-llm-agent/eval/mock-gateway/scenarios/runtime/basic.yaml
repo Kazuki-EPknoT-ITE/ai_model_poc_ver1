@@ -1,0 +1,16 @@
+# Runtime 結合試験: 計画 → fs.list → csv.read 相当の読み取り（fs.read_text）→ memory.note → final
+name: rt-basic
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action: { type: plan_update, plan: [{ id: t1, title: 中身を確認, status: doing }, { id: t2, title: 完了報告, status: todo }] }
+  - match: { step_index: 1 }
+    action: { type: tool_call, thought: 一覧を確認します, tool: fs.list, args: { path: "." } }
+  - match: { step_index: 2 }
+    action: { type: tool_call, tool: fs.read_text, args: { path: "memo.txt" } }
+  - match: { step_index: 3 }
+    action: { type: tool_call, tool: memory.note, args: { key: "件数", value: "1件" } }
+  - match: { step_index: 4 }
+    action: { type: final, summary: "memo.txt を確認しました。", outputs: [], failures: [], needs_review: [] }
+fallback:
+  action: { type: final, summary: "（モック）想定外", outputs: [], failures: [], needs_review: [] }

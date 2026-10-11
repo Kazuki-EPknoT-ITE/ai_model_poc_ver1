@@ -27,7 +27,9 @@
 | Docker Desktop | 29.x | 29.1.3 | モック Gateway・PostgreSQL・Qdrant をローカルで動かす |
 | LibreOffice | 24.x 以上 | **未導入** | `winget install TheDocumentFoundation.LibreOffice` で入れる（XLS-04 の再計算と変換） |
 | Playwright | 最新の安定版 | 未導入 | `pnpm exec playwright install` |
-| Electron | 最新の安定版 | — | M1 の時点で版を固定し、ADR-001 に追記する |
+| Electron | 44.4.5 | 導入済み（下記） | npm の install スクリプトが Node 22 以上を要求するため、Node 20 では `uv run python apps/desktop/scripts/fetch-electron.py <node_modules/electron のパス>` で本体を取得する（公式リリースを SHASUMS256 で検証） |
+| TypeScript / vitest / eslint | 6.0.3 / 3.2.7 / 9.39.5 | 導入済み | Node 20 で動く版に固定（TS 7 は typescript-eslint が未対応、vitest 5・eslint 10 は Node 22 以上が必要） |
+| better-sqlite3-multiple-ciphers | 12.9.0 | 導入済み | Node 20 向けのビルド済みバイナリがある最新版（12.10 以降は Node 22 以上） |
 
 - 固定した版の正本は各設定ファイル（`package.json`、`pyproject.toml`、`uv.lock`、`pnpm-lock.yaml`）とする。なお、リポジトリの `.gitignore` は `package-lock.json` と `yarn.lock` を除外しているが、`pnpm-lock.yaml` と `uv.lock` は**コミットする**。
 - サーバー側の版は `projects/local-llm-agent/server/deploy/VERSIONS.md` に記録する（`local_llm_ops/server_setup.md`）。
@@ -68,6 +70,9 @@ pnpm exec playwright install chromium
 | `pnpm lint` / `uv run ruff check` / `uv run mypy` | 静的検査 |
 | `pnpm protocol:gen` / `pnpm protocol:check` | 型の生成 / スキーマと生成物の差分検査 |
 | `uv run eval --set <name> --target <gateway>` | 評価ハーネス |
+| `pnpm check` | lint・型・生成物の差分・TS/Python の単体試験をまとめて実行（コミット前に必ず） |
+| `pnpm test:integration` | Runtime の結合試験（モック Gateway・office-tools を実プロセスで起動） |
+| `pnpm test:e2e:desktop` | デスクトップアプリの E2E（Playwright `_electron`。モック Gateway・office-tools を起動） |
 
 ### 1.5 環境変数（`projects/.env`）
 

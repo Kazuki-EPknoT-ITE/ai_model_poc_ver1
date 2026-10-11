@@ -85,7 +85,9 @@ function deref(node, stack = []) {
 }
 
 function withContinuation(args) {
+  // MCP の SDK は inputSchema の最上位に type: "object" を要求する
   return {
+    type: "object",
     anyOf: [
       {
         type: "object",
@@ -122,7 +124,22 @@ const toolSpecs = Object.keys(tools)
 const toolsDoc = { protocol_version: PROTOCOL_VERSION, tools: toolSpecs };
 
 // ---- TypeScript の型 ----
-const tsBody = await compile(structuredClone(bundle), "LocalLlmAgentProtocol", {
+// if/then の条件（type ごとの payload の形）は json-schema-to-typescript が扱えず、型全体が
+// 「何でも入る」型になってしまう。型生成のときだけ条件を外す（検証用の JSON Schema には残す）。
+const tsBundle = structuredClone(bundle);
+for (const def of Object.values(tsBundle.$defs)) {
+  if (Array.isArray(def.allOf) && def.allOf.every((x) => x && typeof x === "object" && "if" in x)) delete def.allOf;
+}
+// 形を決めていない object（payload・args・data など）は、TS では任意のキーを持つ型にする
+(function openFreeObjects(node) {
+  if (Array.isArray(node)) return node.forEach(openFreeObjects);
+  if (!node || typeof node !== "object") return;
+  if (node.type === "object" && !node.properties && node.additionalProperties === undefined && !node.$ref) {
+    node.additionalProperties = true;
+  }
+  Object.values(node).forEach(openFreeObjects);
+})(tsBundle);
+const tsBody = await compile(tsBundle, "LocalLlmAgentProtocol", {
   bannerComment: "",
   unreachableDefinitions: true,
   additionalProperties: false,

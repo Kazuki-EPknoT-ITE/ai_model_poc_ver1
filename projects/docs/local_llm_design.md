@@ -54,7 +54,7 @@ flowchart LR
     direction TB
     R["Renderer（React UI）<br/>会話・ツリー・差分・承認・設定"]
     M["Main プロセス<br/>トレイ常駐・通知・スリープ抑止・自動更新"]
-    A["Agent Runtime（utilityProcess, TS）<br/>ループ・ポリシー・停滞監視・文脈圧縮"]
+    A["Agent Runtime（Node の子プロセス, TS）<br/>ループ・ポリシー・停滞監視・文脈圧縮"]
     S[("Run Store<br/>SQLite(暗号化)<br/>手順ログ・意図記録")]
     BK[("バックアップ領域<br/>%LOCALAPPDATA%")]
     T1["fs-tools（MCP, TS 内蔵）"]
@@ -94,7 +94,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | Renderer | PC | 表示と入力だけを担当。状態は持たない | 開き直せば Runtime から状態を取り直す |
 | Main | PC | トレイ常駐、Windows通知、`powerSaveBlocker`、自動更新、Runtime の監視と再起動 | OS起動時の自動起動から立ち上がり、保存済みの手順から再開する |
-| Agent Runtime | PC（Electron utilityProcess） | エージェントのループ、ポリシー判定、ツールの呼び出し、Run Store への書き込み | Main が再起動し、最後に確定した手順から再開する（RUN-02） |
+| Agent Runtime | PC（Node の子プロセス。ADR-001 改訂） | エージェントのループ、ポリシー判定、ツールの呼び出し、Run Store への書き込み | Main が再起動し、最後に確定した手順から再開する（RUN-02） |
 | office-tools | PC（Python子プロセス） | 文書の読み書き。MCP stdio サーバー | Runtime が再起動し、その手順を再試行する |
 | Gateway | サーバー | 認証、キュー、ルーティング、監査ログ、レート制限 | systemd が再起動し、PostgreSQL から待ち行列を戻す（RUN-09） |
 | vLLM ×1〜2 | サーバー GPU | 推論 | Gateway が死活監視して再起動し、実行中だった依頼を戻す（OPS-02） |
@@ -258,6 +258,8 @@ stateDiagram-v2
 ### 5.4 書き込みの冪等性（重複実行の防止）
 
 ファイルを書き換えるツールの実行は、すべて次の**意図記録（intent）**で包む（RUN-02, 9.1 継続実行「重複0件」）。
+
+> **実装（T-24）での確定**: ツールには本物のファイルを直接書かせず、同じフォルダの作業用コピー（`.~lla-<id>.<名前>`、staging）を書かせる。意図記録は `prepared`（書き込み前のハッシュとバックアップ）→ `staged`（ツールが staging を書き終え、その内容のハッシュ）→ `committed`（Runtime が staging を本物と置き換えた）の3段階。これで「ツールが書いた直後に落ちた」場合も、再開時に本物のハッシュと staging のハッシュを比べるだけで、済み・やり直し・他人の編集を判定できる。以下の表はこの3段階で読み替える。
 
 1. 書き込みの前に、意図記録 `{step_id, path, pre_hash, op_digest, backup_path, status:"prepared"}` を Run Store に保存する。
 2. バックアップを作り、一時ファイルに書いてから、同じボリューム上で置き換える（`ReplaceFileW`）。
@@ -441,7 +443,7 @@ flowchart LR
 | `xlsx.write_cells(path, sheet, cells[])` / `insert_rows` / `delete_rows` | 書式・数式・入力規則を保ったまま書く。`.xlsm` は `keep_vba=True` で開き、マクロは実行しない | XLS-02, XLS-08 |
 | `xlsx.create(path, spec)` | 見出し・列幅・表示形式・数式・テーブル | XLS-03 |
 | `xlsx.recalc(path)` | LibreOffice ヘッドレスで再計算して保存し、エラー値のあるセルを一覧にする。書き込み系ツールは最後に自動でこれを呼ぶ | XLS-04 |
-| `data.transform(spec)` | 集計・突合・並べ替え・重複除去を宣言的に書いた spec を pandas で実行する。AIは spec を書くだけ | XLS-05 |
+| `data.transform(spec)` | 集計・突合・並べ替え・重複除去を宣言的に書いた spec を実行する（pandas は使わず純 Python＋Decimal。金額の正確さと型検査を優先）。AIは spec を書くだけ | XLS-05 |
 | `xlsx.chart(...)` | openpyxl でグラフを作る | XLS-06 |
 | `csv.read` / `csv.write` | 文字コードを判定（charset-normalizer。Shift_JIS/CP932/UTF-8/BOM付き） | XLS-07 |
 
@@ -590,7 +592,7 @@ ADR は `projects/docs/local_llm_adr/NNN-*.md` に1件1ファイルで書く（�
 
 | ADR | 決めたこと | 代替案 | 状態 |
 | --- | --- | --- | --- |
-| 001 | Electron＋React（Runtime は utilityProcess） | Tauri 2 ＋ Node SEA を別に同梱 | 承認済み |
+| 001 | Electron＋React（Runtime は Node の子プロセス。実装時に utilityProcess から改訂） | Tauri 2 ＋ Node SEA を別に同梱 | 承認済み |
 | 002 | 独自のアクションプロトコル＋ guided_json | vLLM のツールパーサー（モデル依存） | 承認済み |
 | 003 | Gateway は自作の FastAPI＋PostgreSQL | LiteLLM＋Redis | 承認済み |
 | 004 | PDF は pypdfium2＋pdfplumber（PyMuPDF は使わない） | PyMuPDF の商用ライセンス | 承認済み |

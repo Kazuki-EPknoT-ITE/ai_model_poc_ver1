@@ -613,6 +613,7 @@
       "name": "csv.read",
       "description": "CSV を読む（文字コードと区切り文字を自動判定）",
       "args_schema": {
+        "type": "object",
         "anyOf": [
           {
             "type": "object",
@@ -1864,6 +1865,7 @@
       "name": "docx.diff",
       "description": "2つの Word の差分を一覧にする",
       "args_schema": {
+        "type": "object",
         "anyOf": [
           {
             "type": "object",
@@ -2504,6 +2506,7 @@
       "name": "docx.read",
       "description": "Word を ID 付きのブロック列で読む（見出し・段落・表・ヘッダー/フッター）",
       "args_schema": {
+        "type": "object",
         "anyOf": [
           {
             "type": "object",
@@ -2785,6 +2788,7 @@
       "name": "fs.list",
       "description": "フォルダの中身を一覧する（glob で絞り込み可）",
       "args_schema": {
+        "type": "object",
         "anyOf": [
           {
             "type": "object",
@@ -3023,6 +3027,7 @@
       "name": "fs.read_text",
       "description": "テキストファイル（txt/md/csv/json/log）を行単位で読む",
       "args_schema": {
+        "type": "object",
         "anyOf": [
           {
             "type": "object",
@@ -3109,6 +3114,7 @@
       "name": "fs.search",
       "description": "ファイル名と本文（Office/PDF を含む）を検索する",
       "args_schema": {
+        "type": "object",
         "anyOf": [
           {
             "type": "object",
@@ -3443,6 +3449,7 @@
       "name": "pdf.extract_tables",
       "description": "PDF の表を行列として取り出す",
       "args_schema": {
+        "type": "object",
         "anyOf": [
           {
             "type": "object",
@@ -3596,6 +3603,7 @@
       "name": "pdf.ocr",
       "description": "テキストのないページ（スキャン・FAX）を日本語 OCR で読む",
       "args_schema": {
+        "type": "object",
         "anyOf": [
           {
             "type": "object",
@@ -3680,6 +3688,7 @@
       "name": "pdf.read_pages",
       "description": "PDF の本文をページ単位で読む（読み順を考慮）",
       "args_schema": {
+        "type": "object",
         "anyOf": [
           {
             "type": "object",
@@ -5056,6 +5065,7 @@
       "name": "xlsx.read_range",
       "description": "Excel の範囲を読む（値・数式・表示形式）",
       "args_schema": {
+        "type": "object",
         "anyOf": [
           {
             "type": "object",

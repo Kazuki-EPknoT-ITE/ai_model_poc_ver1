@@ -1,0 +1,14 @@
+# 不正な出力の差し戻し（AGT-05）・503 の再試行（RUN-03）・SSE の切断（RUN-03）
+name: rt-faults
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action: { type: plan_update, plan: [{ id: t1, title: 確認, status: doing }] }
+  - match: { last_user: "形式が不正" }
+    action: { type: final, summary: "回復しました。", outputs: [], failures: [], needs_review: [] }
+fallback:
+  action: { type: final, summary: "（モック）想定外", outputs: [], failures: [], needs_review: [] }
+faults:
+  - { kind: http_status, status: 503, times: 2, at: { step_index: 0 } }
+  - { kind: drop_connection, after_events: 2, at: { step_index: 0 } }
+  - { kind: raw, output: '{"type":"tool_call","tool":', at: { step_index: 1 } }

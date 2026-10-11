@@ -1,2 +1,77 @@
-{ "issue_date": "2026-09-03", "issuer_name": "Example Shipping Co. 3", "currency": "USD", "subtotal": 3000.00, "tax": 0, "total": 3000.00,
-  "lines": [{ "description": "Charter hire", "qty": 1, "unit_price": 3000.00, "amount": 3000.00 }] }
+{
+ "issue_date": {
+  "value": "2026-09-03",
+  "page": 1
+ },
+ "due_date": {
+  "value": "2026-10-31",
+  "page": 1
+ },
+ "issuer_name": {
+  "value": "Example Shipping Co. 3",
+  "page": 1
+ },
+ "issuer_reg_no": {
+  "value": null,
+  "page": null
+ },
+ "bill_to": {
+  "value": "Sample Marine K.K.",
+  "page": 1
+ },
+ "vessel_name": {
+  "value": "MV EXAMPLE STAR",
+  "page": 1
+ },
+ "voyage_no": {
+  "value": null,
+  "page": null
+ },
+ "currency": {
+  "value": "USD",
+  "page": 1
+ },
+ "subtotal": {
+  "value": 3000.0,
+  "page": 1
+ },
+ "tax": {
+  "value": 0,
+  "page": 1
+ },
+ "total": {
+  "value": 3000.0,
+  "page": 1
+ },
+ "bank": {
+  "name": {
+   "value": null,
+   "page": null
+  },
+  "branch": {
+   "value": null,
+   "page": null
+  },
+  "account_type": {
+   "value": null,
+   "page": null
+  },
+  "account_no": {
+   "value": null,
+   "page": null
+  },
+  "swift": {
+   "value": null,
+   "page": null
+  }
+ },
+ "lines": [
+  {
+   "description": "Charter hire",
+   "qty": 1,
+   "unit_price": 3000.0,
+   "amount": 3000.0,
+   "page": 1
+  }
+ ]
+}

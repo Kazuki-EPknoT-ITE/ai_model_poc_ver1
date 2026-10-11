@@ -1,0 +1,27 @@
+office-tools が使う第三者ライブラリとライセンス
+（PyInstaller で同梱するものは実行時依存。版は uv.lock を正とする）
+
+実行時依存
+- mcp (Model Context Protocol Python SDK) ........ MIT
+- anyio .......................................... MIT
+- jsonschema ..................................... MIT
+- openpyxl ....................................... MIT
+- python-docx .................................... MIT
+- lxml ........................................... BSD-3-Clause（libxml2/libxslt: MIT）
+- pypdfium2 ...................................... Apache-2.0 または BSD-3-Clause（同梱の PDFium: BSD-3-Clause / Apache-2.0）
+- pdfplumber ..................................... MIT
+- pdfminer.six（pdfplumber の依存） .............. MIT
+- Pillow ......................................... MIT-CMU (HPND)
+- charset-normalizer ............................. MIT
+- pydantic / referencing（lla-protocol の依存） .. MIT
+
+開発時のみ（同梱しない）
+- reportlab（テスト用 PDF の合成） .............. BSD-3-Clause
+- pytest-cov ..................................... MIT
+- lxml-stubs / types-openpyxl .................... Apache-2.0 / Apache-2.0
+
+使わないもの
+- PyMuPDF（AGPL-3.0）: 設計書 R6 により使用禁止。PDF は pypdfium2 ＋ pdfplumber で扱う。
+
+外部プログラム（同梱しない。導入されていれば使う）
+- LibreOffice（MPL-2.0）: xlsx.recalc と convert.* で soffice をヘッドレス起動する。

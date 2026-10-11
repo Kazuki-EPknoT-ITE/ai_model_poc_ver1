@@ -6,7 +6,7 @@
 
 | ADR | タイトル | 状態 | 関連要件 |
 | --- | --- | --- | --- |
-| [001](001-electron.md) | クライアントは Electron＋React、Runtime は utilityProcess で動かす | 承認済み | APP-*, RUN-07 |
+| [001](001-electron.md) | クライアントは Electron＋React、Runtime は Node の子プロセスで動かす（改訂） | 承認済み | APP-*, RUN-07 |
 | [002](002-action-protocol-guided-json.md) | 独自のアクションプロトコルを guided_json で強制する | 承認済み | RUN-04, AGT-05 |
 | [003](003-custom-gateway.md) | Gateway は FastAPI＋PostgreSQL で自作する | 承認済み | RUN-09, RUN-10 |
 | [004](004-pdf-libraries.md) | PDF は pypdfium2＋pdfplumber を使い、PyMuPDF は使わない | 承認済み | PDF-01〜07 |

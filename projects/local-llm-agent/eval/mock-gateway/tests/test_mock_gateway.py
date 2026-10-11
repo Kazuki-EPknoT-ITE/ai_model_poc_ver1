@@ -227,7 +227,8 @@ def test_invoice_extract_uses_fixture_by_ref() -> None:
         h = login(c)
         msg = '<untrusted source="file" ref="請求書/INV-002.pdf#p.1">INVOICE ...</untrusted>'
         out = run_action(c, h, "x:1:0", body(msg, purpose="invoice_extract"))
-        assert out["total"] == 2000.0 and out["issuer_name"].endswith("2")
+        assert out["total"] == {"value": 2000.0, "page": 1}
+        assert out["issuer_name"]["value"].endswith("2")
 
 
 def test_net_levels() -> None:

@@ -1,1 +1,69 @@
-{ "issue_date": null, "issuer_name": null, "currency": null, "subtotal": null, "tax": null, "total": null, "lines": [] }
+{
+ "issue_date": {
+  "value": null,
+  "page": null
+ },
+ "due_date": {
+  "value": null,
+  "page": null
+ },
+ "issuer_name": {
+  "value": null,
+  "page": null
+ },
+ "issuer_reg_no": {
+  "value": null,
+  "page": null
+ },
+ "bill_to": {
+  "value": null,
+  "page": null
+ },
+ "vessel_name": {
+  "value": null,
+  "page": null
+ },
+ "voyage_no": {
+  "value": null,
+  "page": null
+ },
+ "currency": {
+  "value": null,
+  "page": null
+ },
+ "subtotal": {
+  "value": null,
+  "page": null
+ },
+ "tax": {
+  "value": null,
+  "page": null
+ },
+ "total": {
+  "value": null,
+  "page": null
+ },
+ "bank": {
+  "name": {
+   "value": null,
+   "page": null
+  },
+  "branch": {
+   "value": null,
+   "page": null
+  },
+  "account_type": {
+   "value": null,
+   "page": null
+  },
+  "account_no": {
+   "value": null,
+   "page": null
+  },
+  "swift": {
+   "value": null,
+   "page": null
+  }
+ },
+ "lines": []
+}

@@ -1,0 +1,15 @@
+# 文脈予算が小さいと圧縮が走り、固定メモリ（memory.note）は残る（I-07）
+name: rt-compact
+config: { context_budget: 6000, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action: { type: tool_call, tool: memory.note, args: { key: "出力先", value: "出力/結果.xlsx" } }
+  - match: { purpose: agent }
+    repeat: 6
+    action: { type: tool_call, tool: fs.read_text, args: { path: "big.txt" } }
+  - match: { purpose: compact }
+    repeat: true
+    raw: "- big.txt を何度か読んだ（1行目は LINE-0）"
+  - match: { purpose: agent }
+    repeat: true
+    action: { type: final, summary: "圧縮後も続けられました。", outputs: [], failures: [], needs_review: [] }

@@ -1,6 +1,6 @@
 # uv workspace root (virtual: no [project] here)
 [tool.uv.workspace]
-members = ["packages/protocol/python", "eval/mock-gateway"]
+members = ["packages/protocol/python", "eval/mock-gateway", "tools/office"]
 
 [dependency-groups]
 dev = [
@@ -28,7 +28,7 @@ ignore = [
 "**/generated/*.py" = ["E", "UP", "I", "S", "B"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["lla_protocol", "mock_gateway"]
+known-first-party = ["lla_protocol", "mock_gateway", "office_tools"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -36,4 +36,4 @@ strict = true
 exclude = ["generated/"]
 
 [tool.pytest.ini_options]
-testpaths = ["packages/protocol/python/tests", "eval/mock-gateway/tests"]
+testpaths = ["packages/protocol/python/tests", "eval/mock-gateway/tests", "tools/office/tests"]

@@ -117,7 +117,8 @@ CREATE TABLE intents (
   post_hash     TEXT,
   backup_path   TEXT,
   final_path    TEXT,                       -- 別名保存になった場合の実際のパス
-  status        TEXT NOT NULL CHECK (status IN ('prepared','committed','conflict','undone')),
+  staging_path  TEXT,                       -- ツールに書かせる作業用コピー（設計書 §5.4 の確定事項）
+  status        TEXT NOT NULL CHECK (status IN ('prepared','staged','committed','conflict','undone')),
   created_at    TEXT NOT NULL,
   committed_at  TEXT
 );

@@ -193,7 +193,7 @@ temperature: 0
 4. 各シナリオは3回繰り返し、すべて合格したら合格とする。
 
 **注入の道具（`eval/fault-injection/tools/`）**
-- `kill.ps1`: `taskkill /F /IM <proc> /T`（Runtime の utilityProcess・office-tools・Electron 全体）。プロセスは PID ファイルで特定する。
+- `kill.ps1`: `taskkill /F /IM <proc> /T`（Runtime ホスト（node.exe）・office-tools・Electron 全体）。プロセスは PID ファイルで特定する。
 - `net.ps1`: Windows ファイアウォールの送信ブロック規則を追加・削除する（`New-NetFirewallRule -Direction Outbound -RemoteAddress <server> -Action Block`）。またはアダプタを無効化する（`netsh interface set interface "<name>" disable`）。
 - `lockfile.exe`（小さな C#／PowerShell ヘルパー）: `FileShare.None` でファイルを開き、指定した秒数だけ保持する（Excel で開いている状態の再現）。
 - `server.sh`（検証機に SSH で接続）: `docker compose restart vllm-12b` / `gateway`、`systemctl restart`、`kill -9`。

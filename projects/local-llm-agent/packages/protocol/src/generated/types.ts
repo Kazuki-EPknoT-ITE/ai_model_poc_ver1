@@ -647,20 +647,6 @@ export type Priority = ("Must" | "Should" | "Could")
 export type RunState = ("planning" | "inferring" | "tool_running" | "waiting_approval" | "waiting_question" | "compacting" | "replanning" | "stalled" | "paused" | "reconnecting" | "done" | "stopped")
 /**
  * This interface was referenced by `LocalLlmAgentProtocol`'s JSON-Schema
- * via the `definition` "RuntimeCommand".
- */
-export type RuntimeCommand = {
-[k: string]: unknown | undefined
-}
-/**
- * This interface was referenced by `LocalLlmAgentProtocol`'s JSON-Schema
- * via the `definition` "RuntimeEvent".
- */
-export type RuntimeEvent = {
-[k: string]: unknown | undefined
-}
-/**
- * This interface was referenced by `LocalLlmAgentProtocol`'s JSON-Schema
  * via the `definition` "ShortText".
  */
 export type ShortText = string
@@ -680,7 +666,7 @@ type: "tool_call"
 thought?: string
 tool: string
 args: {
-
+[k: string]: unknown | undefined
 }
 }
 /**
@@ -780,7 +766,7 @@ run_id: string
 step_id: string
 tool: string
 args: {
-
+[k: string]: unknown | undefined
 }
 reason: ApprovalReason
 paths: {
@@ -829,7 +815,7 @@ schema: string
 } | {
 tool: ("pdf.extract_tables" | "pdf.read_pages" | "convert.to_pdf" | "convert.to_docx" | "convert.to_xlsx")
 args?: {
-
+[k: string]: unknown | undefined
 }
 })
 output?: ({
@@ -1215,7 +1201,7 @@ text: string
  */
 export interface DocxCommentsResult {
 comments: {
-
+[k: string]: unknown | undefined
 }[]
 artifact?: Artifact
 }
@@ -1255,7 +1241,7 @@ granularity?: ("paragraph" | "char")
  */
 export interface DocxDiffResult {
 changes: {
-
+[k: string]: unknown | undefined
 }[]
 }
 /**
@@ -1281,7 +1267,7 @@ export interface DocxEditResult {
 artifact: Artifact
 applied: number
 results: {
-
+[k: string]: unknown | undefined
 }[]
 }
 /**
@@ -1298,7 +1284,7 @@ describe?: boolean
  */
 export interface DocxImagesResult {
 images: {
-
+[k: string]: unknown | undefined
 }[]
 }
 /**
@@ -1315,7 +1301,7 @@ path: Path
 export interface DocxOutlineResult {
 file_hash: FileHash
 headings: {
-
+[k: string]: unknown | undefined
 }[]
 tables?: number
 pages_estimate?: number
@@ -1341,7 +1327,7 @@ export interface DocxReadResult {
 file_hash: FileHash
 total_blocks: number
 blocks: {
-
+[k: string]: unknown | undefined
 }[]
 }
 /**
@@ -1508,7 +1494,7 @@ pages?: PageSpec
  */
 export interface InvoiceExtractResult {
 fields: {
-
+[k: string]: unknown | undefined
 }
 checks: {
 name: string
@@ -1570,7 +1556,7 @@ password_ref?: PasswordRef
  */
 export interface PdfExtractTablesResult {
 tables: {
-
+[k: string]: unknown | undefined
 }[]
 }
 /**
@@ -1610,7 +1596,7 @@ password_ref?: PasswordRef
  */
 export interface PdfOcrResult {
 pages: {
-
+[k: string]: unknown | undefined
 }[]
 }
 /**
@@ -1629,7 +1615,7 @@ layout?: ("reading" | "raw")
  */
 export interface PdfReadPagesResult {
 pages: {
-
+[k: string]: unknown | undefined
 }[]
 }
 /**
@@ -1707,7 +1693,33 @@ export interface RunStateEvent {
 run_id: string
 state: RunState
 detail?: {
-
+[k: string]: unknown | undefined
+}
+}
+/**
+ * This interface was referenced by `LocalLlmAgentProtocol`'s JSON-Schema
+ * via the `definition` "RuntimeCommand".
+ */
+export interface RuntimeCommand {
+v: 1
+id: string
+type: ("run.start" | "run.pause" | "run.resume" | "run.stop" | "approval.decide" | "question.answer" | "undo.run" | "events.since" | "settings.update" | "conversation.list" | "conversation.get" | "conversation.search" | "conversation.delete")
+payload: {
+[k: string]: unknown | undefined
+}
+}
+/**
+ * This interface was referenced by `LocalLlmAgentProtocol`'s JSON-Schema
+ * via the `definition` "RuntimeEvent".
+ */
+export interface RuntimeEvent {
+v: 1
+id: string
+seq: number
+conversation_id?: string
+type: ("run.state" | "token" | "step" | "plan" | "approval.request" | "question" | "artifact" | "batch_progress" | "queue" | "retry" | "net.activity" | "notify" | "server.status")
+payload: {
+[k: string]: unknown | undefined
 }
 }
 /**
@@ -1780,7 +1792,7 @@ kind: ErrorKind
 message: string
 retry_after_ms?: number
 detail?: {
-
+[k: string]: unknown | undefined
 }
 }
 /**
@@ -1790,7 +1802,7 @@ detail?: {
 export interface ToolResult {
 ok: boolean
 data?: {
-
+[k: string]: unknown | undefined
 }
 error?: ToolError
 untrusted?: UntrustedBlock[]
@@ -1816,10 +1828,10 @@ export interface ToolSpec {
 name: string
 description: string
 args_schema: {
-
+[k: string]: unknown | undefined
 }
 result_schema: {
-
+[k: string]: unknown | undefined
 }
 effect: Effect
 path_args: string[]
@@ -1964,7 +1976,7 @@ max_results?: number
  */
 export interface XlsxFindResult {
 hits: {
-
+[k: string]: unknown | undefined
 }[]
 }
 /**
@@ -1981,7 +1993,7 @@ path: Path
 export interface XlsxInfoResult {
 file_hash: FileHash
 sheets: {
-
+[k: string]: unknown | undefined
 }[]
 has_macros: boolean
 }
