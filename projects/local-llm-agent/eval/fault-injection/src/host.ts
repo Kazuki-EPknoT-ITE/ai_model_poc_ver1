@@ -27,6 +27,8 @@ export interface HostConfig {
   office?: boolean;
   /** 利用者のネット設定（off / search / browse） */
   netLevel?: string;
+  /** 承認要求を自動で却下するまでの時間（セキュリティ試験 SX） */
+  rejectAfterMs?: number;
 }
 
 const cfg = JSON.parse(process.env.FI_HOST_CONFIG ?? "{}") as HostConfig;
@@ -47,12 +49,12 @@ async function main(): Promise<void> {
     runtime: { retryBaseMs: cfg.retryBaseMs ?? 200, lockWaitMs: cfg.lockWaitMs ?? 5_000 },
     emit: (e: RuntimeEvent) => {
       out(`@@event ${JSON.stringify(e)}`);
-      if (e.type === "approval.request" && cfg.approveAfterMs !== undefined) {
+      const after = cfg.approveAfterMs ?? cfg.rejectAfterMs;
+      if (e.type === "approval.request" && after !== undefined) {
         const id = (e.payload as { approval_id: string }).approval_id;
-        // 自動承認ボット（試験仕様 §4「人手なし」）
-        pending.push(
-          new Promise((r) => setTimeout(r, cfg.approveAfterMs)).then(() => h.runtime.handle(cmd("approval.decide", { approval_id: id, decision: "approve" }))),
-        );
+        const decision = cfg.approveAfterMs !== undefined ? "approve" : "reject";
+        // 自動承認／却下ボット（試験仕様 §4「人手なし」）
+        pending.push(new Promise((r) => setTimeout(r, after)).then(() => h.runtime.handle(cmd("approval.decide", { approval_id: id, decision }))));
       }
     },
   });

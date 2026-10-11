@@ -116,7 +116,7 @@ flowchart LR
 | T-64 | 本番機での 26B の評価と既定モデルの決定 | 7.1 | inference＋ml | 未着手 |
 | T-65 | 監視・バックアップ・予備機への切替 | OPS-03〜06 | llm-inference-engineer | 未着手 |
 | T-66 | Should / Could の残り（グラフ・コメント・画像説明・自動振り分けなど） | 各要件 | 各担当 | 未着手 |
-| T-67 | 安全性・ネットの評価セット | 9.1 | web-relay-security＋qa | 未着手 |
+| T-67 | 安全性・ネットの評価セット | 9.1 | web-relay-security＋qa | **一部完了（プロンプトインジェクション SX-01〜07 を自動化し、評価セット security で集計。DX・RX は Web Relay の試験。実モデルでの評価は検証機で）** |
 
 ---
 

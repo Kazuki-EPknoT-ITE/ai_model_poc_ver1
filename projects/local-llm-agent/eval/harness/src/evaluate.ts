@@ -301,7 +301,8 @@ export async function runEvaluation(o: EvalOptions): Promise<EvalRun[]> {
         gatewayKind = "none";
         gatewayUrl = "（推論なし）";
       } else {
-        const report = o.fiReport ?? join(HARNESS_DIR, "..", "fault-injection", "results", "latest.json");
+        // 障害注入（resilience）は latest.json、セキュリティ（security）など他のセットは <セット名>.json
+        const report = o.fiReport ?? join(HARNESS_DIR, "..", "fault-injection", "results", m.name === "resilience" ? "latest.json" : `${m.name}.json`);
         if (!existsSync(report)) throw new Error(`障害注入の結果がありません: ${report}（eval/fault-injection を先に実行してください）`);
         outputs = JSON.parse(readFileSync(report, "utf8")) as Outputs;
         gatewayKind = "fault-injection";
