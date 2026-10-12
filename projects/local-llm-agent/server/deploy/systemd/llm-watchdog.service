@@ -1,0 +1,13 @@
+# ハングしたコンテナの再起動（OPS-02）。llm-watchdog.timer から1分ごとに起動する。
+#   sudo cp llm-watchdog.service llm-watchdog.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now llm-watchdog.timer
+[Unit]
+Description=Restart unhealthy Local LLM containers
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=llmadmin
+Group=docker
+ExecStart=/srv/llm/deploy/scripts/watchdog.sh

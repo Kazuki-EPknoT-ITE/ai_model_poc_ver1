@@ -25,6 +25,7 @@ from .auth import Principal
 from .db import Instruction, Job, User
 from .feedback import register_feedback
 from .gateway import Gateway
+from .gpu import gpu_status
 from .jobs import StepRequest
 from .netpolicy import admin_cap, decide
 from .registry import register_registry
@@ -537,7 +538,7 @@ def create_app(gw: Gateway) -> FastAPI:
             "error_rate": (int(by_state.get("failed", 0)) / finished) if finished else 0.0,
             "users": {"total": int(users_total), "active": int(active)},
             "engines": gw.jobs.engine_status(),
-            "gpu": [],  # DCGM の値は Prometheus 側で集める（design §6.7）。管理画面は「取得できません」と表示する
+            "gpu": await gpu_status(gw),  # dcgm-exporter から（metrics.dcgm_url。無ければ空）
         }
 
     register_admin(app, gw, Depends(admin_user))

@@ -158,3 +158,64 @@ def test_bad_date_is_rejected(tmp_path: Path) -> None:
     env = _setup(tmp_path)
     r = _run(env, "20261001")
     assert r.returncode != 0 and "YYYY-MM-DD" in r.stderr
+
+
+# ---------------------------------------------------------------- watchdog.sh（OPS-02）
+WATCHDOG = Path(__file__).resolve().parents[1] / "scripts" / "watchdog.sh"
+
+STUB_DOCKER_PS = r"""#!/usr/bin/env bash
+# docker ps --filter label=llm.autoheal=true --filter health=unhealthy / docker restart <id>
+if [ "$1" = "ps" ]; then
+  [[ "$*" == *"label=llm.autoheal=true"* && "$*" == *"health=unhealthy"* ]] || exit 9
+  printf '%b' "${FAKE_UNHEALTHY:-}"
+elif [ "$1" = "restart" ]; then
+  echo "$2" >>"$FAKE_RESTARTS"
+else
+  exit 9
+fi
+"""
+
+
+def _watchdog(tmp_path: Path, now: int, unhealthy: str) -> subprocess.CompletedProcess[str]:
+    assert BASH is not None
+    bindir = tmp_path / "wbin"
+    bindir.mkdir(exist_ok=True)
+    stub = bindir / "docker"
+    stub.write_text(STUB_DOCKER_PS, encoding="utf-8", newline="\n")
+    stub.chmod(0o755)
+    env = {
+        **os.environ,
+        "WATCHDOG_STATE_DIR": _posix(tmp_path / "state"),
+        "TEXTFILE_DIR": _posix(tmp_path / "textfile"),
+        "WATCHDOG_NOW": str(now),
+        "WATCHDOG_COOLDOWN_S": "600",
+        "FAKE_UNHEALTHY": unhealthy,
+        "FAKE_RESTARTS": _posix(tmp_path / "restarts.txt"),
+    }
+    cmd = f'export PATH="{_posix(bindir)}:$PATH"; bash "{_posix(WATCHDOG)}"'
+    return subprocess.run(
+        [BASH, "-c", cmd], env=env, capture_output=True, text=True, encoding="utf-8", check=False
+    )
+
+
+def test_watchdog_restarts_unhealthy_with_cooldown(tmp_path: Path) -> None:
+    two = "a1 llm-vllm-12b-1\\nb2 llm-gateway-1\\n"
+    r = _watchdog(tmp_path, 1_000_000, two)
+    assert r.returncode == 0, r.stderr
+    assert (tmp_path / "restarts.txt").read_text(encoding="utf-8").split() == ["a1", "b2"]
+    # 5分後もまだ unhealthy → 待つ（10分に1回まで）
+    r = _watchdog(tmp_path, 1_000_300, "a1 llm-vllm-12b-1\\n")
+    assert "待ちます" in r.stdout
+    assert (tmp_path / "restarts.txt").read_text(encoding="utf-8").split() == ["a1", "b2"]
+    # 11分後 → もう一度再起動
+    _watchdog(tmp_path, 1_000_660, "a1 llm-vllm-12b-1\\n")
+    assert (tmp_path / "restarts.txt").read_text(encoding="utf-8").split() == ["a1", "b2", "a1"]
+    prom = (tmp_path / "textfile" / "watchdog.prom").read_text(encoding="utf-8")
+    assert 'llm_watchdog_restarts_total{container="llm-vllm-12b-1"} 2' in prom
+    assert 'llm_watchdog_restarts_total{container="llm-gateway-1"} 1' in prom
+
+
+def test_watchdog_does_nothing_when_healthy(tmp_path: Path) -> None:
+    r = _watchdog(tmp_path, 1_000_000, "")
+    assert r.returncode == 0 and not (tmp_path / "restarts.txt").exists()
+    assert (tmp_path / "textfile" / "watchdog.prom").exists()

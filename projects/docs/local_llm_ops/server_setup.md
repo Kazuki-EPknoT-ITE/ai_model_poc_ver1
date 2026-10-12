@@ -255,6 +255,7 @@ services:
   postgres:
     image: postgres:16
     env_file: /srv/llm/secrets/postgres.env
+    # postgres.env: POSTGRES_USER=llmgw / POSTGRES_DB=llmgw / POSTGRES_PASSWORD=<生成した値>（Gateway の LLMGW_DATABASE_URL と合わせる）
     volumes: [ "/srv/llm/data/postgres:/var/lib/postgresql/data" ]
     networks: [ internal ]
     restart: unless-stopped
@@ -514,7 +515,12 @@ EOF
 sudo systemctl daemon-reload && sudo systemctl enable --now llm-stack
 ```
 
-- 各コンテナには `restart: unless-stopped` とヘルスチェックを付ける。Gateway は vLLM の死活を監視し、異常が続く場合は `docker restart` を実行する（OPS-02。Docker ソケットは使わず、専用の小さな監視サービスから行う）。
+- 各コンテナには `restart: unless-stopped` とヘルスチェックを付ける。Docker は unhealthy になっても自動では再起動しないため、ホストの `scripts/watchdog.sh`（`systemd/llm-watchdog.timer` で1分ごと）が、ラベル `llm.autoheal=true` の付いた unhealthy なコンテナを `docker restart` する（OPS-02。同じコンテナは10分に1回まで。Gateway のコンテナには Docker ソケットを渡さない）。再起動の回数は node-exporter の textfile に出し、アラート `ContainerRestartedByWatchdog` で知らせる。
+
+```bash
+sudo cp server/deploy/systemd/llm-watchdog.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now llm-watchdog.timer
+```
 - UPS: `nut` で UPS を監視し、バッテリー残量が少なくなったら `systemctl stop llm-stack` → シャットダウンする。
 
 ### 8.4 障害時の再起動確認（構築完了の条件）

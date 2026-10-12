@@ -18,6 +18,32 @@
 
 ---
 
+## 2026-10-12 08:50 — ダッシュボードの GPU（ADM-03）と、ハングしたコンテナの自動再起動（OPS-02）
+
+- **変更ファイル**（`projects/local-llm-agent/server/`）:
+  - `gateway`:
+    - `src/llm_gateway/gpu.py`（新規。dcgm-exporter の /metrics を読む）、`app.py`（dashboard の gpu）、`config.py`（metrics.dcgm_url）
+    - `examples/gateway.yaml`（dcgm_url、DB のホスト名を postgres に）、`tests/test_gw_gpu.py`（新規 2件）
+  - `deploy`:
+    - `scripts/watchdog.sh`・`systemd/llm-watchdog.{service,timer}`（新規）
+    - `compose.yaml`（gateway・web-relay・ocr・rag にヘルスチェック、`llm.autoheal` ラベル、pg_isready のユーザーを llmgw に）
+    - `prometheus/alerts.yml`（ContainerRestartedByWatchdog）、`tests/test_deploy_backup.py`（watchdog の試験 2件）
+  - 設計ドキュメント: ops/server_setup §8.3（watchdog、postgres.env の中身）、traceability（ADM-03・OPS-02 を検証済みに）
+- **やったこと**:
+  - ダッシュボードの GPU が常に空だった。dcgm-exporter から温度・使用率・メモリを読み、10秒だけ覚えておく。取れないときは空にし、ダッシュボードは止めない。
+  - Docker は unhealthy なコンテナを自動で再起動しないため、ホストの watchdog（1分ごと）が `llm.autoheal=true` の unhealthy なコンテナを `docker restart` する。同じコンテナは10分に1回まで。回数は textfile に出してアラートにする。
+  - **見つけた設定の食い違い**:
+    - Gateway の設定例の DB ホストが `db` だったが、compose のサービス名は `postgres`。
+    - ヘルスチェックのユーザーが `llm` だったが、Gateway は `llmgw`。
+- **E2Eテスト**: **合格**。
+  - 管理画面 E2E 4件を本物の Gateway で実施（ダッシュボードの GPU は dcgm_url 未設定で「取得できません」のまま）。
+  - GPU と watchdog は試験で確認した。GPU: 実際の DCGM の出力の見本を読む。watchdog: docker を差し替えた bash で再起動・待ち時間・記録を確認。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（pytest **500件**成功・51件スキップ、mypy 104ファイル）。
+- **次にやること / 申し送り**:
+  - AGT-09（プラグインの設定手段）、PDF-07（該当箇所の表示）、DOC-07（画像の説明）、XLS-09（ピボットの読み取り）。
+  - 実機での DCGM・watchdog の確認は検証機で。
+
 ## 2026-10-12 08:00 — 評価ボタンと同意付きの学習データ候補の収集（ADM-06）
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

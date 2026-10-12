@@ -65,3 +65,10 @@ groups:
         labels: { severity: warning }
         annotations:
           summary: "バックアップの成功記録がありません（llm-backup.timer が有効か確認してください）"
+
+      - alert: ContainerRestartedByWatchdog
+        expr: increase(llm_watchdog_restarts_total[1h]) > 0
+        labels: { severity: warning }
+        annotations:
+          summary: "{{ $labels.container }} がハングし、自動で再起動しました（直近1時間）"
+          description: "繰り返す場合は docker compose logs で原因を確認してください（OPS-02）。"

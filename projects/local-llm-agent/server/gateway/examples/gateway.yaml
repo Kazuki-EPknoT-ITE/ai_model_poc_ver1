@@ -1,6 +1,6 @@
 # llm-gateway の設定例（`llm-gateway serve --config server/gateway/examples/gateway.yaml`）
 # 秘密情報はここに書かない。環境変数で渡す:
-#   LLMGW_DATABASE_URL          postgresql+asyncpg://llmgw:<password>@db:5432/llmgw
+#   LLMGW_DATABASE_URL          postgresql+asyncpg://llmgw:<password>@postgres:5432/llmgw
 #   LLMGW_JWT_PRIVATE_KEY_FILE  /run/secrets/llmgw/jwt_ed25519.pem     （llm-gateway keygen で作る）
 #   LLMGW_PAYLOAD_KEYS_FILE     /run/secrets/llmgw/payload_keys.json
 server:
@@ -9,7 +9,7 @@ server:
   tls_cert_file: /etc/llmgw/tls/server.crt # 社内CAの証明書
   tls_key_file: /etc/llmgw/tls/server.key
 database:
-  url: postgresql+asyncpg://llmgw@db:5432/llmgw # LLMGW_DATABASE_URL があればそちらを使う
+  url: postgresql+asyncpg://llmgw@postgres:5432/llmgw # LLMGW_DATABASE_URL があればそちらを使う
   auto_migrate: true
 profile: profile/profile.yaml # 会社プロファイル（この設定ファイルからの相対）
 models:
@@ -42,3 +42,4 @@ upstreams: # 未設定の機能は 503 FEATURE_UNAVAILABLE（/v1/config の feat
   ocr_url: http://ocr:8090
 metrics:
   allow_cidrs: [127.0.0.0/8, 10.0.0.0/8]
+  dcgm_url: http://dcgm-exporter:9400/metrics # ダッシュボードの GPU（ADM-03）

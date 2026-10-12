@@ -47,7 +47,7 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | ADM-01 | Must | §6.3, §10 | api, data_model, ui | server/gateway, apps/desktop | integ, sec, e2e | M4 | 検証済み |
 | ADM-02 | Should | §6.4, §10 | api, data_model, ui | server/gateway, server/rag, apps/admin-web | integ, sec | M6 | 検証済み |
-| ADM-03 | Should | §6.7 | api, ui, ops | apps/admin-web, server/deploy | e2e | M6 | 実装中 |
+| ADM-03 | Should | §6.7 | api, ui, ops | apps/admin-web, server/deploy | e2e | M6 | 検証済み |
 | ADM-04 | Should | §6.3 | api, data_model | server/gateway | integ | M4 | 検証済み |
 | ADM-05 | Should | §4.3 | ops | apps/desktop | integ | M6 | 実装中 |
 | ADM-06 | Should | §8.3 | api, data_model, ui | server/gateway, apps/desktop, ml/datagen | integ | M6 | 検証済み |
@@ -155,7 +155,7 @@
 | 要件ID | 優先度 | 設計書の節 | 詳細仕様 | 実装モジュール | テスト | M | 状態 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | OPS-01 | NFR | §6.4, §6.7 | ops | server/deploy, server/rag | integ | M6 | 実装中 |
-| OPS-02 | NFR | §2.1, §6.3 | api, ops, ui | server/deploy, server/gateway, apps/desktop | fault | M4 | 実装済み |
+| OPS-02 | NFR | §2.1, §6.3 | api, ops, ui | server/deploy, server/gateway, apps/desktop | fault | M4 | 検証済み |
 | OPS-03 | NFR | §6.7 | api, ops | apps/desktop, server/deploy | fault | M6 | 検証済み |
 | OPS-04 | NFR | §6.7 | ops | server/deploy | integ | M6 | 検証済み |
 | OPS-05 | NFR | §6.7 | ops | server/deploy | integ | M6 | 実装済み |
@@ -190,7 +190,7 @@
 | AGT-10 | 検証済み | /admin/v1/instructions と builder.ts / test_instructions_versions、admin E2E | なし |
 | ADM-01 | 検証済み | auth.py（argon2・EdDSA） / test_gw_auth、real-gateway E2E、admin E2E | 社内アカウント連携は未対応（確認事項） |
 | ADM-02 | 検証済み | Gateway が部門・利用者の acl_groups を付与 / test_relay_rag_and_ocr、test_acl | 役職単位の制限と NAS 権限の書き出しがない |
-| ADM-03 | 実装中 | /admin/v1/dashboard と管理画面 / test_departments_and_dashboard_shape、admin E2E | GPU 負荷は空のまま返している（DCGM 未連携） |
+| ADM-03 | 検証済み | /admin/v1/dashboard と管理画面。GPU は dcgm-exporter から（metrics.dcgm_url） / test_gw_gpu、admin E2E | 実機の DCGM での確認は要検証機 |
 | ADM-04 | 検証済み | users.max_concurrent / test_per_user_and_global_limits | なし |
 | ADM-05 | 実装中 | モデル更新は台帳の promote・rollback / test_gw_registry、admin E2E | アプリの自動更新と署名が未実装 |
 | ADM-06 | 検証済み | 評価ボタン・同意したやり取りの暗号化保存・マスキングした確認・承認分の書き出し / test_gw_feedback、desktop E2E「E-01」、admin E2E「ADM-06」 | なし（2026-10-12 対応） |
@@ -258,7 +258,7 @@
 | SEC-07 | 検証済み | rag の acl.py（ACL はサーバー側で付与） / test_acl、test_relay_rag_and_ocr | なし |
 | SEC-08 | 未着手 | なし（将来の機能） | クラウド AI への送信制御は未実装 |
 | OPS-01 | 実装中 | 夜間のバックアップ timer。RAG の取り込みは timer 前提（compose のコメント） | 24時間運用は要否確認。取り込みの timer 定義がない |
-| OPS-02 | 実装済み | compose の restart、エンジン異常時の再投入、再接続の表示 / test_requeued_when_engine_crashes、FI-06 | ハング時に再起動しない（healthcheck と連動していない）。要検証機 |
+| OPS-02 | 検証済み | compose の restart とヘルスチェック、watchdog.sh（unhealthy を再起動）、エンジン異常時の再投入 / test_deploy_backup（watchdog 2件）、test_requeued_when_engine_crashes、FI-06 | 実機での確認は要検証機 |
 | OPS-03 | 検証済み | client.ts の予備機への切替・切り戻し / failover.test.ts、FI シナリオ OPS-03 | 予備機への復元訓練（要検証機） |
 | OPS-04 | 検証済み | backup.sh・restore.sh・timer / test_deploy_backup（5件） | 復元訓練は検証機で |
 | OPS-05 | 実装済み | alerts.yml と alertmanager（GPU 温度・待ち件数） | promtool での式の検証と通知の試験なし（要検証機） |

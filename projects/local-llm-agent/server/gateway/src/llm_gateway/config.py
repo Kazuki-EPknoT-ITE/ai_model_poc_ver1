@@ -129,6 +129,8 @@ class MetricsSettings(_Strict):
     allow_cidrs: list[str] = Field(
         default_factory=lambda: ["127.0.0.0/8", "::1/128", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"]
     )
+    # ダッシュボードの GPU（ADM-03）。dcgm-exporter の /metrics。無ければ GPU は「取得できません」
+    dcgm_url: str | None = None
 
 
 class Settings(_Strict):
