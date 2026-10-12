@@ -492,7 +492,7 @@ flowchart LR
 ### 8.3 学習データの作り方
 
 - `ml/datagen`: 匿名化した帳票の雛形とツールのシミュレータで手順例を合成し、**実際の office-tools で再生して成果物が正しいかを検証**したものだけを採用する。
-  - 実装（T-52）: 雛形（メモ→CSV、存在しないファイルからの回復、Word の報告書、請求書の一括読み取り→Excel〈壊れたファイルの失敗報告を含む〉）を種つき乱数で変化させ、正しい手順をモック Gateway のシナリオにして**本物の Runtime（ヘッドレス）と office-tools で実行**する。モックは推論ごとの入力（Runtime が組み立てた messages）と出力を記録し（`--record-samples`）、評価ハーネスの確認（`lla_eval.scoring.run_check`）に合格した手順例だけを、1手1行の学習データにする。`manifest.json` には件数・合否・`protocol_version`・`prompt_version`・`sha256`（台帳の `train_data_hash`）を残す。雛形・形式が変わったら作り直す。
+  - 実装（T-52）: 雛形（メモ→CSV、存在しないファイルからの回復、Word の報告書、請求書の一括読み取り→Excel〈壊れたファイルの失敗報告を含む〉、data.transform での部署別集計、作業フォルダ外へのコピー〈承認待ちのあいだに別の作業を進め、承認なら完了・却下なら失敗として報告〉）を種つき乱数で変化させ、正しい手順をモック Gateway のシナリオにして**本物の Runtime（ヘッドレス）と office-tools で実行**する。モックは推論ごとの入力（Runtime が組み立てた messages）と出力を記録し（`--record-samples`）、評価ハーネスの確認（`lla_eval.scoring.run_check`）に合格した手順例だけを、1手1行の学習データにする。`manifest.json` には件数・合否・`protocol_version`・`prompt_version`・`sha256`（台帳の `train_data_hash`）を残す。雛形・形式が変わったら作り直す。
 - 合成に外部AIを使うのは、機密を含まない文書に限る。利用規約は事前に確認する（7.3）。
 - ADM-06 の評価付きのやり取りは、本人の同意と管理者の確認を経たものだけを、マスキングしてから候補にする。
 

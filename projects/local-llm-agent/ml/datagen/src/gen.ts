@@ -41,7 +41,8 @@ async function main(): Promise<number> {
   const results: Result[] = [];
   for (const name of names) {
     for (let i = 0; i < o.count; i++) {
-      const seed = o.seed * 100_000 + names.indexOf(name) * 1000 + i;
+      // 種は雛形の並び（全体）で決める。--only で絞っても同じ手順例になる
+      const seed = o.seed * 100_000 + Object.keys(TEMPLATES).indexOf(name) * 1000 + i;
       const ep = TEMPLATES[name]!(rng(seed), `${name}-${seed}`);
       const res = await runEpisode(ep, work, samples);
       results.push(res);

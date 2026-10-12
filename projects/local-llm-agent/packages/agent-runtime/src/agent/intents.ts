@@ -158,6 +158,9 @@ export class WriteCoordinator {
       const from = JSON.stringify(s.intent.staging_path!).slice(1, -1);
       const to = JSON.stringify(s.target.path).slice(1, -1);
       json = json.split(from).join(to);
+      // ツールが作業フォルダからの相対パスで返したとき（office-tools）。staging の名前は一意なので名前だけで置き換える
+      const fromName = JSON.stringify(basename(s.intent.staging_path!)).slice(1, -1);
+      json = json.split(fromName).join(JSON.stringify(basename(s.intent.path)).slice(1, -1));
     }
     const rewritten = JSON.parse(json) as ToolResult;
     return { ...rewritten, artifacts, ...(warnings.length ? { warnings } : {}) };

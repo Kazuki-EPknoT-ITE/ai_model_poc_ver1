@@ -69,7 +69,16 @@ export async function runEpisode(ep: Episode, work: string, samplesOut: string[]
   const mock = new MockGatewayProc(scenario, join(dir, "mock"), { pingIntervalS: 0.3, samples: samplesFile });
   await mock.start();
   const events: RuntimeEvent[] = [];
-  const h = createHeadless({ gatewayUrl: mock.url, login: "dev", password: "dev", appDataDir: appData, dbKey: "datagen", office: true, emit: (e) => events.push(e), runtime: { retryBaseMs: 200 } });
+  const pending: string[] = [];
+  // 承認の判断は、モデルが待ちの完了を出して承認待ちになってから返す（手の順番を決まったものにするため）
+  const emit = (e: RuntimeEvent): void => {
+    events.push(e);
+    if (e.type === "approval.request") pending.push((e.payload as { approval_id: string }).approval_id);
+    if (ep.approval && e.type === "run.state" && (e.payload as { state: string }).state === "waiting_approval") {
+      for (const id of pending.splice(0)) void h.runtime.handle(cmd("approval.decide", { approval_id: id, decision: ep.approval })).catch(() => undefined);
+    }
+  };
+  const h = createHeadless({ gatewayUrl: mock.url, login: "dev", password: "dev", appDataDir: appData, dbKey: "datagen", office: true, emit, runtime: { retryBaseMs: 200 } });
   let runId = "";
   let run: ReturnType<typeof h.store.getRun>;
   let stepCount = 0;

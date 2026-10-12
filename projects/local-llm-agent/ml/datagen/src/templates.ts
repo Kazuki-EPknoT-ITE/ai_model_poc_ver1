@@ -8,6 +8,8 @@ export interface Episode {
   /** 作業フォルダに置くファイル（相対パス → 中身）。invoices は Python で PDF を作る */
   files: Record<string, string>;
   invoices?: { dir: string; count: number; broken?: Record<string, number[]> };
+  /** 承認待ちになったら、利用者としてこの判断を返す（承認待ちで完了を出したあと） */
+  approval?: "approve" | "reject";
   /** モデルが返すべき手（順番どおり） */
   actions: Record<string, unknown>[];
   /** 抽出推論の決め打ち（invoice.extract が使う。invoices があるとき gen-invoices が作る） */
@@ -171,9 +173,83 @@ function invoicesToExcel(r: () => number, id: string): Episode {
   };
 }
 
+/** 経費の CSV を部署ごとに集計する（計算は data.transform に任せ、自分で足し算しない） */
+function expenseSummary(r: () => number, id: string): Episode {
+  const depts = [...["工務部", "総務部", "営業部", "船舶部"]].sort(() => r() - 0.5).slice(0, int(r, 2, 4));
+  const kinds = ["交通費", "消耗品", "通信費", "会議費"];
+  const rows = Array.from({ length: int(r, 4, 12) }, () => [pick(r, depts), pick(r, kinds), int(r, 1, 50) * 100] as [string, string, number]);
+  const src = pick(r, ["経費.csv", "経費明細.csv"]);
+  const out = pick(r, ["部署別集計.csv", "集計.csv"]);
+  const sums = new Map<string, number>();
+  for (const [d, , v] of rows) sums.set(d, (sums.get(d) ?? 0) + v);
+  const expected = [...sums.entries()].sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+  return {
+    id,
+    template: "expense_summary",
+    request: pick(r, [`${src} を部署ごとに合計して、${out} に出して`, `部署別の経費の合計を ${out} にまとめてください（元は ${src}）`]),
+    files: { [src]: csvText([["部署", "費目", "金額"], ...rows]) },
+    actions: [
+      plan(["経費の CSV を確認する", "部署ごとに集計する", "完了報告"]),
+      tool("csv.read", { path: src }, "列と中身を確認します"),
+      tool(
+        "data.transform",
+        {
+          inputs: [{ name: "exp", source: { csv: src } }],
+          steps: [
+            { op: "group", by: ["部署"], aggs: [{ column: "金額", fn: "sum", as: "合計" }] },
+            { op: "sort", by: [{ column: "部署" }] },
+          ],
+          output: { csv: out },
+        },
+        "部署ごとの合計を data.transform で計算します",
+      ),
+      final(`${out} に部署別の合計（${expected.length}部署）を出しました。`, [{ path: out, description: "部署別の経費合計" }]),
+    ],
+    checks: [{ type: "csv_rows_equal", file: out, expected: "expected.csv" }],
+    expected: { "expected.csv": csvText([["部署", "合計"], ...expected]) },
+  };
+}
+
+/**
+ * 作業フォルダの外へのコピー（承認が要る）。承認を待つあいだに別の作業を進め、
+ * 承認されたら完了、却下されたら失敗として報告する（保留への対応）
+ */
+function copyOutsideWithApproval(r: () => number, id: string): Episode {
+  const ep = memoToCsv(r, id);
+  const memo = Object.keys(ep.files)[0]!;
+  const write = ep.actions[2] as { args: { path: string } };
+  const dst = `../outside/${pick(r, ["共有", "提出用"])}_${memo}`;
+  const decision = r() < 0.3 ? "reject" : "approve";
+  ep.template = "copy_outside_approval";
+  ep.approval = decision;
+  ep.request = `${memo} を ${dst} にコピーしておいて。それと、品名と数量を ${write.args.path} にまとめて`;
+  ep.actions = [
+    plan(["メモを読む", "メモを作業フォルダの外へコピーする", "CSV を作る", "完了報告"]),
+    tool("fs.read_text", { path: memo }, "メモの中身を確認します"),
+    tool("fs.copy", { src: memo, dst }, "メモを指定の場所へコピーします（承認が要ります）"),
+    tool("csv.write", write.args, "承認を待つあいだに CSV を作ります"),
+    final(`${write.args.path} を作りました。コピーは承認待ちです。`, [{ path: write.args.path, description: "品名と数量" }]),
+    decision === "approve"
+      ? final(`${write.args.path} を作り、${memo} を ${dst} にコピーしました。`, [
+          { path: write.args.path, description: "品名と数量" },
+          { path: dst, description: "メモのコピー" },
+        ])
+      : final(`${write.args.path} を作りました。${memo} のコピーは却下されたため、行っていません。`, [{ path: write.args.path, description: "品名と数量" }], [
+          { item: memo, reason: "作業フォルダ外へのコピーが却下されました" },
+        ]),
+  ];
+  ep.checks = [
+    { type: "csv_rows_equal", file: write.args.path, expected: "expected.csv" },
+    decision === "approve" ? { type: "file_exists", file: dst } : { type: "final_failures", items: [memo] },
+  ];
+  return ep;
+}
+
 export const TEMPLATES: Record<string, (r: () => number, id: string) => Episode> = {
   memo_to_csv: memoToCsv,
   recover_missing_file: recoverFromMissing,
   docx_report: docxReport,
   invoices_to_excel: invoicesToExcel,
+  expense_summary: expenseSummary,
+  copy_outside_approval: copyOutsideWithApproval,
 };

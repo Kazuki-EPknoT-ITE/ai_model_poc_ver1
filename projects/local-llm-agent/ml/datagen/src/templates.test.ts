@@ -24,13 +24,14 @@ describe("手順例の雛形", () => {
 
       it("最初は計画（3〜8項目）、最後は完了報告（system プロンプトの決まりどおり）", () => {
         for (const seed of seeds) {
-          const { actions, checks } = make(rng(seed), `x-${seed}`);
+          const { actions, checks, approval } = make(rng(seed), `x-${seed}`);
           expect(actions[0]!.type).toBe("plan_update");
           const n = (actions[0]!.plan as unknown[]).length;
           expect(n).toBeGreaterThanOrEqual(3);
           expect(n).toBeLessThanOrEqual(8);
           expect(actions.at(-1)!.type).toBe("final");
-          expect(actions.filter((a) => a.type === "final")).toHaveLength(1);
+          // 承認待ちの例だけは「待ちのあいだの完了」と「判断後の完了」の2つ
+          expect(actions.filter((a) => a.type === "final")).toHaveLength(approval ? 2 : 1);
           expect(checks.length).toBeGreaterThan(0);
         }
       });

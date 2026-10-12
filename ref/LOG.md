@@ -18,6 +18,32 @@
 
 ---
 
+## 2026-10-12 23:10 — 手順例の雛形を追加（集計・承認待ち）と、書き込み結果に作業用ファイル名が漏れる不具合の修正
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `packages/agent-runtime/src/agent/intents.ts`（修正）、`test/foundation.test.ts`（試験を1件追加）
+  - `ml/datagen/src/templates.ts`
+    - `expense_summary`: data.transform で部署別に集計する。
+    - `copy_outside_approval`: 作業フォルダ外へのコピー。承認待ちのあいだに別の作業を進め、承認なら完了、却下（3割）なら失敗として報告する。
+  - `ml/datagen/src/pipeline.ts`: 承認待ちになったら、Episode の approval の判断を返す。
+  - `ml/datagen/src/gen.ts`: 種を雛形の全体の並びで決めるようにした（`--only` で絞っても同じ手順例になる）。
+  - `ml/datagen/src/templates.test.ts`
+  - docs: design §8.3、impl_plan T-52（雛形6種）
+- **やったこと / 理由**:
+  - 8.2-2 は「保留（承認待ち）への対応」と、計算をツールに任せる手順も学習に入れることを求めている。そのための雛形を足した。
+  - **不具合（Runtime）**: 書き込みツールが作業フォルダからの相対パスで結果を返すと、ステージング（`.~lla-<ID>.一覧.csv`）の名前のままモデルに渡っていた。
+    - 原因: これまでの書き戻しは絶対パスだけを置き換えていた。office-tools の csv.write などは相対パスで返す。
+    - 修正: ステージングの名前は一意なので、名前でも置き換えるようにした。
+    - 確認: 修正前の生成データでは12行に漏れがあり、修正後は0行。試験は修正前に失敗し、修正後に合格することを確認した。
+- **E2Eテスト**: **合格**。
+  - デスクトップ E2E 13件、Runtime の統合試験 10件、datagen の統合試験 2件。
+  - 障害注入 FI 19/19（書き込みの経路を変えたため実施）。
+  - 生成: 6種×3件 → 18/18 件合格、78行。
+- **結果/確認**: `pnpm check` が全体で成功（pytest 507件成功・55件スキップ、agent-runtime 32件、datagen 19件）。
+- **次にやること / 申し送り**:
+  - 検証機の接続情報待ち: QLoRA、数千件の生成、M0、PRF、実モデル評価、コード署名。
+  - 雛形の候補: xlsx の編集（セルの ID 指定）、ask_user、STALE_DOCUMENT からの読み直し。
+
 ## 2026-10-12 22:40 — ツール操作の手順例の合成と検証（T-52、ml/datagen）
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

@@ -2,7 +2,7 @@
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { open } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getTool, validateDef, type ToolCatalogEntry } from "@lla/protocol";
 import { Ajv2020 } from "ajv/dist/2020.js";
@@ -169,6 +169,20 @@ describe("WriteCoordinator", () => {
     expect(JSON.stringify(r)).not.toContain(".~lla-");
     expect(readdirSync(ws)).toEqual(["a.csv"]);
     expect(store.intentsForRun(c.runId)[0]!.status).toBe("committed");
+  });
+
+  it("rewrites staging paths the tool returned relative to the workspace", async () => {
+    const c = tctx();
+    const wc = new WriteCoordinator(store, { appDataDir: appData });
+    const t = tool("csv.write");
+    const args = { path: "sub/一覧.csv", rows: [] };
+    mkdirSync(join(ws, "sub"), { recursive: true });
+    const r = await wc.execute(t, args, resolvePaths(t, args, ws), c, async (a) => {
+      writeFileSync(String(a.path), "x");
+      return okResult({ artifact: { path: relative(ws, String(a.path)).split(sep).join("/") } });
+    });
+    expect(JSON.stringify(r)).not.toContain(".~lla-");
+    expect((r.data as { artifact: { path: string } }).artifact.path).toBe("sub/一覧.csv");
   });
 
   it("undoes a run and refuses when the file was changed afterwards", async () => {
