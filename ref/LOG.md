@@ -18,6 +18,25 @@
 
 ---
 
+## 2026-10-12 06:20 — 出典の表示と照合（AGT-07 / NET-05）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `packages/agent-runtime/src/runtime.ts`（`checkCitations`: 完了報告の citations を読んだ記録と照合し、done の detail に入れる）
+  - `apps/desktop/src/renderer/state.ts`（`citations`）、`App.tsx`（「出典」の一覧と「確認できない出典」）、`styles/app.css`
+  - `apps/desktop/e2e/app.e2e.ts`（AGT-07/NET-05）、`eval/mock-gateway/scenarios/runtime/cite.yaml`（新規）
+  - 設計ドキュメント: ui_spec（生成中・出典・予備機の表示を追記）、traceability（AGT-07・NET-05 を検証済みに）
+- **やったこと**:
+  - 完了報告の出典（ファイル／社内文書／Web）を、回答の下に一覧表示する。
+  - Runtime は、この会話のツール結果・利用者の発言（モデル自身の出力は除く）と照らし、照らせない出典に「確認できない出典」を付ける。作業フォルダにあるファイルは確認できたものとする。モデルが作り話の URL を書いても見分けられる。
+  - 途中で、完了報告そのものに URL が含まれるため照合が常に成功してしまう不具合に気づき、assistant の発言を除くよう直した。
+- **E2Eテスト**: **合格**。
+  - デスクトップ E2E **10件**（新規「AGT-07/NET-05: 社内文書・ファイルは確認済み、読んでいない URL は確認できない出典」を含む）。
+  - 途中の1回は E-04 が時間切れで失敗した。単独で2回、全体でもう1回実行してすべて合格したので、一時的な揺れと判断（同じことが続くなら原因を調べる）。
+  - Runtime の結合試験 9件も合格。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（pytest 492件成功・47件スキップ）。
+- **次にやること / 申し送り**: 会話履歴の検索の画面（APP-06）、ADM-06 の評価ボタン。
+
 ## 2026-10-12 05:40 — 回答の逐次表示（APP-01）
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

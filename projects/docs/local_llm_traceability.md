@@ -36,7 +36,7 @@
 | AGT-04 | Must | §5.1, §5.6 | protocol §1.1, prompts, data_model | packages/agent-runtime | unit, eval:長時間作業 | M3 | 検証済み |
 | AGT-05 | Must | §5.2 | protocol §1.2, §1.3, §2.4 | packages/agent-runtime, server/gateway | unit, eval:ツール操作 | M3 | 検証済み |
 | AGT-06 | Must | §5.7 | protocol §2.5, §3.7, prompts | packages/agent-runtime | unit, eval:ツール操作 | M3 | 検証済み |
-| AGT-07 | Should | §6.4 | protocol §3.8(rag.search), api, prompts | server/rag, packages/agent-runtime | integ, eval:社内文書検索 | M6 | 実装中 |
+| AGT-07 | Should | §6.4 | protocol §3.8(rag.search), api, prompts | server/rag, packages/agent-runtime | integ, eval:社内文書検索 | M6 | 検証済み |
 | AGT-08 | Must | §5.3 | protocol §2.1 | packages/agent-runtime | unit, sec | M3 | 検証済み |
 | AGT-09 | Should | §5.2, §7.1 | protocol §2.1, §2.2 | packages/agent-runtime | integ | M6 | 実装中 |
 | AGT-10 | Should | §6.3, §9 | api(/v1/config), prompts | server/gateway, profiles/_template | integ | M6 | 検証済み |
@@ -76,7 +76,7 @@
 | NET-02 | Must | §6.6 | api, data_model, ui | server/gateway, apps/admin-web | integ, sec | M6 | 検証済み |
 | NET-03 | Must | §5.3 | protocol §3.8, §1.3 | packages/agent-runtime | unit | M6 | 検証済み |
 | NET-04 | Must | §4.1 | protocol §5.2(net.activity), ui | apps/desktop | e2e | M6 | 検証済み |
-| NET-05 | Must | §6.6 | protocol §1(Final.citations), prompts | packages/agent-runtime | eval:ネットアクセス | M6 | 実装中 |
+| NET-05 | Must | §6.6 | protocol §1(Final.citations), prompts | packages/agent-runtime | eval:ネットアクセス | M6 | 検証済み |
 | NET-06 | Must | §6.6 | api | server/web-relay | sec | M6 | 検証済み |
 | NET-07 | Must | §6.6 | protocol §2.4(DLP_BLOCKED), api | server/web-relay | sec, eval:ネットアクセス | M6 | 検証済み |
 | NET-08 | Must | §6.6 | protocol §2.4(DOMAIN_BLOCKED), api, data_model | server/web-relay | sec | M6 | 検証済み |
@@ -184,7 +184,7 @@
 | AGT-04 | 検証済み | stall.ts と昇格 / FI-01（300手）、FI-04、FI-05 | なし |
 | AGT-05 | 検証済み | grammar.ts と再生成 / IT「AGT-05/RUN-03」、FI-03 | なし |
 | AGT-06 | 検証済み | 続き読み（continuation）と圧縮 / IT「I-07」、FI-02、test_paginate | なし |
-| AGT-07 | 実装中 | rag.search と Gateway の中継 / test_relay_rag_and_ocr、SX-06、rag の試験 | 回答の citations を Runtime も画面も使っておらず、出典が出ない |
+| AGT-07 | 検証済み | rag.search の結果を出典として完了報告に表示（読んだ記録と照合） / desktop E2E「AGT-07/NET-05」、SX-06 | 実モデルでの出典の正確さは要検証機 |
 | AGT-08 | 検証済み | ツールカタログにシェルなし / foundation「grammar (T-03)」 | なし |
 | AGT-09 | 実装中 | router.ts は plugins を受け付ける（mcp.ts） | host.ts が office しか渡さず、追加の設定手段がない。試験なし |
 | AGT-10 | 検証済み | /admin/v1/instructions と builder.ts / test_instructions_versions、admin E2E | なし |
@@ -209,7 +209,7 @@
 | NET-02 | 検証済み | net/policies と全社停止 / test_net_policies_sites_and_org_stop、admin E2E | なし |
 | NET-03 | 検証済み | ネットの許可中は承認なしで検索・閲覧 / FI-20、IT「I-09」 | なし |
 | NET-04 | 検証済み | net.activity と「ネット接続中」表示 / IT「I-09」（検索語を記録） | 「ネット接続中」の表示は E2E 未試験 |
-| NET-05 | 実装中 | プロンプトで出典 URL を指示、action の citations | citations が画面に出ない。実モデルは要検証機 |
+| NET-05 | 検証済み | 完了報告の citations（web）を表示し、読んでいない URL は「確認できない出典」 / desktop E2E「AGT-07/NET-05」 | 実モデルでの出典の正確さは要検証機 |
 | NET-06 | 検証済み | fetcher は GET のみ / test_only_get_and_no_credentials、SX-05 | なし |
 | NET-07 | 検証済み | dlp.py（Aho-Corasick・正規化） / test_wr_dlp、test_dlp_blocked_query | なし |
 | NET-08 | 検証済み | netguard.py と sites / test_wr_ssrf、test_results_trusted_first | なし |

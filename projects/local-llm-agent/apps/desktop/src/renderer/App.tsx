@@ -362,7 +362,28 @@ function Timeline({ view, messages }: { view: ConversationView; messages: Messag
           {view.finalSummary}
         </div>
       )}
+      {view.finalSummary !== null && view.citations.length > 0 && <Citations items={view.citations} />}
       <div ref={end} />
+    </section>
+  );
+}
+
+const CITE_KIND: Record<string, string> = { file: "ファイル", rag: "社内文書", web: "Web" };
+
+/** 出典の一覧（AGT-07, NET-05）。読んだ記録と照らせない出典は目立たせる */
+function Citations({ items }: { items: ConversationView["citations"] }) {
+  return (
+    <section className="citations" aria-label="出典" data-testid="citations">
+      <h3 className="small">出典</h3>
+      <ul>
+        {items.map((c, i) => (
+          <li key={`${c.ref}-${i}`} className={c.verified ? "" : "unverified"} data-testid="citation">
+            <span className="badge">{CITE_KIND[c.kind] ?? c.kind}</span> <span className="mono">{c.ref}</span>
+            {c.location && <span className="muted small">（{c.location}）</span>}
+            {!c.verified && <span className="badge warn">確認できない出典</span>}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

@@ -662,3 +662,24 @@ h2 {
   gap: 4px;
   align-items: center;
 }
+
+/* 出典（AGT-07, NET-05） */
+.citations {
+  align-self: flex-start;
+  width: min(90%, 900px);
+  font-size: 12px;
+}
+.citations h3 {
+  margin: 4px 0;
+  color: var(--muted);
+}
+.citations ul {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+.citations li.unverified .mono {
+  text-decoration: underline dotted var(--warn);
+}

@@ -1,4 +1,5 @@
 // エージェント実行部（設計書 §5）。Electron に依存しない。Main とは RuntimeCommand / RuntimeEvent でやり取りする。
+import { existsSync } from "node:fs";
 import { extname } from "node:path";
 import { validateDef, type ApprovalRequest, type RuntimeCommand, type RuntimeEvent, type ToolCatalogEntry, type ToolResult } from "@lla/protocol";
 import { BatchRunner, substituteResultOf } from "./agent/batch.js";
@@ -15,6 +16,7 @@ import {
   type GatewayClient,
   type GatewayConfig,
 } from "./gateway/client.js";
+import { resolveRealPath } from "./policy/paths.js";
 import { decide, rememberRuleFor, verifyUnchanged, type ApprovalReason, type NetLevel, type PolicyContext, type ResolvedPath } from "./policy/policy.js";
 import { buildMessages, compactionCandidates, mechanicalSummary, messagesTokens, renderToolResult } from "./prompt/builder.js";
 import { compactPrompt, replanBlock } from "./prompt/templates.js";
@@ -37,6 +39,8 @@ export interface RuntimeOptions {
   compactRatio?: number;
   maxReplans?: number;
 }
+
+type Citation = { kind: "file" | "web" | "rag"; ref: string; location?: string };
 
 type Action =
   | { type: "tool_call"; thought?: string; tool: string; args: Record<string, unknown> }
@@ -569,7 +573,8 @@ export class AgentRuntime {
           this.store.updateRun(run.id, { ended_at: nowIso(), end_reason: "final", final_action: JSON.stringify(action) });
         });
         this.emitStepDone(run, step, kind, "ok");
-        this.setState(run, "done", { summary: action.summary });
+        const citations = this.checkCitations(run, (action as { citations?: Citation[] }).citations ?? []);
+        this.setState(run, "done", { summary: action.summary, ...(citations.length ? { citations } : {}) });
         this.emit(run.conversation_id, "notify", { kind: "done", title: "作業が完了しました", body: action.summary.slice(0, 300) });
         return;
       }
@@ -812,6 +817,33 @@ export class AgentRuntime {
     }
     h.nextPrompt = replanBlock(v.summary ?? "", progress);
     this.setState(run, "stalled", { signal: v.signal });
+  }
+
+  /**
+   * 完了報告の出典（AGT-07, NET-05）を、この会話で実際に読んだものと照らす。
+   * 読んだ記録（ツール結果）に無い出典は verified: false にして、画面で「確認できない出典」と示す（作り話の出典を見分ける）。
+   */
+  private checkCitations(run: RunRow, citations: Citation[]): (Citation & { verified: boolean })[] {
+    if (citations.length === 0) return [];
+    const conv = this.store.getConversation(run.conversation_id);
+    // モデル自身の出力（完了報告を含む）は除き、ツールの結果と利用者の発言だけと照らす
+    const rows = this.store.db
+      .prepare("SELECT content FROM messages WHERE conversation_id = ? AND role <> 'assistant'")
+      .all(run.conversation_id) as { content: string }[];
+    const seen = rows.map((r) => r.content).join("\n").normalize("NFC");
+    const norm = (s: string) => s.normalize("NFC").replace(/\\/g, "/");
+    const seenSlash = seen.replace(/\\\\/g, "/").replace(/\\/g, "/");
+    return citations.slice(0, 50).map((c) => {
+      let verified = seen.includes(c.ref.normalize("NFC")) || seenSlash.includes(norm(c.ref));
+      if (!verified && c.kind === "file" && conv) {
+        try {
+          verified = existsSync(resolveRealPath(c.ref, conv.workspace));
+        } catch {
+          verified = false;
+        }
+      }
+      return { ...c, verified };
+    });
   }
 
   private checkLongRun(run: RunRow): void {

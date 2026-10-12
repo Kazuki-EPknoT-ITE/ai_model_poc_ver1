@@ -31,6 +31,13 @@ export interface ArtifactView {
   op: string;
   renamed_from?: string;
 }
+export interface CitationView {
+  kind: "file" | "web" | "rag";
+  ref: string;
+  location?: string;
+  /** この会話で実際に読んだ記録と照らせたか（false は「確認できない出典」） */
+  verified: boolean;
+}
 export interface ConversationView {
   lastSeq: number;
   runId: string | null;
@@ -46,6 +53,8 @@ export interface ConversationView {
   net: { kind: string; query?: string; url?: string; blocked?: string }[];
   batch: { done: number; total: number; failed: number } | null;
   finalSummary: string | null;
+  /** 完了報告の出典（AGT-07, NET-05） */
+  citations: CitationView[];
   /** 推論中の出力（APP-01: 逐次表示）。手順が確定したら消える */
   live: { stepId: string; raw: string } | null;
 }
@@ -65,6 +74,7 @@ export const emptyConversation = (): ConversationView => ({
   net: [],
   batch: null,
   finalSummary: null,
+  citations: [],
   live: null,
 });
 
@@ -79,12 +89,16 @@ export function applyEvent(c: ConversationView, e: RuntimeEvent): ConversationVi
       if (runId !== c.runId) {
         next.runId = runId;
         next.finalSummary = null;
+        next.citations = [];
         next.plan = [];
         next.batch = null;
       }
       next.state = String(p.state);
       next.stateDetail = (p.detail as Record<string, unknown>) ?? {};
-      if (next.state === "done") next.finalSummary = String(next.stateDetail.summary ?? "");
+      if (next.state === "done") {
+        next.finalSummary = String(next.stateDetail.summary ?? "");
+        next.citations = (next.stateDetail.citations as CitationView[] | undefined) ?? [];
+      }
       if (!["reconnecting"].includes(next.state)) next.retry = null;
       if (["tool_running", "done", "stopped"].includes(next.state)) next.queue = null;
       if (["done", "stopped", "tool_running"].includes(next.state)) next.live = null;

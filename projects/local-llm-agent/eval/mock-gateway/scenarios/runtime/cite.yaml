@@ -1,0 +1,23 @@
+# 出典の表示（AGT-07, NET-05）: 社内文書検索の結果とファイルを出典に挙げる。読んでいない URL は「確認できない出典」になる
+name: rt-cite
+config: { context_budget: 32768, models: [local-12b], features: { rag: true, ocr: false, web: false } }
+fixtures:
+  rag:
+    hits:
+      - { ref: "d1", path: "規程/旅費規程.docx", location: "第3条", score: 0.92, excerpt: "国内出張の日当は1日3,000円とする。" }
+steps:
+  - match: { step_index: 0 }
+    action: { type: tool_call, tool: rag.search, args: { query: "出張 日当" } }
+  - match: { step_index: 1 }
+    action:
+      type: final
+      summary: "国内出張の日当は1日3,000円です。"
+      outputs: []
+      failures: []
+      needs_review: []
+      citations:
+        - { kind: rag, ref: "規程/旅費規程.docx", location: "第3条" }
+        - { kind: file, ref: "memo.txt" }
+        - { kind: web, ref: "https://made-up.example.com/allowance" }
+fallback:
+  action: { type: final, summary: "（モック）想定外", outputs: [], failures: [], needs_review: [] }

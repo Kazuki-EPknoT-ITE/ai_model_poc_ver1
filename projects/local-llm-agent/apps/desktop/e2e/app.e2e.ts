@@ -48,6 +48,26 @@ test("APP-01: the answer is shown while it is being generated", async () => {
   await expect(live).toHaveCount(0);
 });
 
+test("AGT-07/NET-05: sources are listed with the answer, and unread sources are flagged", async () => {
+  ctx = await launch("cite.yaml");
+  writeFileSync(join(ctx.ws, "memo.txt"), "メモ");
+  const { page } = ctx;
+  await login(page);
+  await page.getByRole("button", { name: /作業フォルダを選ぶ/ }).click();
+  await page.getByLabel("依頼").fill("出張の日当はいくら？");
+  await page.keyboard.press("Control+Enter");
+  await expect(page.getByTestId("final-summary")).toHaveText("国内出張の日当は1日3,000円です。", { timeout: 30_000 });
+  const items = page.getByRole("region", { name: "出典" }).getByTestId("citation");
+  await expect(items).toHaveCount(3);
+  await expect(items.nth(0)).toContainText("社内文書");
+  await expect(items.nth(0)).toContainText("規程/旅費規程.docx");
+  await expect(items.nth(0)).toContainText("第3条");
+  await expect(items.nth(0)).not.toContainText("確認できない出典");
+  await expect(items.nth(1)).not.toContainText("確認できない出典"); // 作業フォルダにある
+  await expect(items.nth(2)).toContainText("確認できない出典"); // 読んでいない URL
+  await page.screenshot({ path: join(ARTIFACTS, "agt07-citations.png") });
+});
+
 test("E-04/E-14: outside write, approval card focused on reject, approve by keyboard, executed", async () => {
   ctx = await launch("approval.yaml");
   writeFileSync(join(ctx.ws, "a.txt"), "A");
