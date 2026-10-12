@@ -6,3 +6,4 @@ export { ToolRouter } from "./tools/router.js";
 export { McpToolHost, type McpServerConfig, type SamplingHandler, type SamplingRequest } from "./tools/mcp.js";
 export { buildActionSchema } from "./agent/grammar.js";
 export { createSamplingHandler } from "./sampling.js";
+export { PROMPT_VERSION } from "./prompt/templates.js";

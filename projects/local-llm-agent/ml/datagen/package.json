@@ -1,0 +1,21 @@
+{
+  "name": "@lla/datagen",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen": "vite-node src/gen.ts --",
+    "typecheck": "tsc --noEmit -p .",
+    "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "dependencies": {
+    "@lla/agent-runtime": "workspace:*",
+    "@lla/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "20.19.43",
+    "vite-node": "3.2.4",
+    "vitest": "3.2.7"
+  }
+}

@@ -18,10 +18,21 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--port", type=int, default=8787)
     ap.add_argument("--record", type=Path, default=None, help="受け取ったリクエストを書き出す JSON Lines")
     ap.add_argument("--ping-interval", type=float, default=15.0)
+    ap.add_argument(
+        "--record-samples",
+        type=Path,
+        default=None,
+        help="推論の入力と出力の組を書き出す JSON Lines（ml/datagen）",
+    )
     args = ap.parse_args(argv)
 
     scenario = load_scenario(args.scenario)
-    app = create_app(scenario, record_path=args.record, ping_interval_s=args.ping_interval)
+    app = create_app(
+        scenario,
+        record_path=args.record,
+        samples_path=args.record_samples,
+        ping_interval_s=args.ping_interval,
+    )
     print(f"mock gateway: scenario={scenario.name} http://{args.host}:{args.port}")
     uvicorn.run(app, host=args.host, port=args.port, log_level="warning")
 

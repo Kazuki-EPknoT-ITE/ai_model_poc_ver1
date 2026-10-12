@@ -57,11 +57,14 @@ def create_app(
     scenario: Scenario,
     *,
     record_path: Path | None = None,
+    samples_path: Path | None = None,
     ping_interval_s: float = 15.0,
     result_ttl_s: float = 600.0,
 ) -> FastAPI:
     engine = Engine(scenario, result_ttl_s=result_ttl_s)
     recorder = Recorder(record_path)
+    # 学習データの合成（ml/datagen、T-52）: 推論の入力（Runtime が組み立てた messages）と、返した出力の組を残す
+    samples = Recorder(samples_path)
     tokens: dict[str, str] = {}  # access_token → login
     refresh: dict[str, str] = {}  # refresh_token → login（使ったら失効）
     counter = itertools.count(1)
@@ -191,6 +194,17 @@ def create_app(
         if not isinstance(body, dict) or not isinstance(body.get("messages"), list):
             raise GatewayError(400, "INVALID_REQUEST", "messages（配列）が必要です")
         job, created = engine.submit(key=key, user=request.state.user, body=body)
+        if created:
+            samples.write(
+                {
+                    "purpose": job.purpose,
+                    "index": job.index,
+                    "model": job.model,
+                    "messages": body.get("messages"),
+                    "constrained": bool((body.get("response_format") or {}).get("schema")),
+                    "output": job.output,
+                }
+            )
         first = job.events[0]
         position = first.data.get("position", 0) if first.kind == "queue" else 0
         return JSONResponse(

@@ -18,6 +18,36 @@
 
 ---
 
+## 2026-10-12 22:40 — ツール操作の手順例の合成と検証（T-52、ml/datagen）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `ml/datagen`（新規）
+    - `src/templates.ts`: 雛形4種（メモ→CSV、存在しないファイルからの回復、Word 報告書、請求書の一括読み取り→Excel〈壊れたファイルの失敗報告あり〉）と、種つき乱数。
+    - `src/pipeline.ts`: 手順例1件の実行と検証。
+    - `src/gen.ts`: CLI。
+    - 試験: 単体 13件、統合 2件。
+  - `eval/mock-gateway`: `--record-samples`。新しい推論ごとに、Runtime が組み立てた messages と出力の組を JSON Lines で記録する。
+  - `eval/harness/src/mock.ts`: `samples` オプション。
+  - `packages/agent-runtime/src/index.ts`: `PROMPT_VERSION` を公開。
+  - `pnpm-workspace.yaml`、`.gitignore`（`ml/datagen/out/`）
+  - 設計ドキュメント: design §8.3、dev_guide（コマンド）、impl_plan T-52（一部完了）
+- **やったこと**:
+  - 正しい手順をモックのシナリオにし、本物のヘッドレス Runtime と office-tools で最後まで実行する。
+  - 評価ハーネスと同じ確認（`lla_eval.scoring.run_check`）に合格した手順例だけを、1手1行の学習データ（`train.jsonl`: messages と completion）にする。
+  - `manifest.json` に件数・合否・`protocol_version`・`prompt_version`・`sha256`（台帳の `train_data_hash`）を残す。
+  - 雛形は system プロンプトの決まり（最初は 3〜8 項目の計画、最後は完了報告）に合わせ、すべての手がアクションとツール引数のスキーマに合うことを試験で確認した。
+- **理由/背景**: 8.2-2 のツール呼び出し学習（QLoRA）に使う、検証済みの手順例が必要。
+- **E2Eテスト**: **合格**。
+  - デスクトップ E2E 13件、Runtime の統合試験 10件。
+  - datagen の統合試験 2件: 正しい手順は合格して1手1件になる。品目を書き漏らした手順は不合格になり、データに入らない。
+  - 実生成（2回とも全件合格）:
+    - 2件×4種 → 8/8 件、30行
+    - 3件×4種 → 12/12 件、48行（出力は scratchpad）
+- **結果/確認**: `pnpm check` が全体で成功（pytest 507件成功・55件スキップ、mypy 105件、datagen の単体試験 13件）。秘密情報の grep は問題なし。
+- **次にやること / 申し送り**:
+  - 数千件の生成と、12B の QLoRA・ベースモデルとの比較は検証機で行う（接続情報待ち）。
+  - 雛形は増やせる。data.transform、xlsx の編集、ask_user・承認待ちへの対応など。
+
 ## 2026-10-12 14:30 — 順番待ちの表示の E2E（APP-10）と、アラートのルールの試験（OPS-05、promtool）
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

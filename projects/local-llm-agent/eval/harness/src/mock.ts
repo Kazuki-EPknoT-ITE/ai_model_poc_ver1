@@ -25,7 +25,7 @@ export class MockGatewayProc {
   constructor(
     readonly scenarioPath: string,
     readonly recordDir: string,
-    private readonly opts: { pingIntervalS?: number; port?: number } = {},
+    private readonly opts: { pingIntervalS?: number; port?: number; /** 推論の入力と出力の組を書き出す（ml/datagen） */ samples?: string } = {},
   ) {}
 
   get url(): string {
@@ -57,6 +57,7 @@ export class MockGatewayProc {
         String(this.opts.pingIntervalS ?? 0.5),
         "--record",
         record,
+        ...(this.opts.samples ? ["--record-samples", this.opts.samples] : []),
       ],
       { onLine: (l) => this.log.push(l) },
     );

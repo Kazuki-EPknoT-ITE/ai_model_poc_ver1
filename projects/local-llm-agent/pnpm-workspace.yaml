@@ -3,3 +3,4 @@ packages:
   - "apps/*"
   - "eval/harness"
   - "eval/fault-injection"
+  - "ml/datagen"

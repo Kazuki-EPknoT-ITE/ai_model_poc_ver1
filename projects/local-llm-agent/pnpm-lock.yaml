@@ -142,6 +142,25 @@ importers:
         specifier: 3.2.4
         version: 3.2.4(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1)
 
+  ml/datagen:
+    dependencies:
+      '@lla/agent-runtime':
+        specifier: workspace:*
+        version: link:../../packages/agent-runtime
+      '@lla/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol
+    devDependencies:
+      '@types/node':
+        specifier: 20.19.43
+        version: 20.19.43
+      vite-node:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1)
+      vitest:
+        specifier: 3.2.7
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1)
+
   packages/agent-runtime:
     dependencies:
       '@lla/protocol':
@@ -2703,46 +2722,6 @@ packages:
       yaml:
         optional: true
 
-  vite@7.3.7:
-    resolution: {integrity: sha512-AHEzTORMbi7/7aXp7w7KZ5+DCUdSeLsJz0grY8xHpc9DHdYb0vQu6DqJfm2tOw3gDExNgPgnJTXxM6syYFHaCA==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    hasBin: true
-    peerDependencies:
-      '@types/node': ^20.19.0 || >=22.12.0
-      jiti: '>=1.21.0'
-      less: ^4.0.0
-      lightningcss: ^1.21.0
-      sass: ^1.70.0
-      sass-embedded: ^1.70.0
-      stylus: '>=0.54.8'
-      sugarss: ^5.0.0
-      terser: ^5.16.0
-      tsx: ^4.8.1
-      yaml: ^2.4.2
-    peerDependenciesMeta:
-      '@types/node':
-        optional: true
-      jiti:
-        optional: true
-      less:
-        optional: true
-      lightningcss:
-        optional: true
-      sass:
-        optional: true
-      sass-embedded:
-        optional: true
-      stylus:
-        optional: true
-      sugarss:
-        optional: true
-      terser:
-        optional: true
-      tsx:
-        optional: true
-      yaml:
-        optional: true
-
   vitest@3.2.7:
     resolution: {integrity: sha512-KrxIJ62Fd89gfysR4WotlgZABiz2dqFPgqGzX7s+CwsqLFomRH7777ZcrOD6+WVAh7khPQP41A+BKbpcJFrdEg==}
     engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
@@ -3653,13 +3632,13 @@ snapshots:
       chai: 5.3.3
       tinyrainbow: 2.0.0
 
-  '@vitest/mocker@3.2.7(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1))':
+  '@vitest/mocker@3.2.7(vite@6.4.4(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1))':
     dependencies:
       '@vitest/spy': 3.2.7
       estree-walker: 3.0.3
       magic-string: 0.30.21
     optionalDependencies:
-      vite: 7.3.7(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1)
+      vite: 6.4.4(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1)
 
   '@vitest/pretty-format@3.2.7':
     dependencies:
@@ -5474,25 +5453,11 @@ snapshots:
       jiti: 2.7.0
       yaml: 2.9.1
 
-  vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1):
-    dependencies:
-      esbuild: 0.28.2
-      fdir: 6.5.0(picomatch@4.0.7)
-      picomatch: 4.0.7
-      postcss: 8.5.29
-      rollup: 4.64.5
-      tinyglobby: 0.2.17
-    optionalDependencies:
-      '@types/node': 20.19.43
-      fsevents: 2.3.3
-      jiti: 2.7.0
-      yaml: 2.9.1
-
   vitest@3.2.7(@types/debug@4.1.13)(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1):
     dependencies:
       '@types/chai': 5.2.3
       '@vitest/expect': 3.2.7
-      '@vitest/mocker': 3.2.7(vite@7.3.7(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1))
+      '@vitest/mocker': 3.2.7(vite@6.4.4(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1))
       '@vitest/pretty-format': 3.2.7
       '@vitest/runner': 3.2.7
       '@vitest/snapshot': 3.2.7
@@ -5510,7 +5475,7 @@ snapshots:
       tinyglobby: 0.2.17
       tinypool: 1.1.1
       tinyrainbow: 2.0.0
-      vite: 7.3.7(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1)
+      vite: 6.4.4(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1)
       vite-node: 3.2.4(@types/node@20.19.43)(jiti@2.7.0)(yaml@2.9.1)
       why-is-node-running: 2.3.0
     optionalDependencies:
