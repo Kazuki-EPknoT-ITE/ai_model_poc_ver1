@@ -18,6 +18,30 @@
 
 ---
 
+## 2026-10-12 11:40 — ピボットの読み取り（XLS-09）、出典の該当箇所を開く（PDF-07）、実行ファイルを開かない対策
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `tools/office/src/office_tools/tools/xlsx.py`（xlsx.info に pivots）、`tools/office/tests/test_xlsx.py`（+1件）
+  - `packages/protocol/schemas/src/tools/xlsx.yaml`（説明）＋生成物
+  - `apps/desktop`:
+    - `src/shared/open-policy.ts`（新規: canOpen・pageOf・citationPath）、`src/main/main.ts`（shell:openPath の制限と PDF のページ指定）
+    - `src/preload/preload.ts`・`src/shared/ipc.ts`、`src/renderer/App.tsx`（出典のファイルを開く）
+    - `test/open-policy.test.ts`（新規 3件）、`e2e/app.e2e.ts`（AGT-07 に開く操作）
+  - 設計ドキュメント: ui_spec（追記）、traceability（XLS-09・PDF-07 を検証済みに）
+- **やったこと**:
+  - XLS-09: xlsx.info の各シートに pivots（名前・場所・元データ・行・列・フィルター・値の集計方法）を返す。集計値は場所を read_range で読む（編集は対象外）。
+  - PDF-07: 読んだ記録と照らせたファイルの出典をクリックで開く。PDF は `#page=N` で該当ページを開く。
+  - **見つけた危険**: 既存の「ファイルを開く」（ファイル一覧・成果物）が、実行ファイルでも既定の動作で開いていた（AI が作業フォルダに書いた .exe や .bat をクリックで実行できた）。実行ファイル・スクリプト・ショートカット・マクロ付き Office 文書は開かないようにした。末尾のドット・空白でのすり抜けにも対応した。
+- **E2Eテスト**: **合格**。
+  - デスクトップ E2E 11件。AGT-07 では、出典の memo.txt をクリック → 開こうとしたパスを確認した（試験では shell を差し替えて、実際には起動しない）。照らせない出典にはボタンが無い。
+  - 試験の手前の状態（XLS-09 だけ）でも、全体（結合 10・E2E 11）が合格していた。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（desktop vitest 8件、pytest **503件**成功・52件スキップ）。
+- **次にやること / 申し送り**:
+  - ADM-05（アプリの自動更新・署名。配布サーバーの方針が必要）。
+  - OPS-01（RAG の取り込みの timer）。
+  - 検証機の接続情報待ちの作業（M0・T-45・性能・実モデル評価）。
+
 ## 2026-10-12 10:40 — 画像の説明（DOC-07）: Gateway の画像つき推論と Runtime の中継
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

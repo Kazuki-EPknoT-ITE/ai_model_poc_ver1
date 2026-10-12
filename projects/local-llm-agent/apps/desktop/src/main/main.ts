@@ -1,11 +1,13 @@
 // Electron Main（設計書 §2.1・§4.3）: ウィンドウ・トレイ・通知・スリープ抑止・認証・Runtime ホストの管理。
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { BrowserWindow, Menu, Notification, Tray, app, dialog, ipcMain, nativeImage, powerSaveBlocker, shell } from "electron";
 import type { RuntimeCommand, RuntimeEvent } from "@lla/protocol";
 import { RuntimeHost } from "./runtime-host.js";
 import { SecureStore } from "./secure-store.js";
 import type { PluginConfig } from "../shared/ipc.js";
+import { canOpen } from "../shared/open-policy.js";
 
 // 試験では userData を差し替える（LLA_USER_DATA_DIR）
 if (process.env.LLA_USER_DATA_DIR) app.setPath("userData", process.env.LLA_USER_DATA_DIR);
@@ -292,8 +294,16 @@ function registerIpc(): void {
     const r = await dialog.showOpenDialog(win!, { properties: ["openDirectory"], title: "作業フォルダを選ぶ" });
     return r.canceled ? null : (r.filePaths[0] ?? null);
   });
-  ipcMain.handle("shell:openPath", async (_e, p: string) => {
-    if (isAbsolute(p) && existsSync(p)) await shell.openPath(p);
+  ipcMain.handle("shell:openPath", async (_e, p: string, opts?: { page?: number }) => {
+    if (!isAbsolute(p) || !existsSync(p)) return { ok: false, error: "ファイルが見つかりません" };
+    if (!canOpen(p)) return { ok: false, error: "実行ファイル・マクロ付きの文書は、安全のためここからは開けません" };
+    // PDF は該当ページで開く（PDF-07。既定の PDF ビューアーがページ指定に対応していれば、そのページが開く）
+    if (opts?.page && /\.pdf$/i.test(p)) {
+      await shell.openExternal(`${pathToFileURL(p).href}#page=${Math.floor(opts.page)}`);
+      return { ok: true };
+    }
+    const err = await shell.openPath(p);
+    return err ? { ok: false, error: err } : { ok: true };
   });
   ipcMain.handle("workspace:list", (_e, dir: string) => {
     if (!isAbsolute(dir) || !existsSync(dir)) return [];

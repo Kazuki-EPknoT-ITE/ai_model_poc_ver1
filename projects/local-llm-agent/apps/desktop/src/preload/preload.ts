@@ -21,7 +21,7 @@ const api: AppApi = {
   },
   dialog: { pickFolder: () => ipcRenderer.invoke("dialog:pickFolder") },
   files: { pathOf: (file) => webUtils.getPathForFile(file) },
-  shell: { openPath: (p) => ipcRenderer.invoke("shell:openPath", p) },
+  shell: { openPath: (p, opts) => ipcRenderer.invoke("shell:openPath", p, opts) },
   workspace: { list: (dir) => ipcRenderer.invoke("workspace:list", dir) },
   settings: {
     get: () => ipcRenderer.invoke("settings:get"),

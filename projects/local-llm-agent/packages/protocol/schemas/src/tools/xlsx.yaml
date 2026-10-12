@@ -72,7 +72,7 @@ $defs:
             formula: { type: string }
 tools:
   xlsx.info:
-    description: Excel のシート一覧・使用範囲・結合セル・テーブル・マクロの有無を取得する
+    description: Excel のシート一覧・使用範囲・結合セル・テーブル・ピボット（読み取りのみ）・マクロの有無を取得する
     effect: read
     path_args: [/path]
     idempotent: true

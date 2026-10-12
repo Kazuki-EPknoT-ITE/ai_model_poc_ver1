@@ -52,6 +52,65 @@ def test_info(run: Runner, book: Path) -> None:
     assert s0["used_range"] == "A1:D7" and d["has_macros"] is False
 
 
+def _make_pivot_book(path: Path) -> None:
+    """船名×月で金額を合計するピボットを持つブック（openpyxl で定義を組み立てる）。"""
+    from openpyxl.pivot.cache import CacheDefinition, CacheField, CacheSource, SharedItems, WorksheetSource
+    from openpyxl.pivot.record import RecordList
+    from openpyxl.pivot.table import DataField, Location, PivotField, RowColField, TableDefinition
+
+    wb = Workbook()
+    data = wb.active
+    assert data is not None
+    data.title = "Data"
+    for r in [["船名", "月", "金額"], ["平井丸", "9月", 100], ["平井丸", "10月", 200], ["第二丸", "9月", 50]]:
+        data.append(r)
+    pv = wb.create_sheet("集計")
+    pv["A3"], pv["B3"] = "船名", "合計 / 金額"
+    pv["A4"], pv["B4"] = "平井丸", 300
+    pv["A5"], pv["B5"] = "第二丸", 50
+    cache = CacheDefinition(
+        cacheSource=CacheSource(type="worksheet", worksheetSource=WorksheetSource(ref="A1:C4", sheet="Data")),
+        cacheFields=[CacheField(name=n, sharedItems=SharedItems()) for n in ("船名", "月", "金額")],
+    )
+    cache.records = RecordList()
+    pt = TableDefinition(
+        name="ピボット1",
+        cacheId=1,
+        dataCaption="値",
+        location=Location(ref="A3:B5", firstHeaderRow=1, firstDataRow=1, firstDataCol=1),
+        pivotFields=[
+            PivotField(axis="axisRow", showAll=False),
+            PivotField(axis="axisCol", showAll=False),
+            PivotField(dataField=True, showAll=False),
+        ],
+        rowFields=[RowColField(x=0)],
+        colFields=[RowColField(x=1)],
+        dataFields=[DataField(name="合計 / 金額", fld=2, subtotal="sum")],
+    )
+    pt.cache = cache
+    pv._pivots.append(pt)
+    wb.save(path)
+
+
+def test_info_reads_pivot_definitions(run: Runner, ws: Path) -> None:
+    """XLS-09: ピボットは読み取りのみ。定義（場所・元データ・行・列・値）を返し、集計値は read_range で読む。"""
+    _make_pivot_book(ws / "pivot.xlsx")
+    sheets = {s["name"]: s for s in run("xlsx.info", {"path": "pivot.xlsx"})["data"]["sheets"]}
+    assert sheets["Data"]["pivots"] == [] and sheets["Data"]["has_pivot"] is False
+    (pivot,) = sheets["集計"]["pivots"]
+    assert pivot == {
+        "name": "ピボット1",
+        "location": "A3:B5",
+        "source": {"sheet": "Data", "ref": "A1:C4", "name": None},
+        "rows": ["船名"],
+        "columns": ["月"],
+        "filters": [],
+        "values": [{"name": "合計 / 金額", "field": "金額", "function": "sum"}],
+    }
+    cells = run("xlsx.read_range", {"path": "pivot.xlsx", "range": "集計!A3:B5"})["data"]
+    assert "平井丸" in str(cells) and "300" in str(cells)
+
+
 def test_read_range_values_formulas_formats(run: Runner, book: Path) -> None:
     env = run(
         "xlsx.read_range", {"path": "送金明細.xlsx", "range": "明細!A1:D5", "mode": "both", "header_row": 1}

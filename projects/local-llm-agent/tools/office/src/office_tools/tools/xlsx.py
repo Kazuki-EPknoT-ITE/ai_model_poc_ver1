@@ -103,6 +103,34 @@ def _zip_flags(real: Path) -> bool:
         return any(n.lower().endswith("vbaproject.bin") for n in z.namelist())
 
 
+def _pivots(ws: Any) -> list[dict[str, Any]]:
+    """ピボットテーブルの定義（XLS-09: 読み取りのみ）。集計値はシート上の location を xlsx.read_range で読む。"""
+    out: list[dict[str, Any]] = []
+    for pt in getattr(ws, "_pivots", None) or []:
+        cache = getattr(pt, "cache", None)
+        names = [f.name for f in (getattr(cache, "cacheFields", None) or [])]
+
+        def field(i: Any, names: list[str] = names) -> str:
+            return names[i] if isinstance(i, int) and 0 <= i < len(names) else f"#{i}"
+
+        src = getattr(getattr(cache, "cacheSource", None), "worksheetSource", None)
+        out.append(
+            {
+                "name": pt.name,
+                "location": pt.location.ref if pt.location is not None else None,
+                "source": {"sheet": src.sheet, "ref": src.ref, "name": src.name} if src is not None else None,
+                "rows": [field(f.x) for f in pt.rowFields if f.x is not None and f.x >= 0],
+                "columns": [field(f.x) for f in pt.colFields if f.x is not None and f.x >= 0],
+                "filters": [field(f.fld) for f in pt.pageFields],
+                "values": [
+                    {"name": d.name, "field": field(d.fld), "function": d.subtotal or "sum"}
+                    for d in pt.dataFields
+                ],
+            }
+        )
+    return out
+
+
 @tool("xlsx.info")
 def xlsx_info(ctx: ToolContext, args: dict[str, Any]) -> Outcome:
     path = args["path"]
@@ -119,6 +147,7 @@ def xlsx_info(ctx: ToolContext, args: dict[str, Any]) -> Outcome:
                 "merged": [str(r) for r in list(ws.merged_cells.ranges)[:200]],
                 "tables": [{"name": t.name, "ref": t.ref} for t in ws.tables.values()],
                 "has_pivot": bool(getattr(ws, "_pivots", None)),
+                "pivots": _pivots(ws),
                 "has_chart": bool(getattr(ws, "_charts", None)),
                 "hidden": ws.sheet_state != "visible",
             }

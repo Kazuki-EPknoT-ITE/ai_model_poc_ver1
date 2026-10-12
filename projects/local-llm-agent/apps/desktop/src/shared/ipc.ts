@@ -53,7 +53,8 @@ export interface AppApi {
   dialog: { pickFolder(): Promise<string | null> };
   /** ドロップ・選択したファイルの実際のパス（sandbox の Renderer からは取れないため preload で取る） */
   files: { pathOf(file: File): string };
-  shell: { openPath(path: string): Promise<void> };
+  /** 既定のアプリで開く。実行ファイル・マクロ付きの文書は開かない（open-policy.ts）。PDF は page で該当ページを開く */
+  shell: { openPath(path: string, opts?: { page?: number }): Promise<{ ok: boolean; error?: string }> };
   workspace: { list(dir: string): Promise<{ name: string; path: string; dir: boolean }[]> };
   settings: {
     get(): Promise<{ serverUrl: string; spareUrl: string; autoStart: boolean }>;

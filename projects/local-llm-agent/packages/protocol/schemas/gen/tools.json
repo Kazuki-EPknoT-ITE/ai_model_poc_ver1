@@ -4792,7 +4792,7 @@
     },
     {
       "name": "xlsx.info",
-      "description": "Excel のシート一覧・使用範囲・結合セル・テーブル・マクロの有無を取得する",
+      "description": "Excel のシート一覧・使用範囲・結合セル・テーブル・ピボット（読み取りのみ）・マクロの有無を取得する",
       "args_schema": {
         "type": "object",
         "additionalProperties": false,

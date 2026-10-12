@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RuntimeCommand, RuntimeEvent } from "@lla/protocol";
+import { citationPath, pageOf } from "../shared/open-policy.js";
 import { applyEvent, emptyConversation, readableFromPartial, REASON_LABEL, STATE_LABEL, TOOL_LABEL, type ConversationView } from "./state.js";
 import { Composer, type Macro } from "./components/Composer.js";
 import { DiffDialog, type ArtifactDiff } from "./components/DiffDialog.js";
@@ -285,7 +286,7 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
             </button>
           </div>
         )}
-        <Timeline view={view} messages={messages} />
+        <Timeline view={view} messages={messages} workspace={workspace} />
         {view.state === "done" && view.runId && <FeedbackBar key={view.runId} runId={view.runId} />}
         <Composer
           macros={macros}
@@ -342,7 +343,7 @@ function FileTree({ root, refreshKey }: { root: string; refreshKey: number }) {
   );
 }
 
-function Timeline({ view, messages }: { view: ConversationView; messages: MessageRow[] }) {
+function Timeline({ view, messages, workspace }: { view: ConversationView; messages: MessageRow[]; workspace: string | null }) {
   const end = useRef<HTMLDivElement>(null);
   // 新しい Chromium では scrollIntoView が Promise を返すので、戻り値を effect の後片付けとして返さない
   useEffect(() => {
@@ -388,7 +389,7 @@ function Timeline({ view, messages }: { view: ConversationView; messages: Messag
           {view.finalSummary}
         </div>
       )}
-      {view.finalSummary !== null && view.citations.length > 0 && <Citations items={view.citations} />}
+      {view.finalSummary !== null && view.citations.length > 0 && <Citations items={view.citations} workspace={workspace} />}
       <div ref={end} />
     </section>
   );
@@ -450,14 +451,26 @@ function FeedbackBar({ runId }: { runId: string }) {
 const CITE_KIND: Record<string, string> = { file: "ファイル", rag: "社内文書", web: "Web" };
 
 /** 出典の一覧（AGT-07, NET-05）。読んだ記録と照らせない出典は目立たせる */
-function Citations({ items }: { items: ConversationView["citations"] }) {
+function Citations({ items, workspace }: { items: ConversationView["citations"]; workspace: string | null }) {
   return (
     <section className="citations" aria-label="出典" data-testid="citations">
       <h3 className="small">出典</h3>
       <ul>
         {items.map((c, i) => (
           <li key={`${c.ref}-${i}`} className={c.verified ? "" : "unverified"} data-testid="citation">
-            <span className="badge">{CITE_KIND[c.kind] ?? c.kind}</span> <span className="mono">{c.ref}</span>
+            <span className="badge">{CITE_KIND[c.kind] ?? c.kind}</span>{" "}
+            {c.kind === "file" && c.verified && citationPath(c.ref, workspace) ? (
+              // 該当箇所を開く（PDF-07）。PDF はページを指定して開く
+              <button
+                className="link mono"
+                title="開く"
+                onClick={() => void api.shell.openPath(citationPath(c.ref, workspace)!, pageOf(c.location) ? { page: pageOf(c.location)! } : undefined)}
+              >
+                {c.ref}
+              </button>
+            ) : (
+              <span className="mono">{c.ref}</span>
+            )}
             {c.location && <span className="muted small">（{c.location}）</span>}
             {!c.verified && <span className="badge warn">確認できない出典</span>}
           </li>

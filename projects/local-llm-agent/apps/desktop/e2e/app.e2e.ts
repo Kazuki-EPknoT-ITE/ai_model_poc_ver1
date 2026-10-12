@@ -85,6 +85,18 @@ test("AGT-07/NET-05: sources are listed with the answer, and unread sources are 
   await expect(items.nth(1)).not.toContainText("確認できない出典"); // 作業フォルダにある
   await expect(items.nth(2)).toContainText("確認できない出典"); // 読んでいない URL
   await page.screenshot({ path: join(ARTIFACTS, "agt07-citations.png") });
+  // PDF-07: ファイルの出典は開ける（試験では既定のアプリを起動せず、開こうとしたパスを記録する）
+  await ctx.app.evaluate(({ shell }) => {
+    const g = globalThis as unknown as { opened: string[] };
+    g.opened = [];
+    shell.openPath = async (p: string) => {
+      g.opened.push(p);
+      return "";
+    };
+  });
+  await items.nth(1).getByRole("button", { name: "memo.txt" }).click();
+  await expect.poll(() => ctx!.app.evaluate(() => (globalThis as unknown as { opened: string[] }).opened)).toEqual([join(ctx.ws, "memo.txt")]);
+  await expect(items.nth(2).getByRole("button")).toHaveCount(0); // 確認できない出典は開けない
 });
 
 test("AGT-09: an admin-installed plugin can read freely, and its writes need approval", async () => {

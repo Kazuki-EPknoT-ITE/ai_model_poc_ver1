@@ -112,7 +112,7 @@
 | XLS-06 | Should | §7.3 | protocol §3.3(xlsx.chart) | tools/office | unit | M6 | 検証済み |
 | XLS-07 | Must | §7.3 | protocol §3.3(csv.read, csv.write) | tools/office | unit | M2 | 検証済み |
 | XLS-08 | Should | §7.3 | protocol §3.3, §3.5(convert.to_xlsx) | tools/office | unit | M2 | 検証済み |
-| XLS-09 | Could | §7.3 | protocol §3.3(has_pivot) | tools/office | unit | M6 | 実装中 |
+| XLS-09 | Could | §7.3 | protocol §3.3(has_pivot) | tools/office | unit | M6 | 検証済み |
 
 ## 6.3 PDF（PDF）
 
@@ -124,7 +124,7 @@
 | PDF-04 | Must | §7.4 | protocol §3.5(invoice.extract), §3.6, prompts | tools/office, packages/agent-runtime | eval:帳票抽出 | M2/M5 | 検証済み |
 | PDF-05 | Should | §7.4 | prompts | packages/agent-runtime | eval:ツール操作 | M6 | 実装済み |
 | PDF-06 | Should | §7.4 | protocol §3.5(password_ref), §2.4(PASSWORD_REQUIRED) | tools/office, packages/agent-runtime | unit | M6 | 検証済み |
-| PDF-07 | Should | §7.4 | protocol §3.5(page, bbox), ui | tools/office, apps/desktop | unit, e2e | M6 | 実装中 |
+| PDF-07 | Should | §7.4 | protocol §3.5(page, bbox), ui | tools/office, apps/desktop | unit, e2e | M6 | 検証済み |
 
 ## 8.1 性能（PRF）
 
@@ -235,14 +235,14 @@
 | XLS-06 | 検証済み | xlsx.chart / test_chart | なし |
 | XLS-07 | 検証済み | csv.read・write（文字コードの自動判定） / test_csv_read_shift_jis、test_detect_encoding | なし |
 | XLS-08 | 検証済み | VBA を保持、.xls を変換 / test_xlsm_keeps_vba、偽 soffice の変換試験 | .xls の実変換は LibreOffice 待ち |
-| XLS-09 | 実装中 | xlsx.info の has_pivot（検出のみ） | ピボットの内容の読み取りと試験がない |
+| XLS-09 | 検証済み | xlsx.info の pivots（場所・元データ・行・列・フィルター・値）。集計値は read_range で読む（編集は対象外） / test_info_reads_pivot_definitions | なし（2026-10-12 対応） |
 | PDF-01 | 検証済み | pdf.read_pages / test_read_pages_two_columns_reading_order | なし |
 | PDF-02 | 検証済み | pdf.extract_tables と write_table / test_extract_tables、T-35 | なし |
 | PDF-03 | 実装中 | pdf.ocr、server/ocr（PaddleOCR・VLM） / test_ocr、test_ocr_uses_sampling、SX-07 | エンジンの比較・採用判断と実 OCR 精度（要検証機） |
 | PDF-04 | 検証済み | invoice.extract / test_invoice、IT「I-01」、FI-18、T-35 | 実モデルでの精度は要検証機 |
 | PDF-05 | 実装済み | 汎用ツールとモデルで対応（専用ツールなし） | 英文契約書の評価セットなし。要検証機 |
 | PDF-06 | 検証済み | 秘密入力の質問と _meta で渡すパスワード / test_password_protected | なし |
-| PDF-07 | 実装中 | 抽出結果にページ番号 / test_read_pages_untrusted | 画面で該当箇所を表示する機能がない |
+| PDF-07 | 検証済み | 抽出結果のページ番号、出典のファイルを開く（PDF は #page で該当ページ）、実行ファイル等は開かない / desktop E2E「AGT-07/NET-05」、open-policy.test | PDF ビューアーがページ指定に対応しない場合は先頭が開く |
 | PRF-01 | 実装中 | 全体の同時実行上限の設定 / test_per_user_and_global_limits | 5件同時の性能測定（要検証機） |
 | PRF-02 | 未着手 | なし | 最初の文字までの時間の測定（要検証機） |
 | PRF-03 | 未着手 | なし | 生成速度の測定（要検証機） |
