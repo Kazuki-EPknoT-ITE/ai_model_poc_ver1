@@ -11,6 +11,16 @@ export interface HostInit {
   accessToken: string;
   refreshToken: string;
   office: { command: string; args: string[]; cwd?: string } | null;
+  /** プラグイン（AGT-09）。管理者が置く plugins.json から（main.ts の loadPlugins） */
+  plugins: PluginConfig[];
+}
+
+export interface PluginConfig {
+  /** 英小文字・数字・_。ツール名は plugin.<id>.<ツール> になる */
+  id: string;
+  command: string;
+  args: string[];
+  cwd?: string;
 }
 
 export type MainToHost =

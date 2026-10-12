@@ -18,6 +18,31 @@
 
 ---
 
+## 2026-10-12 09:40 — プラグインの追加手段（AGT-09）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `apps/desktop`:
+    - `src/main/main.ts`（loadPlugins: `%ProgramData%\LocalLLMAgent\plugins.json`）、`src/shared/ipc.ts`（plugins）
+    - `src/runtime-host/host.ts`（プラグインごとに MCP ホスト。推論は使えない）
+    - `e2e/fixtures.ts`（plugins オプション・LLA_PLUGINS_FILE）、`e2e/app.e2e.ts`（AGT-09）
+  - `packages/agent-runtime/src/tools/router.ts`（プラグインのパスも絶対化・結果を相対化）
+  - `eval/plugins/sample/sample_plugin.py`（新規。見本の MCP プラグイン）、`eval/mock-gateway/scenarios/runtime/plugin.yaml`（新規）
+  - 設計ドキュメント: dev_guide（付録: プラグインの追加）、traceability（AGT-09 を検証済みに）
+- **やったこと**:
+  - Runtime はもともとプラグイン（MCP）を受け付けたが、設定する手段がなかった。
+  - 管理者が PC ごとに置く plugins.json（一般利用者は書き換えられない場所）から読み込むようにした。
+  - ツール名は `plugin.<id>.<ツール>`。注釈（x-agent-effect など）の無いツールは書き込み扱いで、毎回承認が必要。
+  - パスの引数は office-tools と同様に絶対パスで渡し、書き込みは staging 経由（元に戻せる）。
+  - 試験では既定のファイルを読まないよう、必ず LLA_PLUGINS_FILE を指定する。
+- **E2Eテスト**: **合格**。デスクトップ E2E **11件**。新規「AGT-09」:
+  - 見本プラグインの word_count は承認なしで実行される。
+  - stamp は「プラグインによる書き込み」の承認が出て、承認するまで書かない → 承認後に書いて完了する。
+  - Runtime の結合試験 9件合格。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（pytest 500件成功・51件スキップ、mypy 104ファイル）。
+  - 試験の途中で、見本プラグインが Windows で CRLF を書いていたのに気づき、改行を固定した。
+- **次にやること / 申し送り**: PDF-07（該当箇所の表示）、DOC-07（画像の説明）、XLS-09（ピボットの読み取り）、ADM-05（自動更新）。
+
 ## 2026-10-12 08:50 — ダッシュボードの GPU（ADM-03）と、ハングしたコンテナの自動再起動（OPS-02）
 
 - **変更ファイル**（`projects/local-llm-agent/server/`）:

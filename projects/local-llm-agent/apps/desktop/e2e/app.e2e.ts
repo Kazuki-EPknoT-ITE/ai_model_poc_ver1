@@ -87,6 +87,24 @@ test("AGT-07/NET-05: sources are listed with the answer, and unread sources are 
   await page.screenshot({ path: join(ARTIFACTS, "agt07-citations.png") });
 });
 
+test("AGT-09: an admin-installed plugin can read freely, and its writes need approval", async () => {
+  ctx = await launch("plugin.yaml", { plugins: true });
+  writeFileSync(join(ctx.ws, "memo.txt"), "あいうえお");
+  const { page } = ctx;
+  await login(page);
+  await page.getByRole("button", { name: /作業フォルダを選ぶ/ }).click();
+  await page.getByLabel("依頼").fill("メモの文字数を数えて、確認済みの印を付けて");
+  await page.keyboard.press("Control+Enter");
+  const card = page.getByTestId("approval");
+  await expect(card).toContainText("プラグインによる書き込み", { timeout: 60_000 });
+  // 読み取り（承認なし）は先に終わっている。結果は外部由来のテキストとして扱われる
+  await expect(page.getByTestId("step-card").filter({ hasText: "plugin.sample.word_count" })).toHaveCount(1);
+  expect(existsSync(join(ctx.ws, "stamped.txt"))).toBe(false);
+  await card.getByRole("button", { name: "承認" }).click();
+  await expect(page.getByTestId("final-summary")).toHaveText("印を書きました。", { timeout: 30_000 });
+  expect(readFileSync(join(ctx.ws, "stamped.txt"), "utf8")).toBe("STAMP: 確認済み\n");
+});
+
 test("E-04/E-14: outside write, approval card focused on reject, approve by keyboard, executed", async () => {
   ctx = await launch("approval.yaml");
   writeFileSync(join(ctx.ws, "a.txt"), "A");

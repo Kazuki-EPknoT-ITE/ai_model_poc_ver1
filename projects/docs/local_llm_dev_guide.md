@@ -170,3 +170,19 @@ pnpm exec playwright install chromium
 - 仕様書・トレーサビリティ表が実装と一致している。
 - ログに本文を出していない、`<untrusted>` を経由しない経路がない、ポリシー判定をすり抜ける経路がない、の3点を自分で確認した。
 - `ref/LOG.md` に記録し、チェックポイントを作った。
+
+## 付録: プラグイン（AGT-09）の追加
+
+- プラグインは MCP（stdio）のサーバー。管理者が各 PC の `%ProgramData%\LocalLLMAgent\plugins.json`（一般利用者は書き換えられない場所）に置く。試験では環境変数 `LLA_PLUGINS_FILE` で場所を変える。
+
+```json
+{ "plugins": [{ "id": "sample", "command": "C:\\Program Files\\SamplePlugin\\sample.exe", "args": [], "cwd": "C:\\Program Files\\SamplePlugin" }] }
+```
+
+- `id` は英小文字・数字・`_`（2〜31字）。ツール名は `plugin.<id>.<ツール名>` になる。
+- ツールの `_meta` に `x-agent-effect`（read / write）、`x-agent-path-args`（例 `["/path"]`）、`x-agent-idempotent` を書く。
+  - 注釈の無いツールは「書き込み」とみなし、毎回承認を求める。
+  - プラグインの書き込みは、作業フォルダの中でも承認が必要（理由「プラグインによる書き込み」）。
+- パスの引数は作業フォルダ基準の絶対パスで渡り、書き込みは office-tools と同じく staging → 置き換え（元に戻せる）。結果のテキストは外部由来（untrusted）として包む。
+- プラグインは推論（sampling）を使えない。
+- 見本: `eval/plugins/sample/sample_plugin.py`（word_count・stamp）。デスクトップ E2E「AGT-09」で使う。

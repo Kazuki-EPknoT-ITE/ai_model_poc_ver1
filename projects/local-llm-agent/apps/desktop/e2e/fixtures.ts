@@ -1,5 +1,5 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -66,7 +66,7 @@ export async function startRealGateway(dir: string): Promise<{ url: string; proc
   }
 }
 
-export async function launch(scenario: string, opts: { office?: boolean; realGateway?: boolean } = {}): Promise<Ctx> {
+export async function launch(scenario: string, opts: { office?: boolean; realGateway?: boolean; plugins?: boolean } = {}): Promise<Ctx> {
   const dir = mkdtempSync(join(tmpdir(), "lla-e2e-"));
   const ws = join(dir, "ws");
   const outside = join(dir, "outside");
@@ -105,7 +105,14 @@ export async function launch(scenario: string, opts: { office?: boolean; realGat
   return launchApp(dir, ws, outside, url, mock, opts);
 }
 
-async function launchApp(dir: string, ws: string, outside: string, url: string, mock: ChildProcess, opts: { office?: boolean }): Promise<Ctx> {
+async function launchApp(dir: string, ws: string, outside: string, url: string, mock: ChildProcess, opts: { office?: boolean; plugins?: boolean }): Promise<Ctx> {
+  // プラグイン（AGT-09）: 管理者が置く plugins.json の代わりに、試験用の見本プラグインを登録する
+  let pluginsFile: string | null = null;
+  if (opts.plugins) {
+    pluginsFile = join(dir, "plugins.json");
+    const script = join(PROJECT, "eval", "plugins", "sample", "sample_plugin.py");
+    writeFileSync(pluginsFile, JSON.stringify({ plugins: [{ id: "sample", command: "uv", args: ["run", "--project", PROJECT, "python", script], cwd: PROJECT }] }));
+  }
   // LLA_E2E_APP_EXE があれば、配布物（release/win-unpacked）をそのまま起動する（同梱の Node・office-tools を使う）
   const packaged = process.env.LLA_E2E_APP_EXE;
   const electronPath = packaged ?? ((await import("electron")).default as unknown as string);
@@ -118,6 +125,8 @@ async function launchApp(dir: string, ws: string, outside: string, url: string, 
       LLA_USER_DATA_DIR: join(dir, "userdata"),
       LLM_GATEWAY_URL: url,
       LLA_E2E: "1",
+      // 既定の %ProgramData% のファイルを読まないよう、試験では必ず指定する（無いファイル＝プラグインなし）
+      LLA_PLUGINS_FILE: pluginsFile ?? join(dir, "no-plugins.json"),
       // LLA_E2E_OFFICE_EXE があれば、PyInstaller でまとめた office-tools.exe を使う（配布物と同じ形で試験する）
       ...(opts.office && !packaged
         ? {

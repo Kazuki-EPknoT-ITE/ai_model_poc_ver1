@@ -38,7 +38,7 @@
 | AGT-06 | Must | §5.7 | protocol §2.5, §3.7, prompts | packages/agent-runtime | unit, eval:ツール操作 | M3 | 検証済み |
 | AGT-07 | Should | §6.4 | protocol §3.8(rag.search), api, prompts | server/rag, packages/agent-runtime | integ, eval:社内文書検索 | M6 | 検証済み |
 | AGT-08 | Must | §5.3 | protocol §2.1 | packages/agent-runtime | unit, sec | M3 | 検証済み |
-| AGT-09 | Should | §5.2, §7.1 | protocol §2.1, §2.2 | packages/agent-runtime | integ | M6 | 実装中 |
+| AGT-09 | Should | §5.2, §7.1 | protocol §2.1, §2.2 | packages/agent-runtime | integ | M6 | 検証済み |
 | AGT-10 | Should | §6.3, §9 | api(/v1/config), prompts | server/gateway, profiles/_template | integ | M6 | 検証済み |
 
 ## 5.3 利用者・管理（ADM）
@@ -186,7 +186,7 @@
 | AGT-06 | 検証済み | 続き読み（continuation）と圧縮 / IT「I-07」、FI-02、test_paginate | なし |
 | AGT-07 | 検証済み | rag.search の結果を出典として完了報告に表示（読んだ記録と照合） / desktop E2E「AGT-07/NET-05」、SX-06 | 実モデルでの出典の正確さは要検証機 |
 | AGT-08 | 検証済み | ツールカタログにシェルなし / foundation「grammar (T-03)」 | なし |
-| AGT-09 | 実装中 | router.ts は plugins を受け付ける（mcp.ts） | host.ts が office しか渡さず、追加の設定手段がない。試験なし |
+| AGT-09 | 検証済み | 管理者が置く plugins.json → MCP プラグイン（plugin.<id>.<tool>）。書き込みは承認、パスは絶対化 / desktop E2E「AGT-09」（eval/plugins/sample） | 配布・署名の運用は未定 |
 | AGT-10 | 検証済み | /admin/v1/instructions と builder.ts / test_instructions_versions、admin E2E | なし |
 | ADM-01 | 検証済み | auth.py（argon2・EdDSA） / test_gw_auth、real-gateway E2E、admin E2E | 社内アカウント連携は未対応（確認事項） |
 | ADM-02 | 検証済み | Gateway が部門・利用者の acl_groups を付与 / test_relay_rag_and_ocr、test_acl | 役職単位の制限と NAS 権限の書き出しがない |

@@ -5,6 +5,7 @@ import { BrowserWindow, Menu, Notification, Tray, app, dialog, ipcMain, nativeIm
 import type { RuntimeCommand, RuntimeEvent } from "@lla/protocol";
 import { RuntimeHost } from "./runtime-host.js";
 import { SecureStore } from "./secure-store.js";
+import type { PluginConfig } from "../shared/ipc.js";
 
 // 試験では userData を差し替える（LLA_USER_DATA_DIR）
 if (process.env.LLA_USER_DATA_DIR) app.setPath("userData", process.env.LLA_USER_DATA_DIR);
@@ -104,6 +105,24 @@ async function restoreSession(): Promise<boolean> {
 // 配布版は resources に Node 本体・Runtime・office-tools を同梱する（ADR-001 改訂、T-46）
 const RES = process.resourcesPath;
 
+/**
+ * プラグイン（AGT-09）の設定を読む。利用者ではなく管理者が置くファイル（既定 %ProgramData%\LocalLLMAgent\plugins.json。
+ * 一般利用者は書き換えられない場所）。形式: { "plugins": [{ "id", "command", "args", "cwd"? }] }。不正な項目は飛ばす。
+ */
+function loadPlugins(): PluginConfig[] {
+  const file = process.env.LLA_PLUGINS_FILE ?? join(process.env.ProgramData ?? "C:\\ProgramData", "LocalLLMAgent", "plugins.json");
+  if (!existsSync(file)) return [];
+  try {
+    const raw = JSON.parse(readFileSync(file, "utf8")) as { plugins?: unknown[] };
+    return (raw.plugins ?? []).filter((p): p is PluginConfig => {
+      const c = p as Partial<PluginConfig>;
+      return typeof c.id === "string" && /^[a-z][a-z0-9_]{1,30}$/.test(c.id) && typeof c.command === "string" && Array.isArray(c.args) && c.args.every((a) => typeof a === "string");
+    });
+  } catch {
+    return [];
+  }
+}
+
 function officeCommand(): { command: string; args: string[]; cwd?: string } | null {
   const raw = process.env.LLA_OFFICE_COMMAND;
   if (!raw) {
@@ -131,6 +150,7 @@ async function startHost(): Promise<void> {
       accessToken: session!.access,
       refreshToken: session!.refresh,
       office: officeCommand(),
+      plugins: loadPlugins(),
     }),
   });
   host.on("event", onRuntimeEvent);

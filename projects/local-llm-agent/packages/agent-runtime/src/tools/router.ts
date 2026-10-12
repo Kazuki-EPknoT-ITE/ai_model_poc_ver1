@@ -113,7 +113,8 @@ export class ToolRouter {
         return relativizePaths(r, ctx.workspace);
       }
       const plugin = this.plugins.find((p) => name.startsWith(`${p.id}.`));
-      if (plugin) return await plugin.call(name, args, spec.timeout_ms, ctx.signal);
+      // プラグインも別プロセスなので、パスは作業フォルダ基準の絶対パスで渡し、結果は相対に戻す
+      if (plugin) return relativizePaths(await plugin.call(name, absolutizePaths(spec, args, ctx.workspace), spec.timeout_ms, ctx.signal), ctx.workspace);
       return errResult("UNKNOWN_TOOL", `${name} は使えません`);
     } catch (e) {
       if (e instanceof ToolFailure) return errResult(e.code, e.message);

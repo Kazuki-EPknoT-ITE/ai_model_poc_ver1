@@ -1,0 +1,15 @@
+# プラグイン（AGT-09）: 管理者が置いたプラグイン（eval/plugins/sample）の読み取りツールは承認なし、書き込みは承認が必要
+name: rt-plugin
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action: { type: tool_call, tool: plugin.sample.word_count, args: { path: "memo.txt" } }
+  - match: { step_index: 1 }
+    action: { type: tool_call, tool: plugin.sample.stamp, args: { path: "stamped.txt", text: "確認済み" } }
+  - match: { step_index: 2 }
+    action: { type: final, summary: "途中", outputs: [], failures: [], needs_review: [] }
+  - match: { last_user: "承認 ap-[0-9]+ が承認され" }
+    repeat: true
+    action: { type: final, summary: "印を書きました。", outputs: [{ path: "stamped.txt", description: "印" }], failures: [], needs_review: [] }
+fallback:
+  action: { type: final, summary: "（モック）想定外", outputs: [], failures: [], needs_review: [] }

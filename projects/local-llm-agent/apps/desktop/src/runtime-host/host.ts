@@ -55,7 +55,18 @@ async function init(m: HostInit): Promise<void> {
   runtime = new AgentRuntime({
     store: s,
     gateway,
-    router: new ToolRouter(s, gateway, office),
+    router: new ToolRouter(
+      s,
+      gateway,
+      office,
+      // プラグインは推論（sampling）を使えない
+      m.plugins.map(
+        (p) =>
+          new McpToolHost({ id: `plugin.${p.id}`, command: p.command, args: p.args, ...(p.cwd ? { cwd: p.cwd } : {}) }, async () => {
+            throw new Error("プラグインは推論を使えません");
+          }),
+      ),
+    ),
     appDataDir: m.appDataDir,
     emit: (event) => {
       if (event.type === "run.state") model = s.getRun(String((event.payload as { run_id: string }).run_id))?.model_current ?? model;
