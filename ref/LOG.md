@@ -18,6 +18,30 @@
 
 ---
 
+## 2026-10-13 00:10 — 手順例の雛形を追加（Excel の単価修正・質問して回答を待つ）
+
+- **変更ファイル**（`projects/local-llm-agent/ml/datagen/`）:
+  - `src/templates.ts`
+    - `xlsx_price_update`: xlsx.find で行を探し、xlsx.write_cells でセルの ID を指定して書く。
+    - `ask_which_memo`: 候補が2つあるとき ask_user で質問し、回答を待ってから読む。
+    - Episode に `answer` と `xlsx`（作業フォルダに置く Excel）を追加した。
+  - `src/pipeline.ts`: Excel の準備（openpyxl）と、質問待ちになったときの回答（question.answer）を追加した。
+  - `src/templates.test.ts`
+  - docs: design §8.3、impl_plan T-52（雛形8種）
+- **やったこと / 理由**:
+  - 8.2-2 の学習データに、セルの ID 指定の編集と、判断できないときの質問（ask_user）を入れた。
+  - 生成データを確認し、次の点を確かめた。
+    - xlsx.find の結果（例 `'単価'!A5`）と、書き込むセル（B5）が一致している。
+    - 質問の回答の通知（`[event] 質問 q-1 への回答`）が、次の手の入力に入っている。
+  - ask_user にはスキーマ上 thought を付けられないことを、試験で検出して直した。
+- **E2Eテスト**: **合格**（Runtime・アプリは変更なし。データ生成の流れを E2E として実施）。
+  - datagen の統合試験 2件。
+  - 8種×3件の生成: 24/24 件合格、111行。
+- **結果/確認**: `pnpm check` が全体で成功（pytest 507件成功・55件スキップ、datagen の単体試験 25件）。秘密情報の grep は問題なし。
+- **次にやること / 申し送り**:
+  - QLoRA と大量生成は検証機で行う（接続情報待ち）。
+  - 雛形の候補: docx.edit（段落の ID 指定）、STALE_DOCUMENT からの読み直し、rag.search の出典付き回答。
+
 ## 2026-10-12 23:10 — 手順例の雛形を追加（集計・承認待ち）と、書き込み結果に作業用ファイル名が漏れる不具合の修正
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

@@ -10,6 +10,10 @@ export interface Episode {
   invoices?: { dir: string; count: number; broken?: Record<string, number[]> };
   /** 承認待ちになったら、利用者としてこの判断を返す（承認待ちで完了を出したあと） */
   approval?: "approve" | "reject";
+  /** 質問（ask_user）への利用者の回答（承認待ちと同じく、待ちの完了を出したあとに返す） */
+  answer?: string;
+  /** 作業フォルダに置く Excel（相対パス → シートと行）。Python（openpyxl）で作る */
+  xlsx?: Record<string, { sheet: string; rows: (string | number)[][] }>;
   /** モデルが返すべき手（順番どおり） */
   actions: Record<string, unknown>[];
   /** 抽出推論の決め打ち（invoice.extract が使う。invoices があるとき gen-invoices が作る） */
@@ -245,6 +249,62 @@ function copyOutsideWithApproval(r: () => number, id: string): Episode {
   return ep;
 }
 
+/** Excel の単価表の1か所を直す（探してから、セルの ID を指定して書く） */
+function xlsxPriceUpdate(r: () => number, id: string): Episode {
+  const items = [...ITEMS].sort(() => r() - 0.5).slice(0, int(r, 3, 8)).map((name) => [name, int(r, 1, 99) * 10] as [string, number]);
+  const k = int(r, 0, items.length - 1);
+  const target = items[k]![0];
+  const price = int(r, 1, 99) * 10 + 5;
+  const file = pick(r, ["単価表.xlsx", "備品単価.xlsx"]);
+  const sheet = pick(r, ["単価", "Sheet1"]);
+  const before = [["品名", "単価"], ...items];
+  const after = before.map((row, i) => (i === k + 1 ? [row[0]!, price] : row));
+  return {
+    id,
+    template: "xlsx_price_update",
+    request: pick(r, [`${file} の${target}の単価を ${price} 円に直して`, `${target}の単価が ${price} 円に変わったので、${file} を更新してください`]),
+    files: {},
+    xlsx: { [file]: { sheet, rows: before } },
+    actions: [
+      plan([`${target}の行を探す`, "単価を書き換える", "完了報告"]),
+      tool("xlsx.find", { path: file, sheet, query: target, match: "exact" }, `${target}の行を探します`),
+      tool("xlsx.write_cells", { path: file, sheet, cells: [{ ref: `B${k + 2}`, value: price }] }, `B${k + 2} の単価を書き換えます`),
+      final(`${file} の${target}の単価を ${price} 円に直しました（${sheet}!B${k + 2}）。`, [{ path: file, description: "単価表" }]),
+    ],
+    checks: [{ type: "xlsx_equals", file, sheet, expected: "expected.json" }],
+    expected: { "expected.json": JSON.stringify({ rows: after }) },
+  };
+}
+
+/** どのファイルか決められないときは質問し、回答を待ってから続ける */
+function askWhichMemo(r: () => number, id: string): Episode {
+  const months = [int(r, 1, 6), int(r, 7, 12)];
+  const memos = months.map((m) => {
+    const items = [...ITEMS].sort(() => r() - 0.5).slice(0, int(r, 2, 5)).map((name) => [name, int(r, 1, 30)] as [string, number]);
+    return { name: `発注メモ_${m}月.txt`, items, text: `${m}月の発注\n` + items.map(([a, b]) => `- ${a} ${b}個`).join("\n") + "\n" };
+  });
+  const chosen = memos[r() < 0.5 ? 0 : 1]!;
+  const out = pick(r, ["発注品目.csv", "品目.csv"]);
+  return {
+    id,
+    template: "ask_which_memo",
+    request: pick(r, [`発注メモの品名と数量を ${out} にまとめて`, `発注メモから ${out} を作ってください`]),
+    files: Object.fromEntries(memos.map((m) => [m.name, m.text])),
+    answer: chosen.name,
+    actions: [
+      plan(["対象のメモを確かめる", "メモを読む", "CSV を作る", "完了報告"]),
+      tool("fs.list", { path: "." }, "発注メモを探します"),
+      { type: "ask_user", question: `発注メモが2つあります（${memos[0]!.name}、${memos[1]!.name}）。どちらを使いますか？`, choices: memos.map((m) => m.name) },
+      final("どちらの発注メモを使うか、回答を待っています。"),
+      tool("fs.read_text", { path: chosen.name }, `回答のあった ${chosen.name} を読みます`),
+      tool("csv.write", { path: out, header: ["品名", "数量"], rows: chosen.items }, "品名と数量を CSV に書きます"),
+      final(`${chosen.name} から ${out} を作りました（${chosen.items.length}品目）。`, [{ path: out, description: "品名と数量" }]),
+    ],
+    checks: [{ type: "csv_rows_equal", file: out, expected: "expected.csv" }],
+    expected: { "expected.csv": csvText([["品名", "数量"], ...chosen.items]) },
+  };
+}
+
 export const TEMPLATES: Record<string, (r: () => number, id: string) => Episode> = {
   memo_to_csv: memoToCsv,
   recover_missing_file: recoverFromMissing,
@@ -252,4 +312,6 @@ export const TEMPLATES: Record<string, (r: () => number, id: string) => Episode>
   invoices_to_excel: invoicesToExcel,
   expense_summary: expenseSummary,
   copy_outside_approval: copyOutsideWithApproval,
+  xlsx_price_update: xlsxPriceUpdate,
+  ask_which_memo: askWhichMemo,
 };

@@ -28,6 +28,22 @@ res = [run_check(c, a["out"], Path(a["set_dir"])) for c in a["checks"]]
 print(json.dumps([{"ok": ok, "detail": d} for ok, d in res], ensure_ascii=False))
 `;
 
+const XLSX_PY = `
+import json, sys
+from pathlib import Path
+from openpyxl import Workbook
+a = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for rel, f in a["files"].items():
+    wb = Workbook()
+    ws = wb.active
+    ws.title = f["sheet"]
+    for row in f["rows"]:
+        ws.append(row)
+    p = Path(a["ws"]) / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(p)
+`;
+
 export async function runEpisode(ep: Episode, work: string, samplesOut: string[]): Promise<Result> {
   const dir = join(work, ep.id);
   const ws = join(dir, "ws");
@@ -39,6 +55,12 @@ export async function runEpisode(ep: Episode, work: string, samplesOut: string[]
     writeFileSync(join(ws, rel), text);
   }
   for (const [rel, text] of Object.entries(ep.expected)) writeFileSync(join(dir, rel), text);
+  if (ep.xlsx) {
+    const spec = join(dir, "xlsx.json");
+    writeFileSync(spec, JSON.stringify({ ws, files: ep.xlsx }));
+    const x = await uvPython(["-c", XLSX_PY, spec]);
+    if (x.code !== 0) return { id: ep.id, template: ep.template, ok: false, reason: `Excel を作れません: ${x.stderr.slice(-200)}`, samples: 0, steps: 0 };
+  }
 
   // モックのシナリオ: agent の n 番目の推論に n 番目の手を返す。請求書の抽出は決め打ちの正解
   const steps: unknown[] = ep.actions.map((a, i) => ({ match: { step_index: i }, latency_ms: 0, tokens_per_sec: 5000, action: a }));
@@ -70,12 +92,19 @@ export async function runEpisode(ep: Episode, work: string, samplesOut: string[]
   await mock.start();
   const events: RuntimeEvent[] = [];
   const pending: string[] = [];
+  const questions: string[] = [];
   // 承認の判断は、モデルが待ちの完了を出して承認待ちになってから返す（手の順番を決まったものにするため）
   const emit = (e: RuntimeEvent): void => {
     events.push(e);
     if (e.type === "approval.request") pending.push((e.payload as { approval_id: string }).approval_id);
-    if (ep.approval && e.type === "run.state" && (e.payload as { state: string }).state === "waiting_approval") {
+    if (e.type === "question") questions.push((e.payload as { question_id: string }).question_id);
+    if (e.type !== "run.state") return;
+    const state = (e.payload as { state: string }).state;
+    if (ep.approval && state === "waiting_approval") {
       for (const id of pending.splice(0)) void h.runtime.handle(cmd("approval.decide", { approval_id: id, decision: ep.approval })).catch(() => undefined);
+    }
+    if (ep.answer !== undefined && state === "waiting_question") {
+      for (const id of questions.splice(0)) void h.runtime.handle(cmd("question.answer", { question_id: id, answer: ep.answer })).catch(() => undefined);
     }
   };
   const h = createHeadless({ gatewayUrl: mock.url, login: "dev", password: "dev", appDataDir: appData, dbKey: "datagen", office: true, emit, runtime: { retryBaseMs: 200 } });
