@@ -18,6 +18,24 @@
 
 ---
 
+## 2026-10-12 05:40 — 回答の逐次表示（APP-01）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `apps/desktop/src/renderer/state.ts`（`live`、`readableFromPartial`）、`App.tsx`（生成中の吹き出し）、`styles/app.css`
+  - `apps/desktop/test/state.test.ts`（+2件）、`apps/desktop/e2e/app.e2e.ts`（APP-01）
+  - `eval/mock-gateway/scenarios/runtime/stream.yaml`（新規。ゆっくり流す）
+  - 設計ドキュメント: traceability（APP-01 を検証済みに）
+- **やったこと**:
+  - Runtime はもともと token イベントを出していたが、画面が使っていなかった。
+  - 推論中の出力は Action の JSON なので、そのままは見せない。summary / thought / question / note の値だけを書きかけでも取り出して、点線の吹き出しで逐次表示する（エスケープ・\u・切れ目に対応）。
+  - 手順が確定したら消え、手順カードや完了報告に置き換わる。
+- **E2Eテスト**: **合格**。
+  - デスクトップ E2E 9件（新規「APP-01: 完了報告が届く前に、書きかけの文が JSON の記号なしで出る → 完了後に消える」を含む）。
+  - スクリーンショットは scratchpad の `e2e-desktop6/app01-live.png`。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（desktop vitest 5件、pytest 492件成功・47件スキップ）。
+- **次にやること / 申し送り**: 出典の表示（AGT-07 / NET-05）、会話履歴の検索の画面（APP-06）。
+
 ## 2026-10-12 05:00 — 試用の手順書とアンケート（T-55）、トレーサビリティの状態を実装に合わせて更新
 
 - **変更ファイル**（`projects/docs/`）:

@@ -14,7 +14,7 @@
 
 | 要件ID | 優先度 | 設計書の節 | 詳細仕様 | 実装モジュール | テスト | M | 状態 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| APP-01 | Must | §4.1, §6.3 | protocol §5.2(token), api, ui | apps/desktop, packages/agent-runtime, server/gateway | e2e, integ | M4 | 実装中 |
+| APP-01 | Must | §4.1, §6.3 | protocol §5.2(token), api, ui | apps/desktop, packages/agent-runtime, server/gateway | e2e, integ | M4 | 検証済み |
 | APP-02 | Must | §4.1 | protocol §5.1(run.start), ui | apps/desktop | e2e | M4 | 検証済み |
 | APP-03 | Must | §4.1 | protocol §3.1, ui, data_model | apps/desktop, packages/fs-tools | e2e | M4 | 検証済み |
 | APP-04 | Must | §4.1 | protocol §5.2(step), ui | apps/desktop | e2e | M4 | 検証済み |
@@ -167,7 +167,7 @@
 
 | ID | 状態 | 根拠（実装 / 試験） | 不足（あれば） |
 |---|---|---|---|
-| APP-01 | 実装中 | client.ts の SSE 受信と runtime.ts の token イベント / I-basic | 画面が token イベントを扱わず、回答が逐次表示されない |
+| APP-01 | 検証済み | 推論中の出力から読める部分（summary/thought）を逐次表示 / desktop E2E「APP-01」、state.test | なし（2026-10-12 対応） |
 | APP-02 | 検証済み | Composer.tsx の onDrop と webUtils / E2E E-03/E-13（添付） | E2E はファイル選択で試験しており、D&D 操作そのものは未試験 |
 | APP-03 | 検証済み | App.tsx のファイルツリー / E2E E-01/02（ツリーの内容を確認） | なし |
 | APP-04 | 検証済み | App.tsx の step-card（details） / E2E E-01/02 | なし |

@@ -1,7 +1,7 @@
 // 画面の状態の畳み込み（Renderer は状態を持たず、イベントから組み立て直す。UI 仕様 §3）
 import { describe, expect, it } from "vitest";
 import type { RuntimeEvent } from "@lla/protocol";
-import { applyEvent, emptyConversation } from "../src/renderer/state.js";
+import { applyEvent, emptyConversation, readableFromPartial } from "../src/renderer/state.js";
 
 let seq = 0;
 const ev = (type: string, payload: Record<string, unknown>): RuntimeEvent => ({ v: 1, id: `e${++seq}`, seq, conversation_id: "c", type: type as RuntimeEvent["type"], payload });
@@ -49,5 +49,28 @@ describe("applyEvent", () => {
     v = applyEvent(v, ev("run.state", { run_id: "r2", state: "planning" }));
     expect(v.runId).toBe("r2");
     expect(v.plan).toEqual([]);
+  });
+});
+
+describe("live output (APP-01)", () => {
+  it("accumulates tokens per step, resets, and clears when the step is decided", () => {
+    seq = 100;
+    let v = emptyConversation();
+    v = applyEvent(v, ev("token", { run_id: "r1", step_id: "r1:3", delta: '{"type":"final","summ' }));
+    v = applyEvent(v, ev("token", { run_id: "r1", step_id: "r1:3", delta: 'ary":"請求書を' }));
+    expect(v.live).toEqual({ stepId: "r1:3", raw: '{"type":"final","summary":"請求書を' });
+    v = applyEvent(v, ev("token", { run_id: "r1", step_id: "r1:3", delta: "", reset: true }));
+    expect(v.live?.raw).toBe("");
+    v = applyEvent(v, ev("token", { run_id: "r1", step_id: "r1:3", delta: '{"type":"final","summary":"完了"}' }));
+    v = applyEvent(v, ev("step", { run_id: "r1", step_id: "r1:3", kind: "final", status: "ok", started_at: "t" }));
+    expect(v.live).toBeNull();
+  });
+
+  it("extracts readable text from partial action JSON", () => {
+    expect(readableFromPartial('{"type":"tool_call","thought":"請求書を読みます。\\n次に')).toBe("請求書を読みます。\n次に");
+    expect(readableFromPartial('{"type":"final","summary":"A \\"B\\" \\u3042')).toBe('A "B" あ');
+    expect(readableFromPartial('{"type":"final","summary":"途中\\')).toBe("途中"); // エスケープの途中
+    expect(readableFromPartial('{"type":"final","summary":"終わり","outputs":[]}')).toBe("終わり");
+    expect(readableFromPartial('{"type":"tool_call","tool":"fs.list"')).toBe("");
   });
 });

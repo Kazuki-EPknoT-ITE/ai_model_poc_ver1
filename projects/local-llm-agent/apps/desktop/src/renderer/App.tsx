@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RuntimeCommand, RuntimeEvent } from "@lla/protocol";
-import { applyEvent, emptyConversation, REASON_LABEL, STATE_LABEL, TOOL_LABEL, type ConversationView } from "./state.js";
+import { applyEvent, emptyConversation, readableFromPartial, REASON_LABEL, STATE_LABEL, TOOL_LABEL, type ConversationView } from "./state.js";
 import { Composer, type Macro } from "./components/Composer.js";
 import { DiffDialog, type ArtifactDiff } from "./components/DiffDialog.js";
 import { SettingsDialog } from "./components/SettingsDialog.js";
@@ -321,7 +321,7 @@ function Timeline({ view, messages }: { view: ConversationView; messages: Messag
   // 新しい Chromium では scrollIntoView が Promise を返すので、戻り値を effect の後片付けとして返さない
   useEffect(() => {
     void end.current?.scrollIntoView({ block: "end" });
-  }, [view.steps.length, messages.length, view.finalSummary]);
+  }, [view.steps.length, messages.length, view.finalSummary, view.live?.raw.length]);
   const items = useMemo(() => view.steps.filter((s) => s.kind !== "system" || s.status === "error"), [view.steps]);
   return (
     <section className="timeline" aria-live="polite" aria-label="会話">
@@ -352,6 +352,11 @@ function Timeline({ view, messages }: { view: ConversationView; messages: Messag
           🌐 {n.kind === "search" ? `検索: ${n.query}` : `閲覧: ${n.url}`} {n.blocked && <span className="badge err">送信しませんでした</span>}
         </div>
       ))}
+      {view.live && readableFromPartial(view.live.raw) && (
+        <div className="bubble ai live" data-testid="live-output" aria-live="polite">
+          {readableFromPartial(view.live.raw)}
+        </div>
+      )}
       {view.finalSummary !== null && (
         <div className="bubble ai" data-testid="final-summary">
           {view.finalSummary}

@@ -46,6 +46,8 @@ export interface ConversationView {
   net: { kind: string; query?: string; url?: string; blocked?: string }[];
   batch: { done: number; total: number; failed: number } | null;
   finalSummary: string | null;
+  /** 推論中の出力（APP-01: 逐次表示）。手順が確定したら消える */
+  live: { stepId: string; raw: string } | null;
 }
 
 export const emptyConversation = (): ConversationView => ({
@@ -63,6 +65,7 @@ export const emptyConversation = (): ConversationView => ({
   net: [],
   batch: null,
   finalSummary: null,
+  live: null,
 });
 
 /** 1件のイベントを畳み込む（同じ seq は二重に適用しない）。 */
@@ -84,6 +87,13 @@ export function applyEvent(c: ConversationView, e: RuntimeEvent): ConversationVi
       if (next.state === "done") next.finalSummary = String(next.stateDetail.summary ?? "");
       if (!["reconnecting"].includes(next.state)) next.retry = null;
       if (["tool_running", "done", "stopped"].includes(next.state)) next.queue = null;
+      if (["done", "stopped", "tool_running"].includes(next.state)) next.live = null;
+      break;
+    }
+    case "token": {
+      const stepId = String(p.step_id);
+      const base = c.live && c.live.stepId === stepId && !p.reset ? c.live.raw : "";
+      next.live = { stepId, raw: base + String(p.delta ?? "") };
       break;
     }
     case "step": {
@@ -98,6 +108,8 @@ export function applyEvent(c: ConversationView, e: RuntimeEvent): ConversationVi
       };
       const i = c.steps.findIndex((x) => x.stepId === s.stepId && x.kind === s.kind);
       next.steps = i >= 0 ? c.steps.map((x, j) => (j === i ? { ...x, ...s, tool: s.tool ?? x.tool, argsPreview: s.argsPreview ?? x.argsPreview } : x)) : [...c.steps, s];
+      // 推論が終わって手順が決まった（出力は手順カードや完了報告で表示する）
+      if (c.live?.stepId === s.stepId) next.live = null;
       break;
     }
     case "plan":
@@ -128,6 +140,39 @@ export function applyEvent(c: ConversationView, e: RuntimeEvent): ConversationVi
       break;
   }
   return next;
+}
+
+const READABLE_KEYS = /"(summary|thought|question|note)"\s*:\s*"/g;
+
+/**
+ * 推論中の出力（Action の JSON の途中）から、人が読める部分（summary / thought / question / note の値）を取り出す。
+ * 書きかけの文字列も途中まで返す。読める部分がまだ無ければ空文字。
+ */
+export function readableFromPartial(raw: string): string {
+  let start = -1;
+  for (const m of raw.matchAll(READABLE_KEYS)) start = (m.index ?? 0) + m[0].length;
+  if (start < 0) return "";
+  let out = "";
+  for (let i = start; i < raw.length; i++) {
+    const ch = raw[i]!;
+    if (ch === '"') break;
+    if (ch !== "\\") {
+      out += ch;
+      continue;
+    }
+    const nx = raw[i + 1];
+    if (nx === undefined) break; // エスケープの途中で切れている
+    i++;
+    if (nx === "n") out += "\n";
+    else if (nx === "t") out += "\t";
+    else if (nx === "u") {
+      const hex = raw.slice(i + 1, i + 5);
+      if (!/^[0-9a-fA-F]{4}$/.test(hex)) break;
+      out += String.fromCharCode(parseInt(hex, 16));
+      i += 4;
+    } else out += nx;
+  }
+  return out;
 }
 
 export const STATE_LABEL: Record<string, string> = {

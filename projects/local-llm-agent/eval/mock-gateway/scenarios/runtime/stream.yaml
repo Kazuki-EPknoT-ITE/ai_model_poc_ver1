@@ -1,0 +1,9 @@
+# 回答の逐次表示（APP-01）: 完了報告をゆっくり流し、画面に途中の文が出ることを確かめる
+name: rt-stream
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    tokens_per_sec: 2
+    action: { type: final, summary: "請求書の確認が終わりました。金額の合計は3件で6,000ドルです。", outputs: [], failures: [], needs_review: [] }
+fallback:
+  action: { type: final, summary: "（モック）想定外", outputs: [], failures: [], needs_review: [] }

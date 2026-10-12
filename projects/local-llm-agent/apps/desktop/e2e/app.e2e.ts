@@ -31,6 +31,23 @@ test("E-01/E-02: login, pick folder, request, step cards, final summary", async 
   await page.screenshot({ path: join(ARTIFACTS, "e02-final.png") });
 });
 
+test("APP-01: the answer is shown while it is being generated", async () => {
+  ctx = await launch("stream.yaml");
+  const { page } = ctx;
+  await login(page);
+  await page.getByRole("button", { name: /作業フォルダを選ぶ/ }).click();
+  await page.getByLabel("依頼").fill("請求書を確認して");
+  await page.keyboard.press("Control+Enter");
+  // 完了報告が届く前に、書きかけの文（JSON ではなく読める部分だけ）が出る
+  const live = page.getByTestId("live-output");
+  await expect(live).toContainText("請求書の", { timeout: 30_000 });
+  await expect(page.getByTestId("final-summary")).toHaveCount(0);
+  expect(await live.innerText()).not.toContain("{");
+  await page.screenshot({ path: join(ARTIFACTS, "app01-live.png") });
+  await expect(page.getByTestId("final-summary")).toHaveText("請求書の確認が終わりました。金額の合計は3件で6,000ドルです。", { timeout: 60_000 });
+  await expect(live).toHaveCount(0);
+});
+
 test("E-04/E-14: outside write, approval card focused on reject, approve by keyboard, executed", async () => {
   ctx = await launch("approval.yaml");
   writeFileSync(join(ctx.ws, "a.txt"), "A");

@@ -334,6 +334,21 @@ h2 {
   background: var(--surface);
   border: 1px solid var(--line);
 }
+/* 生成中の文（APP-01）。確定するまで点線で示す */
+.bubble.ai.live {
+  border-style: dashed;
+  color: var(--muted);
+  white-space: pre-wrap;
+}
+.bubble.ai.live::after {
+  content: "▍";
+  animation: blink 1s steps(2) infinite;
+}
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
 .step {
   align-self: flex-start;
   width: min(90%, 900px);
