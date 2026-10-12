@@ -37,8 +37,8 @@ auth:
   refresh_ttl_days: 30
   argon2: { memory_kib: 65536, time_cost: 3, parallelism: 1 }
 upstreams: # 未設定の機能は 503 FEATURE_UNAVAILABLE（/v1/config の features も false）
-  rag_url: http://rag:8100
-  web_relay_url: http://web-relay:8200
-  ocr_url: http://ocr:8300
+  rag_url: http://rag:8094
+  web_relay_url: http://web-relay:8600
+  ocr_url: http://ocr:8090
 metrics:
   allow_cidrs: [127.0.0.0/8, 10.0.0.0/8]

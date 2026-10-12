@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the Local LLM backup every night at 2:00
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+RandomizedDelaySec=10m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

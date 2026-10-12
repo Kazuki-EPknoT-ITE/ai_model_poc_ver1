@@ -109,9 +109,22 @@ services:
 
   qdrant:
     image: ${QDRANT_IMAGE}
+    # スナップショットも保存先（ホストの /srv/llm/data/qdrant/snapshots）に出す。バックアップ（scripts/backup.sh）が回収する
+    environment: { QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant/storage/snapshots }
     volumes: ["/srv/llm/data/qdrant:/qdrant/storage"]
     networks: [internal]
     restart: unless-stopped
+
+  # 社内文書検索（server/rag）。取り込み（ingest）は systemd timer から docker compose run で行う
+  rag:
+    <<: [*app, *gpu] # 埋め込みモデルを GPU で動かす（小さい割り当て）
+    image: llm/rag:${APP_TAG}
+    build: { context: ../../../.., dockerfile: projects/local-llm-agent/server/deploy/Dockerfile.python, args: { PACKAGE: llm-rag } }
+    command: ["llm-rag", "serve", "--config", "/profiles/rag.yaml", "--host", "0.0.0.0", "--port", "8094"]
+    env_file: /srv/llm/secrets/rag.env
+    volumes: ["/srv/llm/profiles:/profiles:ro", "/srv/llm/models/embed:/models/embed:ro", "/srv/llm/data/rag:/data"]
+    networks: [internal]
+    depends_on: { qdrant: { condition: service_started } }
 
   dcgm-exporter:
     image: ${DCGM_IMAGE}
@@ -124,7 +137,29 @@ services:
     image: ${PROMETHEUS_IMAGE}
     volumes:
       - "./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro"
+      - "./prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro"
       - "/srv/llm/data/prometheus:/prometheus"
+    networks: [internal]
+    restart: unless-stopped
+
+  # 管理者への通知（メール／Teams）。設定は secrets に置く（alertmanager/alertmanager.example.yml）
+  alertmanager:
+    image: ${ALERTMANAGER_IMAGE}
+    command: ["--config.file=/etc/alertmanager/alertmanager.yml", "--storage.path=/alertmanager"]
+    volumes:
+      - "/srv/llm/secrets/alertmanager:/etc/alertmanager:ro"
+      - "/srv/llm/data/alertmanager:/alertmanager"
+    networks: [internal]
+    restart: unless-stopped
+
+  # CPU・メモリ・ディスク（/srv）と、バックアップの最終成功時刻（textfile）
+  node-exporter:
+    image: ${NODE_EXPORTER_IMAGE}
+    command: ["--path.rootfs=/host", "--collector.textfile.directory=/textfile"]
+    pid: host
+    volumes:
+      - "/:/host:ro,rslave"
+      - "/srv/llm/data/node-exporter:/textfile:ro"
     networks: [internal]
     restart: unless-stopped
 

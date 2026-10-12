@@ -1,0 +1,17 @@
+# 毎晩のバックアップ（OPS-04）。llm-backup.timer から起動する。
+#   sudo cp llm-backup.service llm-backup.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now llm-backup.timer
+[Unit]
+Description=Local LLM stack nightly backup
+Requires=docker.service
+After=docker.service network-online.target mnt-nas\x2dbackup.mount
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=llmadmin
+Group=docker
+ExecStart=/srv/llm/deploy/scripts/backup.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=3h

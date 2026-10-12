@@ -1,0 +1,67 @@
+# アラート（OPS-05、server_setup.md §8.1 の表）。閾値は運用しながら調整する。
+groups:
+  - name: llm
+    rules:
+      - alert: GpuTemperatureHigh
+        expr: max by (gpu, Hostname) (DCGM_FI_DEV_GPU_TEMP) > 85
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "GPU 温度が 85℃ を5分超えています（{{ $value }}℃）"
+          description: "冷却（吸気・ファン・室温）を確認してください。続く場合は同時実行数を下げます。"
+
+      - alert: QueueTooLong
+        expr: sum(llmgw_queue_depth) > 10
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "推論の待ち行列が10件を10分超えています（{{ $value }}件）"
+          description: "利用の集中か推論の遅延です。管理画面のダッシュボードで実行中のジョブと GPU を確認してください。"
+
+      - alert: InferenceEngineDown
+        expr: min by (model) (llmgw_engine_up) == 0
+        for: 45s # Gateway のヘルスチェック（15秒間隔）で3回続けて失敗
+        labels: { severity: critical }
+        annotations:
+          summary: "推論エンジン {{ $labels.model }} が応答しません"
+          description: "自動再起動の後も続く場合は docker compose logs で原因を確認してください（作業は待機し、復旧後に再開します）。"
+
+      - alert: TargetDown
+        expr: up == 0
+        for: 2m
+        labels: { severity: critical }
+        annotations:
+          summary: "{{ $labels.job }}（{{ $labels.instance }}）のメトリクスを取得できません"
+
+      - alert: DiskAlmostFull
+        expr: (1 - node_filesystem_avail_bytes{mountpoint="/srv"} / node_filesystem_size_bytes{mountpoint="/srv"}) > 0.85
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "/srv の使用率が 85% を超えています（{{ $value | humanizePercentage }}）"
+          description: "古いモデル・ログ・スナップショットを整理してください。"
+
+      - alert: JobErrorRateHigh
+        expr: |
+          sum(rate(llmgw_jobs_total{state="failed"}[5m]))
+            / clamp_min(sum(rate(llmgw_jobs_total[5m])), 1e-9) > 0.05
+          and sum(rate(llmgw_jobs_total[5m])) > 0
+        for: 5m
+        labels: { severity: warning }
+        annotations:
+          summary: "推論ジョブの失敗率が 5% を超えています（{{ $value | humanizePercentage }}）"
+
+      - alert: LlmBackupStale
+        expr: time() - llm_backup_last_success_timestamp_seconds > 26 * 3600
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "バックアップが26時間以上成功していません"
+          description: "journalctl -u llm-backup で失敗の理由を確認してください（NAS のマウント、age の公開鍵など）。"
+
+      - alert: LlmBackupNeverRan
+        expr: absent(llm_backup_last_success_timestamp_seconds)
+        for: 36h
+        labels: { severity: warning }
+        annotations:
+          summary: "バックアップの成功記録がありません（llm-backup.timer が有効か確認してください）"

@@ -1,0 +1,34 @@
+# Alertmanager の設定例。実際の設定は /srv/llm/secrets/alertmanager.yml に置く（メールのパスワード・Webhook の URL を含むためコミットしない）。
+# 社内のメールサーバー（SMTP）か、Teams の Incoming Webhook（Power Automate のワークフロー）で管理者に通知する。
+global:
+  smtp_smarthost: "mail.example.local:587" # CHANGE_ME
+  smtp_from: "llm-alert@example.local" # CHANGE_ME
+  smtp_auth_username: "llm-alert" # CHANGE_ME
+  smtp_auth_password_file: /etc/alertmanager/smtp-password # secrets から読み込む
+  smtp_require_tls: true
+
+route:
+  receiver: admins
+  group_by: [alertname]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers: [severity="critical"]
+      receiver: admins
+      repeat_interval: 1h
+
+receivers:
+  - name: admins
+    email_configs:
+      - to: "it-admin@example.local" # CHANGE_ME
+        send_resolved: true
+    # Teams に送る場合（ワークフローの URL はファイルから読む）
+    # webhook_configs:
+    #   - url_file: /etc/alertmanager/teams-webhook-url
+    #     send_resolved: true
+
+inhibit_rules:
+  # エンジンが落ちているときは、待ち行列の警告を抑える
+  - source_matchers: [alertname="InferenceEngineDown"]
+    target_matchers: [alertname="QueueTooLong"]

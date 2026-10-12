@@ -217,6 +217,7 @@ huggingface-cli download <org>/<gemma-4-12b-...> --revision <commit> \
 | `ocr` | 自作（`server/ocr`） | `internal` | なし | ○ |
 | `web-relay` | 自作（`server/web-relay`） | `internal`, `egress` | なし | — |
 | `prometheus` / `grafana` / `dcgm-exporter` | 公式イメージ | `internal`, `frontend`（grafana のみ） | `<サーバーIP>:3000`（grafana） | dcgm のみ |
+| `alertmanager` / `node-exporter` | 公式イメージ（管理者への通知、CPU・ディスク・バックアップの最終成功時刻） | `internal` | なし | — |
 
 ### 5.2 ネットワーク
 - `internal`: `internal: true`。**外向き通信ができない**。推論・RAG・OCR・DB はここだけに置く（NET-12）。
@@ -445,7 +446,7 @@ docker compose exec gateway sh -c '
 ### 8.1 監視（OPS-05, ADM-03）
 - Prometheus が収集するもの: vLLM の `/metrics`（待ち件数・実行中件数・KV使用率・トークン/秒）、`dcgm-exporter`（GPU温度・使用率・電力・VRAM）、Gateway の `/metrics`（キュー長・応答時間・エラー率）、node-exporter（CPU・メモリ・ディスク）。
 - Grafana: 社内LANからだけ見られるようにする（ufw で管理PCに限定）。初期パスワードは `/srv/llm/secrets/grafana.env` で設定する。
-- アラートの初期値（運用しながら調整する）:
+- アラートの初期値（運用しながら調整する。ルールは `server/deploy/prometheus/alerts.yml`、通知先は `/srv/llm/secrets/alertmanager/alertmanager.yml`（例: `server/deploy/alertmanager/alertmanager.example.yml`））:
 
 | 条件 | 閾値 | 通知 |
 | --- | --- | --- |
@@ -453,10 +454,25 @@ docker compose exec gateway sh -c '
 | キュー長 | 10件を10分超える | 同上 |
 | vLLM のヘルスチェック | 3回続けて失敗 | 同上（自動再起動の後も続く場合） |
 | ディスク使用率 | `/srv` が 85% を超える | 同上 |
-| エラー率 | 5xx が 5% を超える（5分間） | 同上 |
+| エラー率 | 推論ジョブの失敗が 5% を超える（5分間） | 同上 |
+| バックアップ | 最終成功から26時間を超える | 同上 |
+| メトリクスの取得 | 対象が2分続けて応答しない | 同上 |
 
 ### 8.2 バックアップ（OPS-04）
-毎晩 2:00 に実行する（`/srv/llm/deploy/backup.sh` と systemd timer）。
+毎晩 2:00 に実行する（`server/deploy/scripts/backup.sh` を `/srv/llm/deploy/scripts/` に置き、`systemd/llm-backup.service`・`llm-backup.timer` で起動する）。
+
+```bash
+# age の鍵: 秘密鍵は管理者がオフラインで保管し、サーバーには公開鍵だけを置く
+age-keygen -o llm-backup.key            # 管理PC（オフライン）で作る。出力の public key をメモする
+echo "age1…（公開鍵）" | sudo tee /srv/llm/secrets/backup-age-recipients.txt
+sudo cp server/deploy/systemd/llm-backup.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now llm-backup.timer
+sudo systemctl start llm-backup && journalctl -u llm-backup -n 50   # 初回は手で実行して確認する
+```
+
+- 成功すると `/srv/llm/data/node-exporter/backup.prom` に最終成功時刻が書かれ、26時間を超えて更新がないとアラート `LlmBackupStale` が出る。
+- 復元: `scripts/restore.sh postgres <dump>`（gateway を止めてから）、`restore.sh qdrant <…/qdrant/YYYY-MM-DD>`、`restore.sh config <file.age> <秘密鍵> <空のフォルダ>`（設定は上書きせず展開だけ）。
+- 試験: `uv run pytest server/deploy/tests`（docker・age・rsync を差し替えて、世代の保持・失敗時の振る舞いを確認する）。
 
 | 対象 | 方法 | 保持 |
 | --- | --- | --- |

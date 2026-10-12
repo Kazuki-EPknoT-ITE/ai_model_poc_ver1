@@ -30,6 +30,8 @@ ignore = [
 # 配布物を作るスクリプト: 固定の引数でビルドツールを呼び、公式の URL から取得する
 "apps/desktop/scripts/*.py" = ["S602", "S603", "S607", "S310"]
 "tools/office/packaging/*.py" = ["S603", "S607"]
+# デプロイ用スクリプトの試験: 固定のスクリプトを bash で実行する
+"server/deploy/tests/*.py" = ["S603"]
 "**/generated/*.py" = ["E", "UP", "I", "S", "B"]
 
 [tool.ruff.lint.isort]
@@ -50,6 +52,7 @@ testpaths = [
   "server/ocr/tests",
   "server/rag/tests",
   "eval/harness/tests",
+  "server/deploy/tests",
 ]
 # 評価ハーネスの Python 側（lla_eval）はパッケージにせず、PYTHONPATH で読む（eval/harness/src/env.ts と同じ）
 pythonpath = ["eval/harness"]

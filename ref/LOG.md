@@ -18,6 +18,34 @@
 
 ---
 
+## 2026-10-12 03:30 — 監視（アラート）と毎晩のバックアップ・復元（T-65 一部）。compose に rag を追加、上流ポートの食い違いを修正
+
+- **変更ファイル**（`projects/local-llm-agent/server/`）:
+  - `deploy/scripts/backup.sh`・`restore.sh`（新規）、`deploy/systemd/llm-backup.service`・`.timer`（新規）
+  - `deploy/prometheus/alerts.yml`（新規）、`prometheus.yml`（rule_files・alertmanager・node）、`deploy/alertmanager/alertmanager.example.yml`（新規）
+  - `deploy/compose.yaml`（rag・alertmanager・node-exporter を追加。Qdrant のスナップショットの出力先）、`deploy.env.example`
+  - `deploy/tests/test_deploy_backup.py`（新規 5件）
+  - `gateway/examples/gateway.yaml`（上流のポート）
+  - ルートの `pyproject.toml`（testpaths、ruff の除外）
+  - 設計ドキュメント: ops/server_setup §5.1・§8.1・§8.2、impl_plan（T-65）
+- **やったこと**:
+  - アラート: GPU 温度、待ち行列、推論エンジン停止、取得失敗、ディスク、ジョブの失敗率、バックアップの遅れ・未実行。Gateway の実際のメトリクス名に合わせた。
+  - バックアップ（server_setup §8.2 の表どおり）:
+    - PostgreSQL: 日次14・月次12。Qdrant: コレクションごとのスナップショットを日次7。LoRA: rsync で全版。設定・secrets: tar → age で暗号化し30世代（サーバーには公開鍵だけ）。
+    - 書きかけは .part にしてから置き換える。成功時刻を node-exporter の textfile に書く。
+  - 復元: postgres（gateway 停止を確認）、qdrant（recover API）、config（空のフォルダへの展開のみ）。
+  - **見つけた不具合**:
+    - Gateway の設定例の上流ポート（rag 8100 / web-relay 8200 / ocr 8300）が、各サービスの実際の待ち受け（8094 / 8600 / 8090）と食い違っていた。直した。
+    - compose に rag サービスが無かった。追加した。
+- **E2Eテスト**: **N/A（起動アプリの変更なし）→ 代わりにスクリプトの試験で合格**。
+  - `uv run pytest server/deploy/tests` 5件: docker・age・rsync を差し替えた bash で20日分を実行し、世代数・月次・回収・暗号化・成功記録を確認。NAS なし・公開鍵なし・ダンプが空・日付の形式違いでは失敗し、成功の記録を書かないことも確認。
+  - compose・prometheus・alerts・alertmanager の YAML 構文と、`bash -n` の確認。promtool と Docker が無いため、ルールの式の実評価は検証機で行う。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（pytest **492件**成功・47件スキップ、mypy 102ファイル）。
+- **次にやること / 申し送り**:
+  - 検証機で `promtool check rules`、`docker compose config`、復元訓練。
+  - 予備機への自動切替（クライアントの接続先を複数に）は未。
+
 ## 2026-10-12 02:50 — パスのすり抜け（PX-01〜10）の試験と、見つかった穴の修正（TOCTOU の再確認・末尾のドット）
 
 - **変更ファイル**（`projects/local-llm-agent/packages/agent-runtime/`）:
