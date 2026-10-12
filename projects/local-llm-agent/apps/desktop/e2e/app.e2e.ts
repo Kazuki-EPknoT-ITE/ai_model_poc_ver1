@@ -149,10 +149,13 @@ test("settings are saved and reloaded", async () => {
   const dlg = page.getByRole("dialog", { name: "設定" });
   await dlg.getByLabel("長時間の作業を知らせるまでの時間（分）").fill("30");
   await dlg.getByLabel("既定のモデル").selectOption("accurate");
+  await dlg.getByLabel("予備のサーバーの URL（任意）").fill("https://llm-spare.example.local");
   await dlg.getByRole("button", { name: "保存" }).click();
   await expect(dlg.getByRole("status")).toHaveText("保存しました");
   await dlg.getByRole("button", { name: "閉じる" }).first().click();
   await expect(page.getByLabel("モデル", { exact: true })).toHaveValue("accurate");
   await page.getByRole("button", { name: "設定" }).click();
-  await expect(page.getByRole("dialog", { name: "設定" }).getByLabel("長時間の作業を知らせるまでの時間（分）")).toHaveValue("30");
+  const again = page.getByRole("dialog", { name: "設定" });
+  await expect(again.getByLabel("長時間の作業を知らせるまでの時間（分）")).toHaveValue("30");
+  await expect(again.getByLabel("予備のサーバーの URL（任意）")).toHaveValue("https://llm-spare.example.local");
 });

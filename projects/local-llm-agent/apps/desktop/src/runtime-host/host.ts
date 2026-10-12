@@ -9,14 +9,14 @@ let runtime: AgentRuntime | null = null;
 let store: RunStore | null = null;
 let tokens = { access: "", refresh: "" };
 
-function tokenProvider(gatewayUrl: string): TokenProvider {
+function tokenProvider(gatewayUrl: () => string): TokenProvider {
   let refreshing: Promise<string> | null = null;
   return {
     accessToken: async () => tokens.access,
     refresh: () => {
       refreshing ??= (async () => {
         try {
-          const r = await fetch(`${gatewayUrl}/v1/auth/refresh`, {
+          const r = await fetch(`${gatewayUrl()}/v1/auth/refresh`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ refresh_token: tokens.refresh }),
@@ -42,7 +42,12 @@ async function init(m: HostInit): Promise<void> {
   tokens = { access: m.accessToken, refresh: m.refreshToken };
   store = RunStore.open(m.dbPath, m.dbKey);
   const s = store;
-  const gateway = new GatewayClient(m.gatewayUrl, tokenProvider(m.gatewayUrl), { netLevel: () => s.getSetting("net_level", "off") });
+  // 予備機があれば、本番機に繋がらないときに切り替える（OPS-03）。トークンの更新も今の接続先に送る
+  let client: GatewayClient | null = null;
+  const gateway = new GatewayClient(m.gatewayUrls, tokenProvider(() => client?.currentUrl ?? m.gatewayUrls[0]!), {
+    netLevel: () => s.getSetting("net_level", "off"),
+  });
+  client = gateway;
   let model = "local-12b";
   const office = m.office
     ? new McpToolHost({ id: "office", ...m.office }, createSamplingHandler(gateway, () => model))

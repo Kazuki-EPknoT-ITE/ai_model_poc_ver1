@@ -277,6 +277,10 @@ h2 {
 .server.ready {
   color: var(--ok);
 }
+.server.spare {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
 .server.restarting,
 .server.stopped {
   color: var(--err);

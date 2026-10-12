@@ -15,7 +15,11 @@ import {
 import { PROJECT } from "./env.js";
 
 export interface HeadlessOptions {
-  gatewayUrl: string;
+  /** 配列なら先頭が本番機・2番目以降が予備機（OPS-03 の切替） */
+  gatewayUrl: string | string[];
+  /** 予備機への切替の速さ（試験用。既定は GatewayClient の既定） */
+  failoverAfter?: number;
+  probeIntervalMs?: number;
   login: string;
   password: string;
   appDataDir: string;
@@ -39,10 +43,12 @@ export interface Headless {
 }
 
 /** ログイン（401 のときはもう一度ログインする。Gateway の再起動でトークンが消えた場合も回復する）。 */
-export function loginProvider(url: string, login: string, password: string, deviceName = "eval-harness"): TokenProvider {
+export function loginProvider(url: string | (() => string), login: string, password: string, deviceName = "eval-harness"): TokenProvider {
   let token: string | null = null;
+  const base = typeof url === "string" ? () => url : url;
   const doLogin = async () => {
-    const r = await fetch(`${url}/v1/auth/login`, {
+    // 予備機に切り替わった後は、そちらにログインし直す
+    const r = await fetch(`${base()}/v1/auth/login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ login, password, device_name: deviceName }),
@@ -60,9 +66,14 @@ export function officeHost(gateway: GatewayClient, model: () => string): McpTool
 
 export function createHeadless(o: HeadlessOptions): Headless {
   const store = RunStore.open(join(o.appDataDir, "runs.db"), o.dbKey);
-  const gateway = new GatewayClient(o.gatewayUrl, loginProvider(o.gatewayUrl, o.login, o.password, o.deviceName), {
+  let client: GatewayClient | null = null;
+  const first = Array.isArray(o.gatewayUrl) ? o.gatewayUrl[0]! : o.gatewayUrl;
+  const gateway = new GatewayClient(o.gatewayUrl, loginProvider(() => client?.currentUrl ?? first, o.login, o.password, o.deviceName), {
     netLevel: () => store.getSetting("net_level", "off"),
+    ...(o.failoverAfter !== undefined ? { failoverAfter: o.failoverAfter } : {}),
+    ...(o.probeIntervalMs !== undefined ? { probeIntervalMs: o.probeIntervalMs } : {}),
   });
+  client = gateway;
   const office = o.office ? officeHost(gateway, () => o.samplingModel ?? "local-12b") : null;
   const router = new ToolRouter(store, gateway, office);
   const runtime = new AgentRuntime({ store, gateway, router, appDataDir: o.appDataDir, emit: o.emit, ...(o.runtime ?? {}) });

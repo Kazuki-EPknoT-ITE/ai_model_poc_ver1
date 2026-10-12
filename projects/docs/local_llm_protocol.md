@@ -437,7 +437,7 @@ type ApprovalDecision = { approval_id: string; decision: "approve" | "reject"; r
 | `retry` | `{ attempt, next_in_ms, cause: ErrorCode }`（RUN-03） |
 | `net.activity` | `{ kind: "search"|"fetch", query?, url?, blocked?: ErrorCode }`（NET-04） |
 | `notify` | `{ kind: "done"|"approval"|"stalled"|"long_run", title, body }` |
-| `server.status` | `{ state: "online"|"offline"|"degraded", endpoint }` |
+| `server.status` | `{ state: "online"|"offline"|"degraded"|"failover"|"primary", endpoint, url? }`（failover: 予備機に切り替えた / primary: 本番機に戻った） |
 
 ### 5.3 Renderer ⇄ Main（preload API、`main:*`）
 

@@ -86,6 +86,10 @@ export class AgentRuntime {
   // ------------------------------------------------------------------ 起動・終了
   /** 途中で止まった書き込みを解決し、未完了の run を再開する（RUN-02）。 */
   async start(): Promise<{ warnings: string[] }> {
+    // 予備機への切替・切り戻しを画面に知らせる（OPS-03）。進行中の推論は、新しい接続先で問い合わせ直す
+    this.opts.gateway.onSwitch((url, index) =>
+      this.emitGlobal("server.status", { state: index === 0 ? "primary" : "failover", endpoint: "gateway", url }),
+    );
     const warnings = [...(await this.opts.router.init())];
     await this.refreshConfig();
     const resumed = await this.coordinator.resumeOpen();

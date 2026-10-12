@@ -114,7 +114,7 @@ flowchart LR
 | T-62 | 管理画面 | ADM-02〜04, NET-02, 08 | desktop-app-engineer | **完了（apps/admin-web。利用者・ネット・機密語・共通指示・監査・ダッシュボード・モデル台帳（評価の条件・本番化・切り戻し）。機密語の読みも登録可）** |
 | T-63 | 業務 LoRA | 7.2-3 | ml-finetuning-engineer | 未着手 |
 | T-64 | 本番機での 26B の評価と既定モデルの決定 | 7.1 | inference＋ml | 未着手 |
-| T-65 | 監視・バックアップ・予備機への切替 | OPS-03〜06 | llm-inference-engineer | **一部完了（アラートのルール・Alertmanager・node-exporter、毎晩のバックアップと復元のスクリプト＋systemd timer＋試験5件。compose に rag を追加し、Gateway の上流ポートの食い違いを修正。予備機への自動切替と実機での復元訓練は未）** |
+| T-65 | 監視・バックアップ・予備機への切替 | OPS-03〜06 | llm-inference-engineer | **一部完了（アラートのルール・Alertmanager・node-exporter、毎晩のバックアップと復元のスクリプト＋systemd timer＋試験5件。compose に rag を追加し、Gateway の上流ポートの食い違いを修正。予備機への自動切替（クライアント・設定画面・FI の OPS-03）。実機での復元訓練は未）** |
 | T-66 | Should / Could の残り（グラフ・コメント・画像説明・自動振り分けなど） | 各要件 | 各担当 | 未着手 |
 | T-67 | 安全性・ネットの評価セット | 9.1 | web-relay-security＋qa | **一部完了（プロンプトインジェクション SX-01〜07 を自動化し、評価セット security で集計。DX・RX は Web Relay の試験。実モデルでの評価は検証機で）** |
 

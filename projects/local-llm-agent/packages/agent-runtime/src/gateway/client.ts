@@ -81,29 +81,89 @@ export interface InferCallbacks {
 
 type FetchFn = typeof fetch;
 
+export interface GatewayClientOptions {
+  fetch?: FetchFn;
+  netLevel?: () => NetLevel;
+  requestTimeoutMs?: number;
+  /** 予備機への切替（OPS-03）: 接続できない状態がこの回数続いたら次の URL に切り替える（既定 3） */
+  failoverAfter?: number;
+  /** 予備機を使っている間、この間隔で本番機の /healthz を確かめ、戻っていれば切り戻す（既定 5分） */
+  probeIntervalMs?: number;
+  now?: () => number;
+}
+
 export class GatewayClient {
+  private readonly urls: string[];
+  private active = 0;
+  private failures = 0;
+  private lastProbe = 0;
+  private switchListeners: ((url: string, index: number) => void)[] = [];
+
+  /** baseUrl に配列を渡すと、先頭を本番機・2番目以降を予備機として扱う。 */
   constructor(
-    private readonly baseUrl: string,
+    baseUrl: string | string[],
     private readonly tokens: TokenProvider,
-    private readonly opts: { fetch?: FetchFn; netLevel?: () => NetLevel; requestTimeoutMs?: number } = {},
-  ) {}
+    private readonly opts: GatewayClientOptions = {},
+  ) {
+    this.urls = (Array.isArray(baseUrl) ? baseUrl : [baseUrl]).filter(Boolean).map((u) => u.replace(/\/+$/, ""));
+    if (this.urls.length === 0) throw new Error("Gateway の URL がありません");
+  }
 
   private get f(): FetchFn {
     return this.opts.fetch ?? fetch;
   }
 
+  /** 今使っている Gateway の URL。 */
+  get currentUrl(): string {
+    return this.urls[this.active]!;
+  }
+
+  /** 接続先が切り替わったときに呼ぶ（画面への表示・監査用）。 */
+  onSwitch(listener: (url: string, index: number) => void): void {
+    this.switchListeners.push(listener);
+  }
+
+  private switchTo(index: number): void {
+    if (index === this.active) return;
+    this.active = index;
+    this.failures = 0;
+    this.lastProbe = this.now();
+    for (const l of this.switchListeners) l(this.currentUrl, index);
+  }
+
+  private now(): number {
+    return (this.opts.now ?? Date.now)();
+  }
+
+  /** 予備機を使っているなら、ときどき本番機が戻ったかを確かめる。 */
+  private async maybeProbePrimary(): Promise<void> {
+    if (this.active === 0 || this.now() - this.lastProbe < (this.opts.probeIntervalMs ?? 300_000)) return;
+    this.lastProbe = this.now();
+    try {
+      const r = await this.f(`${this.urls[0]}/healthz`, { signal: AbortSignal.timeout(3_000) });
+      if (r.ok) this.switchTo(0);
+    } catch {
+      /* まだ戻っていない */
+    }
+  }
+
   private async request(path: string, init: RequestInit & { retryAuth?: boolean } = {}): Promise<Response> {
+    await this.maybeProbePrimary();
     const token = await this.tokens.accessToken();
     const headers = new Headers(init.headers);
     headers.set("Authorization", `Bearer ${token}`);
     if (this.opts.netLevel) headers.set("X-Net-Level", this.opts.netLevel());
     let res: Response;
     try {
-      res = await this.f(this.baseUrl + path, { ...init, headers });
+      res = await this.f(this.currentUrl + path, { ...init, headers });
     } catch (e) {
       if (init.signal?.aborted) throw new CancelledError("中止しました");
+      // 接続そのものができない状態が続いたら、次の Gateway（予備機）に切り替える
+      this.failures++;
+      if (this.urls.length > 1 && this.failures >= (this.opts.failoverAfter ?? 3)) this.switchTo((this.active + 1) % this.urls.length);
       throw new TransientError("NET_UNREACHABLE", `サーバーに接続できません: ${(e as Error).message}`);
     }
+    this.failures = 0;
     if (res.status === 401 && init.retryAuth !== false) {
       await this.tokens.refresh();
       return this.request(path, { ...init, retryAuth: false });

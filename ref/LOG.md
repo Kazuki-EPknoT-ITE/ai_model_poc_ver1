@@ -18,6 +18,30 @@
 
 ---
 
+## 2026-10-12 04:20 — 予備機への自動切替（OPS-03）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `packages/agent-runtime/src/gateway/client.ts`（URL を複数に、切替・切り戻し、`onSwitch`）、`src/runtime.ts`（`server.status` failover/primary）、`test/failover.test.ts`（新規 3件）
+  - `apps/desktop`:
+    - `src/main/main.ts`（予備機の設定 `spareUrl`・環境変数 `LLM_GATEWAY_SPARE_URL`、ログイン・更新・ログアウトを予備機へも）
+    - `src/runtime-host/host.ts`（トークンの更新を今の接続先へ）、`src/shared/ipc.ts`（`gatewayUrls`）
+    - `SettingsDialog.tsx`（予備のサーバーの URL）、`App.tsx`・`app.css`（「予備機で接続中」の表示）、`e2e/app.e2e.ts`（設定の保存に予備機を追加）
+  - `eval/harness/src/headless.ts`（URL の配列・ログイン先の追従）、`eval/fault-injection`（シナリオ OPS-03）
+  - 設計ドキュメント: design（OPS-03 の実装）、protocol（server.status の state）、impl_plan
+- **やったこと**:
+  - 接続そのものができない状態が3回続いたら予備機へ切り替える。HTTP のエラー（503 など）では切り替えない。
+  - 予備機の間は5分ごとに本番機の /healthz を確かめて切り戻す。
+  - 進行中の推論は 404 → 試行番号を上げて投入し直す（既存の JobExpired の処理）。
+- **E2Eテスト**: **合格**。
+  - 新しいシナリオ OPS-03（推論中に本番機のモック Gateway を落として戻さない → 予備機で完了・切替の通知・重複 0）が2回とも合格。
+  - 全シナリオ `pnpm fi --suite all`: **26件すべて合格**。
+  - デスクトップ E2E 8件合格（設定画面で予備機の URL を保存・再表示）。Runtime の結合試験 9件合格。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（vitest runtime 30件、pytest 492件成功・47件スキップ）。
+- **次にやること / 申し送り**:
+  - 予備機に同じ鍵・DB を復元する手順の訓練（restore.sh）を検証機で行う。
+  - 試用の手順書（T-55）。検証機の接続情報待ち。
+
 ## 2026-10-12 03:30 — 監視（アラート）と毎晩のバックアップ・復元（T-65 一部）。compose に rag を追加、上流ポートの食い違いを修正
 
 - **変更ファイル**（`projects/local-llm-agent/server/`）:

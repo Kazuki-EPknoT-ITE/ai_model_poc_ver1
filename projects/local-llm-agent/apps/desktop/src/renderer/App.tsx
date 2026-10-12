@@ -85,6 +85,7 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
   const [views, setViews] = useState<Record<string, ConversationView>>({});
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [hostState, setHostState] = useState<string>("starting");
+  const [spareActive, setSpareActive] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [netLevel, setNetLevel] = useState<"off" | "search" | "browse">("off");
   const [model, setModel] = useState<"auto" | "fast" | "accurate">("auto");
@@ -118,6 +119,12 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
 
   useEffect(() => {
     const offEvent = api.runtime.onEvent((e) => {
+      // 予備機への切替・切り戻し（OPS-03）
+      if (e.type === "server.status") {
+        const p = e.payload as { state?: string; url?: string };
+        if (p.state === "failover") setSpareActive(p.url ?? "予備機");
+        else if (p.state === "primary") setSpareActive(null);
+      }
       if (!e.conversation_id) return;
       const id = e.conversation_id;
       setViews((v) => ({ ...v, [id]: applyEvent(v[id] ?? emptyConversation(), e) }));
@@ -239,6 +246,11 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
           <span className={`server ${hostState}`} data-testid="server-status">
             {hostState === "ready" ? "サーバー接続" : hostState === "restarting" ? "再起動中" : hostState === "stopped" ? "停止" : "起動中"}
           </span>
+          {spareActive && (
+            <span className="server spare" data-testid="spare-status" title={spareActive}>
+              予備機で接続中
+            </span>
+          )}
         </header>
         {warnings.length > 0 && (
           <div className="warn-bar" role="status">

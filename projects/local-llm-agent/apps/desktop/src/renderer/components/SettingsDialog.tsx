@@ -18,6 +18,7 @@ export function SettingsDialog({
   onClose: () => void;
 }) {
   const [serverUrl, setServerUrl] = useState("");
+  const [spareUrl, setSpareUrl] = useState("");
   const [autoStart, setAutoStart] = useState(true);
   const [net, setNet] = useState<Net>("off");
   const [model, setModel] = useState<Model>("auto");
@@ -28,6 +29,7 @@ export function SettingsDialog({
   useEffect(() => {
     void window.app.settings.get().then((s) => {
       setServerUrl(s.serverUrl);
+      setSpareUrl(s.spareUrl);
       setAutoStart(s.autoStart);
     });
     void send("settings.get", {}).then((r) => {
@@ -40,7 +42,7 @@ export function SettingsDialog({
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
-    await window.app.settings.set({ serverUrl, autoStart });
+    await window.app.settings.set({ serverUrl, spareUrl: spareUrl.trim(), autoStart });
     await send("settings.update", { net_level: net, model_default: model, notify_long_run_minutes: minutes });
     onSaved({ net_level: net, model_default: model });
     setSaved(true);
@@ -53,6 +55,10 @@ export function SettingsDialog({
           社内サーバーの URL
           <input value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} />
           <span className="small muted">変更は次回のログインから有効になります</span>
+        </label>
+        <label>
+          予備のサーバーの URL（任意）
+          <input value={spareUrl} onChange={(e) => setSpareUrl(e.target.value)} placeholder="社内サーバーに繋がらないときに使います" />
         </label>
         <label>
           既定のモデル

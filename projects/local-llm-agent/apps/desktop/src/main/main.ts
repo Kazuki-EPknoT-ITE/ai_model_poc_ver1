@@ -21,11 +21,17 @@ const secure = new SecureStore(join(dataDir, "secure"));
 
 interface Settings {
   serverUrl: string;
+  /** 予備機（OPS-03）。空なら切り替えない */
+  spareUrl: string;
   autoStart: boolean;
 }
 const SETTINGS_FILE = join(dataDir, "settings.json");
 function loadSettings(): Settings {
-  const defaults: Settings = { serverUrl: process.env.LLM_GATEWAY_URL ?? "http://127.0.0.1:8787", autoStart: !E2E };
+  const defaults: Settings = {
+    serverUrl: process.env.LLM_GATEWAY_URL ?? "http://127.0.0.1:8787",
+    spareUrl: process.env.LLM_GATEWAY_SPARE_URL ?? "",
+    autoStart: !E2E,
+  };
   try {
     return { ...defaults, ...(JSON.parse(readFileSync(SETTINGS_FILE, "utf8")) as Partial<Settings>), ...(process.env.LLM_GATEWAY_URL ? { serverUrl: process.env.LLM_GATEWAY_URL } : {}) };
   } catch {
@@ -43,8 +49,23 @@ let blockerId: number | null = null;
 const activeRuns = new Set<string>();
 
 // ------------------------------------------------------------------ 認証
+const serverUrls = () => [settings.serverUrl, settings.spareUrl].filter(Boolean);
+
+/** 本番機に繋がらなければ予備機に送る（OPS-03）。HTTP のエラーはそのまま返す（切り替えるのは接続できないときだけ）。 */
+async function fetchAny(path: string, init: RequestInit): Promise<Response> {
+  let last: unknown = null;
+  for (const base of serverUrls()) {
+    try {
+      return await fetch(`${base}${path}`, init);
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw last instanceof Error ? last : new Error("fetch failed");
+}
+
 async function gatewayLogin(login: string, password: string) {
-  const r = await fetch(`${settings.serverUrl}/v1/auth/login`, {
+  const r = await fetchAny(`/v1/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ login, password, device_name: `desktop-${process.env.COMPUTERNAME ?? "pc"}` }),
@@ -64,7 +85,7 @@ async function restoreSession(): Promise<boolean> {
   if (!saved) return false;
   try {
     const s = JSON.parse(saved) as { refresh: string; user: { display_name: string; role: string } };
-    const r = await fetch(`${settings.serverUrl}/v1/auth/refresh`, {
+    const r = await fetchAny(`/v1/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ refresh_token: s.refresh }),
@@ -103,7 +124,7 @@ async function startHost(): Promise<void> {
     nodePath: process.env.LLA_NODE_PATH ?? (app.isPackaged ? join(RES, "node", "node.exe") : "node"),
     init: () => ({
       type: "init",
-      gatewayUrl: settings.serverUrl,
+      gatewayUrls: serverUrls(),
       dbPath: join(dataDir, "runs.db"),
       dbKey: secure.dbKey(),
       appDataDir: dataDir,
@@ -232,7 +253,7 @@ function registerIpc(): void {
   });
   ipcMain.handle("auth:logout", async () => {
     if (session) {
-      await fetch(`${settings.serverUrl}/v1/auth/logout`, {
+      await fetchAny(`/v1/auth/logout`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access}` },
         body: JSON.stringify({ refresh_token: session.refresh }),

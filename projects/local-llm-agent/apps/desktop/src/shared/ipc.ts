@@ -3,7 +3,8 @@ import type { RuntimeCommand, RuntimeEvent } from "@lla/protocol";
 
 export interface HostInit {
   type: "init";
-  gatewayUrl: string;
+  /** 先頭が本番機、2番目が予備機（OPS-03。設定で予備機を入れたときだけ） */
+  gatewayUrls: string[];
   dbPath: string;
   dbKey: string;
   appDataDir: string;
@@ -45,8 +46,8 @@ export interface AppApi {
   shell: { openPath(path: string): Promise<void> };
   workspace: { list(dir: string): Promise<{ name: string; path: string; dir: boolean }[]> };
   settings: {
-    get(): Promise<{ serverUrl: string; autoStart: boolean }>;
-    set(patch: Partial<{ serverUrl: string; autoStart: boolean }>): Promise<void>;
+    get(): Promise<{ serverUrl: string; spareUrl: string; autoStart: boolean }>;
+    set(patch: Partial<{ serverUrl: string; spareUrl: string; autoStart: boolean }>): Promise<void>;
   };
   app: { quit(): Promise<void>; version(): Promise<string> };
 }

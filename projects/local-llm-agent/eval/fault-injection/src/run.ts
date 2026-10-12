@@ -373,6 +373,29 @@ const SCENARIO_LIST: Scenario[] = [
     },
   },
   {
+    id: "OPS-03",
+    fi: "OPS-03",
+    title: "予備機への切替（推論中に本番機の Gateway が落ちて戻らない → 予備機で続きを行う）",
+    mock: "write.yaml",
+    timeoutMs: 150_000,
+    async run(ctx) {
+      const spare = new MockGatewayProc(join(SCENARIOS, "write.yaml"), join(ctx.dir, "spare"), { pingIntervalS: 0.3 });
+      await spare.start();
+      try {
+        const h = ctx.host({ gatewayUrl: [ctx.mock.url, spare.url] });
+        await waitUntil(() => h.hooks.some((x) => x.point === "infer.submitted" && x.n === 2), 60_000, "2nd inference");
+        await ctx.mock.stop(); // 本番機は戻らない
+        await h.finish(this.timeoutMs);
+        const sw = h.events.find((e) => e.type === "server.status" && (e.payload as { state?: string }).state === "failover");
+        ctx.check("予備機に切り替えたことを知らせた", (sw?.payload as { url?: string } | undefined)?.url === spare.url);
+        ctx.check("予備機で推論した", spare.requests().some((r) => r.method === "POST" && r.path === "/v1/steps"));
+        checkWrites(ctx);
+      } finally {
+        await spare.stop();
+      }
+    },
+  },
+  {
     id: "FI-11",
     fi: "FI-11",
     title: "アプリの異常終了（推論待ち）→ 再起動して再開",

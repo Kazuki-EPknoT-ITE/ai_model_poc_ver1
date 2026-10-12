@@ -10,7 +10,8 @@ import type { RuntimeEvent } from "@lla/protocol";
 import { createHeadless } from "../../harness/src/headless.js";
 
 export interface HostConfig {
-  gatewayUrl: string;
+  /** 配列なら先頭が本番機・2番目が予備機（OPS-03） */
+  gatewayUrl: string | string[];
   appDataDir: string;
   /** start: 依頼を始める / resume: Run Store に残った作業を再開するだけ */
   mode: "start" | "resume";
