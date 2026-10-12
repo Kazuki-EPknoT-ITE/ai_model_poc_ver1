@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 import lla_protocol
 
-Purpose = Literal["agent", "invoice_extract", "compact"]
+Purpose = Literal["agent", "invoice_extract", "compact", "image_describe"]
 FaultKind = Literal[
     "http_status",
     "latency",

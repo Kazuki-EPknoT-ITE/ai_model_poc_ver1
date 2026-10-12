@@ -85,7 +85,12 @@ export function mergeAlternating(msgs: ChatMessage[]): ChatMessage[] {
 }
 
 export function messagesTokens(msgs: ChatMessage[]): number {
-  return msgs.reduce((n, m) => n + estimateTokens(m.content), 0);
+  // 画像の部品は1枚 300 トークンとして数える（Gateway の見積もりと同じ）
+  return msgs.reduce(
+    (n, m) =>
+      n + (typeof m.content === "string" ? estimateTokens(m.content) : m.content.reduce((k, p) => k + (p.type === "text" ? estimateTokens(p.text) : 300), 0)),
+    0,
+  );
 }
 
 /** 圧縮の対象（直近 keepSteps 手より古い、要約以外のメッセージ）。 */

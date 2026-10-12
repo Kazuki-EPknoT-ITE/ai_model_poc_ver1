@@ -18,6 +18,35 @@
 
 ---
 
+## 2026-10-12 10:40 — 画像の説明（DOC-07）: Gateway の画像つき推論と Runtime の中継
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `server/gateway`:
+    - `jobs.py`（content の部品・画像の検証・purpose image_describe）、`util.py`（画像の見積もり）
+    - `config.py`（models[].vision）、`db.py`、`engines.py`（FakeEngine.messages_seen）
+    - `migrations/versions/0004_image_describe.py`、`examples/gateway.yaml`（vision: true）、`tests/test_gw_vision.py`（新規 2件）
+  - `packages/agent-runtime`:
+    - `src/sampling.ts`（image_describe）、`src/gateway/client.ts`（ContentPart）
+    - `src/prompt/templates.ts`（IMAGE_DESCRIBE_PROMPT）、`src/prompt/builder.ts`（画像の見積もり）
+    - `test/integration/office.it.test.ts`（DOC-07）
+  - `eval/mock-gateway`（purpose image_describe、`scenarios/image-describe.yaml`）
+  - 設計ドキュメント: api（追記）、prompts（追記）、traceability（DOC-07 を検証済みに）
+- **やったこと**:
+  - office-tools の docx.images（describe）は画像の説明を sampling で頼んでいたが、Runtime も Gateway も画像を扱えなかった。
+  - Gateway: messages の content に OpenAI 互換の部品（text / image_url）を受け付ける。
+    - 画像は data:image/png・jpeg の base64 だけ（外部の URL は取りに行かない）。4枚・約4.5MB まで。画像を読めないモデルには 400。
+    - ジョブの用途に image_describe を追加した（DB の CHECK も migration 0004 で変更）。
+  - Runtime: 説明の指示と画像を送り、結果は source=ocr の untrusted で包む（画像の中の「指示」もデータとして扱う）。
+- **E2Eテスト**: **合格**。
+  - Runtime の結合試験 **10件**。新規「DOC-07」: 画像を含む Word を office-tools で読み、モックの image_describe の説明が untrusted で渡ることを確認。
+  - デスクトップ E2E 11件（本物の Gateway を含む）。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（pytest **502件**成功・52件スキップ）。
+  - migration 0004 は SQLite で、制約が正しく置き換わることを確認した（`ck_jobs_ck_jobs_purpose`）。PostgreSQL では未確認（Docker なし）。
+- **次にやること / 申し送り**:
+  - PDF-07（該当箇所の表示）、XLS-09（ピボットの読み取り）、ADM-05（自動更新）。
+  - PostgreSQL での migration 0003・0004 の確認。
+
 ## 2026-10-12 09:40 — プラグインの追加手段（AGT-09）
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

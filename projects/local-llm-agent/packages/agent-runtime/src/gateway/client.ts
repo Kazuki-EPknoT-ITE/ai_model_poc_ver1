@@ -30,9 +30,11 @@ export interface GatewayConfig {
   macros?: { name: string; description: string; prompt: string }[];
 }
 
+/** 画像つきのメッセージの部品（DOC-07）。画像は data: URI だけ（Gateway が検証する） */
+export type ContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
-  content: string;
+  content: string | ContentPart[];
 }
 export interface InferRequest {
   model: string;
@@ -41,7 +43,7 @@ export interface InferRequest {
   max_tokens?: number;
   temperature?: number;
   priority_hint?: "interactive" | "normal" | "low";
-  purpose?: "agent" | "invoice_extract" | "compact";
+  purpose?: "agent" | "invoice_extract" | "compact" | "image_describe";
 }
 export interface InferResult {
   output: string;

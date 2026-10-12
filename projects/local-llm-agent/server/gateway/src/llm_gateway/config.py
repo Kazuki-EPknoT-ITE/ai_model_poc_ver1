@@ -57,6 +57,8 @@ class ModelSettings(_Strict):
     label: str
     context_budget: int = 32768
     lora: str | None = None
+    # 画像を読めるモデルか（DOC-07 の画像の説明、Gemma 4 は読める）
+    vision: bool = False
     engine: EngineSettings = Field(default_factory=EngineSettings)
 
 

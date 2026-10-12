@@ -328,3 +328,11 @@ Model = { "id", "slot", "base_model", "quant", "lora": null, "status": "candidat
 | GET `/metrics` | 内部ネットワークのみ | Prometheus 形式（`llmgw_queue_depth`, `llmgw_job_seconds_bucket`, `llmgw_jobs_total{state}` ほか） |
 
 クライアントは `/readyz` の結果を `server.status` イベントに変換して表示する（OPS-02）。予備サーバーの URL が設定されていれば、本番機が30秒以上応答しないときに切り替える（OPS-03）。
+
+## 追記（2026-10-12）: 画像つきの推論（DOC-07）
+
+- `POST /v1/steps` の `messages[].content` は、文字列のほか OpenAI 互換の部品の配列も受け付ける: `[{ "type": "text", "text": … }, { "type": "image_url", "image_url": { "url": "data:image/png;base64,…" } }]`。
+- 画像は `data:image/png` または `data:image/jpeg` の base64 だけ（外部の URL は取りに行かない）。1回に4枚・1枚約4.5MBまで。違反は 400 `INVALID_REQUEST`。
+- 画像を読めないモデル（設定 `models[].vision: false`）に画像を送ると 400（`retryable: false`）。
+- `purpose` に `image_describe` を追加（ジョブの用途。マイグレーション `0004_image_describe`）。
+- 入力トークンの見積もりは、画像1枚を 300 として数える（base64 の長さでは数えない）。

@@ -95,10 +95,24 @@ def body_hash(body: Any) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+IMAGE_TOKENS = 300  # 画像1枚の入力トークンの目安（Gemma の画像は 256 トークン前後）
+
+
 def estimate_tokens(messages: list[dict[str, Any]], chars_per_token: float) -> int:
     """トークン数の見積もり（トークナイザーを持たないため文字数から概算する）。"""
-    chars = sum(len(str(m.get("content", ""))) for m in messages)
-    return int(chars / chars_per_token)
+    chars = 0
+    images = 0
+    for m in messages:
+        c = m.get("content", "")
+        if isinstance(c, list):
+            for part in c:
+                if part.get("type") == "image_url":
+                    images += 1  # base64 の長さではなく、1枚あたりの目安で数える
+                else:
+                    chars += len(str(part.get("text", "")))
+        else:
+            chars += len(str(c))
+    return int(chars / chars_per_token) + images * IMAGE_TOKENS
 
 
 def sha256_hex(value: str) -> str:

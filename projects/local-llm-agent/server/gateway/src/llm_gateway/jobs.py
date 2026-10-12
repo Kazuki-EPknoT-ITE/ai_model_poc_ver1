@@ -12,6 +12,7 @@ import asyncio
 import json
 import logging
 import math
+import re
 from collections import deque
 from collections.abc import AsyncIterator, Coroutine
 from dataclasses import dataclass
@@ -38,10 +39,24 @@ LOW = 2
 TERMINAL = ("done", "failed", "cancelled")
 
 
+class ImageUrl(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    url: str
+
+
+class ContentPart(BaseModel):
+    """OpenAI 互換の部品（DOC-07 の画像の説明）。画像は data: URI（PNG/JPEG）だけを受け付ける（外部の URL は取りに行かない）。"""
+
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["text", "image_url"]
+    text: str | None = None
+    image_url: ImageUrl | None = None
+
+
 class Message(BaseModel):
     model_config = ConfigDict(extra="allow")
     role: Literal["system", "user", "assistant", "tool"]
-    content: str
+    content: str | list[ContentPart]
 
 
 class ResponseFormat(BaseModel):
@@ -59,7 +74,36 @@ class StepRequest(BaseModel):
     temperature: float = Field(default=0.2, ge=0.0, le=2.0)
     stream: bool = True
     priority_hint: Literal["interactive", "normal", "low"] | None = None
-    purpose: Literal["agent", "invoice_extract", "compact"] = "agent"
+    purpose: Literal["agent", "invoice_extract", "compact", "image_describe"] = "agent"
+
+
+MAX_IMAGES = 4
+MAX_IMAGE_B64 = 6_000_000  # 約 4.5MB の画像
+_DATA_URI = re.compile(r"^data:image/(png|jpeg);base64,[A-Za-z0-9+/=]+$")
+
+
+def check_images(req: StepRequest, vision: bool) -> None:
+    """画像の部品の検証。画像を読めないモデルや、外部の URL・大きすぎる画像は断る。"""
+    images = [
+        p for m in req.messages if isinstance(m.content, list) for p in m.content if p.type == "image_url"
+    ]
+    for m in req.messages:
+        if isinstance(m.content, list):
+            for part in m.content:
+                if part.type == "text" and part.text is None:
+                    raise ApiError(400, "INVALID_REQUEST", "text の部品に text がありません")
+    if not images:
+        return
+    if not vision:
+        raise ApiError(400, "INVALID_REQUEST", f"モデル {req.model} は画像を読めません", retryable=False)
+    if len(images) > MAX_IMAGES:
+        raise ApiError(400, "INVALID_REQUEST", f"画像は1回に {MAX_IMAGES} 枚までです")
+    for part in images:
+        url = part.image_url.url if part.image_url else ""
+        if len(url) > MAX_IMAGE_B64 or not _DATA_URI.match(url):
+            raise ApiError(
+                400, "INVALID_REQUEST", "画像は data:image/png または jpeg の base64 で、4.5MB までです"
+            )
 
 
 @dataclass
@@ -264,7 +308,8 @@ class JobService:
                 raise ApiError(
                     400, "INVALID_REQUEST", "response_format のスキーマが大きすぎます（64KB まで）"
                 )
-        messages = [m.model_dump() for m in req.messages]
+        check_images(req, model.vision)
+        messages = [m.model_dump(exclude_none=True) for m in req.messages]
         input_tokens = estimate_tokens(messages, self.settings.jobs.chars_per_token)
 
         async with self.db.tx() as s:

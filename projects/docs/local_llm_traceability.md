@@ -96,7 +96,7 @@
 | DOC-04 | Should | §7.2 | protocol §3.2(track_changes) | tools/office | unit | M2 | 検証済み |
 | DOC-05 | Should | §7.2 | protocol §3.2(docx.diff) | tools/office | unit | M6 | 検証済み |
 | DOC-06 | Could | §7.2 | protocol §3.2(docx.comments) | tools/office | unit | M6 | 検証済み |
-| DOC-07 | Could | §7.2 | protocol §3.2(docx.images) | tools/office, server/ocr | unit | M6 | 実装中 |
+| DOC-07 | Could | §7.2 | protocol §3.2(docx.images) | tools/office, server/ocr | unit | M6 | 検証済み |
 | DOC-08 | Should | §7.2 | protocol §3.5(convert.to_docx) | tools/office | unit | M2 | 検証済み |
 | DOC-09 | Should | §7.2 | protocol §3.5(convert.to_pdf) | tools/office | unit | M2 | 検証済み |
 
@@ -224,7 +224,7 @@
 | DOC-04 | 検証済み | 変更履歴の出力 / test_track_changes | なし |
 | DOC-05 | 検証済み | docx.diff / test_diff | なし |
 | DOC-06 | 検証済み | docx.comments / test_comments | なし |
-| DOC-07 | 実装中 | docx.images / test_images_extract_and_describe | Runtime の sampling が画像の説明に未対応 |
+| DOC-07 | 検証済み | docx.images（describe）→ sampling（image_describe）→ Gateway の画像つき推論（vision のモデル） / IT「DOC-07」、test_gw_vision、test_images_extract_and_describe | 実モデルでの説明の質は要検証機 |
 | DOC-08 | 検証済み | convert.to_docx（LibreOffice） / test_convert_pipeline_with_fake_soffice | 本物の LibreOffice での試験はスキップ（未導入） |
 | DOC-09 | 検証済み | convert.to_pdf / test_convert_pipeline_with_fake_soffice | 本物の LibreOffice での試験はスキップ |
 | XLS-01 | 検証済み | xlsx.info・read_range（結合セル・続き読み） / test_info、test_read_range_continuation | なし |

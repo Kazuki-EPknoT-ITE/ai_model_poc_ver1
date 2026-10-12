@@ -138,7 +138,7 @@ class Job(Base):
     __tablename__ = "jobs"
     __table_args__ = (
         CheckConstraint("state IN ('queued','running','done','failed','cancelled')", name="state"),
-        CheckConstraint("purpose IN ('agent','invoice_extract','compact')", name="purpose"),
+        CheckConstraint("purpose IN ('agent','invoice_extract','compact','image_describe')", name="purpose"),
         Index(
             "jobs_queue",
             "state",

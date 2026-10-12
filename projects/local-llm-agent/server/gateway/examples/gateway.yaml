@@ -16,6 +16,7 @@ models:
   - id: local-12b
     label: 高速
     context_budget: 32768
+    vision: true # 画像を読める（DOC-07 の画像の説明。vLLM の起動で画像入力を許可しておく）
     engine:
       kind: vllm
       base_url: http://vllm-12b:8000
@@ -24,6 +25,7 @@ models:
   - id: local-26b
     label: 高精度
     context_budget: 65536
+    vision: true
     engine: { kind: vllm, base_url: http://vllm-26b:8000, served_model: gemma4-26b-a4b, guided_mode: guided_json }
 scheduler:
   max_concurrent: 5 # vLLM の max_num_seqs に合わせる

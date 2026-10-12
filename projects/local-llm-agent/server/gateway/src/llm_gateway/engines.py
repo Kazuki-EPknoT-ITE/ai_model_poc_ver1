@@ -203,6 +203,7 @@ class FakeEngine:
     responder: Callable[[EngineRequest], str] | None = None
     scripts: list[FakeScript] = field(default_factory=list)
     calls: list[str] = field(default_factory=list)  # job_id
+    messages_seen: list[list[dict[str, Any]]] = field(default_factory=list)  # 受け取った messages（試験用）
     finished: list[str] = field(default_factory=list)
     healthy: bool = True
     active_lora: str | None = None
@@ -225,6 +226,7 @@ class FakeEngine:
             raise EngineUnavailable("fake engine is down")
         script = self.scripts.pop(0) if self.scripts else FakeScript()
         self.calls.append(req.job_id)
+        self.messages_seen.append(req.messages)
         self.active += 1
         self.max_active = max(self.max_active, self.active)
         try:
