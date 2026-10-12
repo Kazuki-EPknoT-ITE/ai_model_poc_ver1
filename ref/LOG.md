@@ -18,6 +18,36 @@
 
 ---
 
+## 2026-10-12 08:00 — 評価ボタンと同意付きの学習データ候補の収集（ADM-06）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `server/gateway`:
+    - `src/llm_gateway/feedback.py`（新規）、`db.py`（Feedback）、`app.py`
+    - `migrations/versions/0003_feedback.py`（新規）、`tests/test_gw_feedback.py`（新規 4件）
+  - `packages/protocol/schemas/src/runtime.yaml`（コマンド feedback.submit）＋生成物、`packages/agent-runtime/src/runtime.ts`（submitFeedback）
+  - `apps/desktop`: `App.tsx`（評価バー）、`app.css`、`e2e/app.e2e.ts`（E-01 に評価）、`e2e/fixtures.ts`（ctx.url）
+  - `apps/admin-web`: `App.tsx`（評価データタブ A-09）、`admin.css`、`e2e/admin.e2e.ts`（ADM-06）
+  - `eval/mock-gateway`: `/v1/feedback`、管理 API、試験用の `/mock/feedback`
+  - 設計ドキュメント: api §9.1.1、data_model §3.4、protocol（追記）、traceability（ADM-06 を検証済みに）
+- **やったこと**:
+  - 完了した作業の下に「👍 良い／👎 悪い」とひとこと、「やり取りを改善に提供する」の同意チェックを置いた。
+  - 同意したときだけ、Runtime がこの作業のやり取り（依頼・出力・ツール結果）を添えて送る。Gateway は暗号化して保存し、確認待ちにする。同意がなければ中身は受け取っても捨てる。
+  - 管理画面「評価データ」で、マスキングした形だけを見て承認／却下する。マスキングするもの: 機密語辞書の語と読み・メール・電話番号・4桁以上の数字・利用者のフォルダ名。
+    - 却下したら中身を削除する。
+    - 承認したものだけを JSONL で書き出す（ml/datagen の入力）。
+  - 監査ログに送信・承認・書き出しを残す。
+- **E2Eテスト**: **合格**。
+  - デスクトップ E2E 10件（E-01 で評価を送り、モックに同意つき・やり取り3件以上が届くことを確認）。
+  - 管理画面 E2E 4件を、モックと本物の Gateway の両方で実施。新規「ADM-06」: API で同意つきの評価を作り → 伏せ字で表示（平井丸・金額が見えない）→ 承認 → 書き出しにも伏せ字。
+  - スクリーンショットは scratchpad の `e2e-admin2/real/admin-feedback.png`。
+  - Runtime の結合試験 9件合格。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（pytest **496件**成功・50件スキップ、mypy 103ファイル）。
+  - DB に平文が残らないこと（暗号文に金額・船名の文字列が無い）を試験で確認した。
+- **次にやること / 申し送り**:
+  - AGT-09（プラグインの設定手段）、ADM-03（ダッシュボードの GPU を DCGM から）、OPS-02（ハング時の再起動）。
+  - 書き出したデータを ml/datagen で使う流れは T-52 で。
+
 ## 2026-10-12 06:50 — 会話履歴の検索（APP-06）
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

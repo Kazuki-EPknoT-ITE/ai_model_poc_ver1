@@ -5,7 +5,7 @@ import { api, ApiError, download, login, logout, NET_LABEL, resume, type ModelRo
 const fmt = (iso: string | null | undefined) =>
   iso ? new Date(iso).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
 
-type Tab = "dashboard" | "users" | "net" | "dlp" | "instructions" | "models" | "audit";
+type Tab = "dashboard" | "users" | "net" | "dlp" | "instructions" | "models" | "feedback" | "audit";
 const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "ダッシュボード" },
   { id: "users", label: "利用者" },
@@ -13,6 +13,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "dlp", label: "機密語辞書" },
   { id: "instructions", label: "共通指示" },
   { id: "models", label: "モデル" },
+  { id: "feedback", label: "評価データ" },
   { id: "audit", label: "監査ログ" },
 ];
 
@@ -56,6 +57,7 @@ export function App() {
         {tab === "dlp" && <Dlp />}
         {tab === "instructions" && <Instructions />}
         {tab === "models" && <Models />}
+        {tab === "feedback" && <FeedbackReview />}
         {tab === "audit" && <Audit />}
       </main>
     </div>
@@ -636,6 +638,96 @@ function Models() {
           登録
         </button>
       </form>
+    </section>
+  );
+}
+
+interface FeedbackItem {
+  id: string;
+  rating: "good" | "bad";
+  comment: string | null;
+  consent: boolean;
+  status: "none" | "pending" | "approved" | "rejected";
+  created_at: string;
+  transcript: { role: string; content: string }[];
+}
+const FB_STATUS: Record<FeedbackItem["status"], string> = { none: "評価のみ", pending: "確認待ち", approved: "承認済み", rejected: "却下" };
+const ROLE_LABEL: Record<string, string> = { user: "依頼", assistant: "AI", tool: "ツールの結果" };
+
+/** 評価データ候補（A-09, ADM-06）。同意済みのやり取りを、伏せ字にした形で確認して承認／却下する */
+function FeedbackReview() {
+  const [status, setStatus] = useState<FeedbackItem["status"] | "">("pending");
+  const { data, error, reload } = useLoad<{ items: FeedbackItem[]; counts: Record<string, number>; ratings: Record<string, number> }>(
+    `/feedback${status ? `?status=${status}` : ""}`,
+  );
+  const [msg, setMsg] = useState<{ ok?: string; error?: string }>({});
+  const decide = async (id: string, d: "approve" | "reject") => {
+    try {
+      await api(`/feedback/${encodeURIComponent(id)}/${d}`, { method: "POST" });
+      setMsg({ ok: d === "approve" ? "承認しました" : "却下しました（やり取りは削除しました）" });
+      reload();
+    } catch (e) {
+      setMsg({ error: (e as Error).message });
+    }
+  };
+  return (
+    <section aria-label="評価データ">
+      <p className="muted small">
+        利用者の「良い／悪い」の評価です。本人が同意したやり取りだけが届き、社名・金額・連絡先などは伏せ字にして表示しています。承認したものだけが学習データの候補として書き出されます（ADM-06）。
+      </p>
+      <Message error={error ?? msg.error} ok={msg.ok} />
+      {data && (
+        <div className="tiles">
+          <Tile label="良い" value={data.ratings.good ?? 0} />
+          <Tile label="悪い" value={data.ratings.bad ?? 0} warn={(data.ratings.bad ?? 0) > (data.ratings.good ?? 0)} />
+          <Tile label="確認待ち" value={data.counts.pending ?? 0} />
+          <Tile label="承認済み" value={data.counts.approved ?? 0} />
+        </div>
+      )}
+      <div className="inline-form">
+        <select aria-label="状態で絞り込む" value={status} onChange={(e) => setStatus(e.target.value as FeedbackItem["status"] | "")}>
+          <option value="pending">確認待ち</option>
+          <option value="approved">承認済み</option>
+          <option value="none">評価のみ</option>
+          <option value="rejected">却下</option>
+          <option value="">すべて</option>
+        </select>
+        <button onClick={() => void download("/feedback/export", "feedback-approved.jsonl")}>承認済みを書き出す（JSONL）</button>
+      </div>
+      {data?.items.length === 0 && <p className="muted">該当する評価はありません</p>}
+      {data?.items.map((f) => (
+        <article key={f.id} className="feedback-item" data-testid="feedback-item">
+          <header className="row">
+            <span className={`badge ${f.rating === "bad" ? "err" : ""}`}>{f.rating === "good" ? "👍 良い" : "👎 悪い"}</span>
+            <span className="badge">{FB_STATUS[f.status]}</span>
+            <span className="muted small">{fmt(f.created_at)}</span>
+            {f.comment && <span>「{f.comment}」</span>}
+          </header>
+          {f.transcript.length > 0 && (
+            <details>
+              <summary>やり取り（{f.transcript.length} 件・伏せ字済み）</summary>
+              <ol className="transcript">
+                {f.transcript.map((m, i) => (
+                  <li key={i}>
+                    <strong className="small">{ROLE_LABEL[m.role] ?? m.role}</strong>
+                    <pre className="pre">{m.content}</pre>
+                  </li>
+                ))}
+              </ol>
+            </details>
+          )}
+          {f.status === "pending" && (
+            <div className="row">
+              <button className="primary" onClick={() => void decide(f.id, "approve")}>
+                承認
+              </button>
+              <button className="danger" onClick={() => void decide(f.id, "reject")}>
+                却下
+              </button>
+            </div>
+          )}
+        </article>
+      ))}
     </section>
   );
 }

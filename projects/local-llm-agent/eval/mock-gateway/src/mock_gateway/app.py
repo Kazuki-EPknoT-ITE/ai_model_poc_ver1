@@ -18,7 +18,16 @@ from .admin import AdminState, admin_router
 from .engine import HANG, Engine, GatewayError, Job
 from .scenario import Scenario
 
-PUBLIC_PATHS = {"/healthz", "/readyz", "/v1/auth/login", "/v1/auth/refresh", "/docs", "/openapi.json"}
+# /mock/feedback は試験用の確認口（モックだけ）
+PUBLIC_PATHS = {
+    "/healthz",
+    "/readyz",
+    "/v1/auth/login",
+    "/v1/auth/refresh",
+    "/docs",
+    "/openapi.json",
+    "/mock/feedback",
+}
 
 
 def is_public(path: str) -> bool:
@@ -263,6 +272,19 @@ def create_app(
     @app.post("/v1/audit", status_code=204)
     async def audit() -> Response:
         return Response(status_code=204)
+
+    # ---- 評価ボタン（ADM-06。本物は server/gateway の feedback.py）----
+    @app.post("/v1/feedback")
+    async def feedback(request: Request, body: dict[str, Any]) -> Any:
+        return admin_state.add_feedback(str(request.state.user), body)
+
+    @app.get("/mock/feedback")
+    async def mock_feedback() -> Any:
+        """試験用: 受け取った評価（中身の件数だけ）。認証なし（モックだけの口）。"""
+        return [
+            {k: v for k, v in f.items() if k != "transcript"} | {"messages": len(f["transcript"])}
+            for f in admin_state.feedback.values()
+        ]
 
     return app
 

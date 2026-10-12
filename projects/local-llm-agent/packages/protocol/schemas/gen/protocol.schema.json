@@ -1395,6 +1395,35 @@
       "maxLength": 500,
       "description": "限定式（列名・数値・文字列・算術・比較・and/or/not・contains/startswith/round/date/coalesce）"
     },
+    "FeedbackPayload": {
+      "description": "評価ボタン（ADM-06）。consent が true のときだけ、Runtime がこの作業のやり取りを添えて Gateway に送る",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "rating",
+        "consent"
+      ],
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "rating": {
+          "type": "string",
+          "enum": [
+            "good",
+            "bad"
+          ]
+        },
+        "comment": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "consent": {
+          "type": "boolean"
+        }
+      }
+    },
     "FileHash": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
@@ -2651,7 +2680,8 @@
             "conversation.list",
             "conversation.get",
             "conversation.search",
-            "conversation.delete"
+            "conversation.delete",
+            "feedback.submit"
           ]
         },
         "payload": {
@@ -2787,6 +2817,22 @@
             "properties": {
               "payload": {
                 "$ref": "#/$defs/ArtifactDiffPayload"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "feedback.submit"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "payload": {
+                "$ref": "#/$defs/FeedbackPayload"
               }
             }
           }

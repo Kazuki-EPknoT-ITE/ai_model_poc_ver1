@@ -130,3 +130,48 @@ test("model registry: evaluation gate, promote and rollback", async ({ page }) =
   await expect(page.getByRole("status")).toHaveText(`${v1} を切り戻しました`);
   await expect(page.getByTestId(`model-${v1}`)).toContainText("退役");
 });
+
+test("ADM-06: consented feedback is reviewed masked, approved and exported", async ({ page, request }) => {
+  // 利用者（dev）が同意つきの評価を送る（デスクトップアプリが送るのと同じ API）
+  const loginAs = async (login: string, password: string) =>
+    ((await (await request.post("/v1/auth/login", { data: { login, password, device_name: "e2e" } })).json()) as { access_token: string }).access_token;
+  const admin = await loginAs("admin", ADMIN_PW);
+  await request.post("/admin/v1/dlp/terms", { data: { terms: [{ term: "平井丸", category: "vessel" }] }, headers: { Authorization: `Bearer ${admin}` } });
+  const dev = await loginAs("dev", DEV_PW);
+  const runId = `run-${Date.now().toString(36)}`;
+  const res = await request.post("/v1/feedback", {
+    headers: { Authorization: `Bearer ${dev}` },
+    data: {
+      run_id: runId,
+      rating: "good",
+      comment: "平井丸の転記が早かった",
+      consent: true,
+      transcript: [
+        { role: "user", content: "平井丸の請求書を転記して" },
+        { role: "tool", content: "金額 1,234,567 円" },
+      ],
+    },
+  });
+  expect((await res.json()).status).toBe("pending");
+
+  await loginAsAdmin(page);
+  await page.getByRole("tab", { name: "評価データ" }).click();
+  const item = page.getByTestId("feedback-item").filter({ hasText: "転記が早かった" });
+  await expect(item).toBeVisible();
+  await item.getByText(/やり取り（2 件/).click();
+  const text = await item.innerText();
+  expect(text).not.toContain("平井丸");
+  expect(text).not.toContain("1,234,567");
+  expect(text).toContain("［機密語］");
+  expect(text).toContain("［数字］");
+  await page.screenshot({ path: join(ARTIFACTS, "admin-feedback.png") });
+  await item.getByRole("button", { name: "承認" }).click();
+  await expect(page.getByRole("status")).toHaveText("承認しました");
+  await page.getByLabel("状態で絞り込む").selectOption("approved");
+  await expect(page.getByTestId("feedback-item").filter({ hasText: "転記が早かった" })).toContainText("承認済み");
+  const [dl] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /承認済みを書き出す/ }).click()]);
+  const jsonl = readFileSync((await dl.path())!, "utf8");
+  expect(jsonl).toContain("［機密語］");
+  expect(jsonl).not.toContain("平井丸");
+  expect(jsonl).not.toContain("1,234,567");
+});

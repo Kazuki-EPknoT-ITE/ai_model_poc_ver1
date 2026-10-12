@@ -200,8 +200,33 @@ export class AgentRuntime {
       case "conversation.delete":
         this.store.updateConversation(String(p.conversation_id), { deleted_at: nowIso() });
         return { ok: true };
+      case "feedback.submit":
+        return this.submitFeedback(p as { run_id: string; rating: "good" | "bad"; comment?: string; consent: boolean });
     }
     return undefined;
+  }
+
+  /**
+   * 評価ボタン（ADM-06）。同意があるときだけ、この作業のやり取り（利用者の依頼・モデルの出力・ツールの結果）を添える。
+   * 同意がなければ評価と感想だけを送る。中身の保管とマスキングは Gateway が行う。
+   */
+  private async submitFeedback(p: { run_id: string; rating: "good" | "bad"; comment?: string; consent: boolean }): Promise<unknown> {
+    const run = this.store.getRun(p.run_id);
+    if (!run) throw new Error("作業が見つかりません");
+    let transcript: { role: string; content: string }[] = [];
+    if (p.consent) {
+      const rows = this.store.db
+        .prepare("SELECT role, content FROM messages WHERE run_id = ? AND role IN ('user','assistant','tool') ORDER BY created_at, rowid")
+        .all(run.id) as { role: string; content: string }[];
+      transcript = rows.slice(-200).map((r) => ({ role: r.role, content: r.content.slice(0, 50_000) }));
+    }
+    return this.opts.gateway.post("/v1/feedback", {
+      run_id: run.id,
+      rating: p.rating,
+      ...(p.comment ? { comment: p.comment } : {}),
+      consent: p.consent,
+      transcript,
+    });
   }
 
   /** 差分プレビュー（AGT-03）。 */

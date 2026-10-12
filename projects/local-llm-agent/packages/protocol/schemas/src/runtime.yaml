@@ -56,7 +56,7 @@ $defs:
         type: string
         enum: [run.start, run.pause, run.resume, run.stop, approval.decide, question.answer, undo.run, events.since,
                settings.update, settings.get, config.get, artifact.diff, conversation.list, conversation.get, conversation.search,
-               conversation.delete]
+               conversation.delete, feedback.submit]
       payload: { type: object }
     allOf:
       - if: { properties: { type: { const: run.start } } }
@@ -75,6 +75,8 @@ $defs:
         then: { properties: { payload: { $ref: "#/$defs/SettingsPayload" } } }
       - if: { properties: { type: { const: artifact.diff } } }
         then: { properties: { payload: { $ref: "#/$defs/ArtifactDiffPayload" } } }
+      - if: { properties: { type: { const: feedback.submit } } }
+        then: { properties: { payload: { $ref: "#/$defs/FeedbackPayload" } } }
   RunStartPayload:
     type: object
     additionalProperties: false
@@ -85,6 +87,16 @@ $defs:
       attachments: { type: array, items: { type: string } }
       workspace: { type: string }
       model: { $ref: "#/$defs/ModelPref" }
+  FeedbackPayload:
+    description: 評価ボタン（ADM-06）。consent が true のときだけ、Runtime がこの作業のやり取りを添えて Gateway に送る
+    type: object
+    additionalProperties: false
+    required: [run_id, rating, consent]
+    properties:
+      run_id: { type: string }
+      rating: { type: string, enum: [good, bad] }
+      comment: { type: string, maxLength: 2000 }
+      consent: { type: boolean }
   ArtifactDiffPayload:
     type: object
     additionalProperties: false

@@ -5,6 +5,8 @@ from __future__ import annotations
 import csv
 import io
 import itertools
+import json
+import re
 import time
 from datetime import UTC, datetime
 from typing import Any
@@ -54,9 +56,34 @@ class AdminState:
         self.terms: dict[str, dict[str, Any]] = {}
         self.instructions: list[dict[str, Any]] = []
         self.models: dict[str, dict[str, Any]] = {}
+        self.feedback: dict[str, dict[str, Any]] = {}
         self.slots = ["local-12b", "local-26b"]
         self.audit: list[dict[str, Any]] = []
         self.started = time.time()
+
+    def add_feedback(self, user: str, body: dict[str, Any]) -> dict[str, Any]:
+        consent = bool(body.get("consent")) and bool(body.get("transcript"))
+        key = f"{user}:{body.get('run_id')}"
+        fid = self.feedback.get(key, {}).get("id") or f"fb{next(self.seq)}"
+        self.feedback[key] = {
+            "id": fid,
+            "user": user,
+            "run_id": str(body.get("run_id")),
+            "rating": body.get("rating"),
+            "comment": body.get("comment"),
+            "consent": consent,
+            "status": "pending" if consent else "none",
+            "created_at": _now(),
+            "transcript": list(body.get("transcript") or []) if consent else [],
+        }
+        self.log(user, "feedback.submit", f"{body.get('run_id')}:{body.get('rating')}")
+        return {"id": fid, "status": self.feedback[key]["status"]}
+
+    def mask(self, text: str) -> str:
+        out = text
+        for t in sorted((t["term"] for t in self.terms.values()), key=len, reverse=True):
+            out = out.replace(t, "［機密語］")
+        return re.sub(r"\d[\d,]{3,}", "［数字］", out)
 
     def log(self, user: str, action: str, target: str) -> None:
         self.audit.append(
@@ -338,6 +365,66 @@ def admin_router(state: AdminState, is_admin: Any) -> APIRouter:
             target["status"], target["promoted_at"] = "production", _now()
         state.log(who, "admin.model.rollback", mid)
         return {"slot": m["slot"], "production": target["id"] if target else None}
+
+    # ---- 評価データ候補（ADM-06）----
+    def fb_view(f: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": f["id"],
+            "rating": f["rating"],
+            "comment": state.mask(f["comment"]) if f.get("comment") else None,
+            "consent": f["consent"],
+            "status": f["status"],
+            "created_at": f["created_at"],
+            "transcript": [{**m, "content": state.mask(str(m.get("content", "")))} for m in f["transcript"]],
+        }
+
+    @r.get("/feedback")
+    async def feedback(request: Request, status: str | None = None) -> dict[str, Any]:
+        require(request)
+        items = [
+            fb_view(f) for f in reversed(list(state.feedback.values())) if not status or f["status"] == status
+        ]
+        counts: dict[str, int] = {}
+        ratings: dict[str, int] = {}
+        for f in state.feedback.values():
+            counts[f["status"]] = counts.get(f["status"], 0) + 1
+            ratings[f["rating"]] = ratings.get(f["rating"], 0) + 1
+        return {"items": items, "counts": counts, "ratings": ratings}
+
+    def find_fb(fid: str) -> dict[str, Any]:
+        for f in state.feedback.values():
+            if f["id"] == fid:
+                return f
+        raise GatewayError(404, "NOT_FOUND", "評価がありません")
+
+    @r.post("/feedback/{fid}/{decision}")
+    async def review(fid: str, decision: str, request: Request) -> dict[str, Any]:
+        who = require(request)
+        if decision not in ("approve", "reject"):
+            raise GatewayError(404, "NOT_FOUND", "ありません")
+        f = find_fb(fid)
+        if f["status"] != "pending":
+            raise GatewayError(409, "CONFLICT", "確認待ちの評価だけを承認・却下できます")
+        f["status"] = "approved" if decision == "approve" else "rejected"
+        if decision == "reject":
+            f["transcript"] = []
+        state.log(who, f"admin.feedback.{decision}", fid)
+        return {"id": fid, "status": f["status"]}
+
+    @r.get("/feedback/export")
+    async def export(request: Request) -> Response:
+        who = require(request)
+        rows = [fb_view(f) for f in state.feedback.values() if f["status"] == "approved"]
+        state.log(who, "admin.feedback.export", str(len(rows)))
+        body = "".join(
+            json.dumps(
+                {"id": v["id"], "rating": v["rating"], "comment": v["comment"], "messages": v["transcript"]},
+                ensure_ascii=False,
+            )
+            + "\n"
+            for v in rows
+        )
+        return Response(body, media_type="application/x-ndjson; charset=utf-8")
 
     @r.get("/audit")
     async def audit(request: Request, user: str = "", action: str = "", format: str = "json") -> Any:  # noqa: A002

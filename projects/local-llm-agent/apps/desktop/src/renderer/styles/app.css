@@ -689,3 +689,24 @@ h2 {
   width: 100%;
   margin: 8px 0 4px;
 }
+
+/* 評価ボタン（ADM-06） */
+.feedback {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+}
+.feedback button.active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.feedback input[type="text"],
+.feedback input:not([type]) {
+  flex: 1 1 200px;
+}
+.feedback-sent {
+  padding: 8px 16px;
+}

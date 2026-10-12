@@ -50,7 +50,7 @@
 | ADM-03 | Should | §6.7 | api, ui, ops | apps/admin-web, server/deploy | e2e | M6 | 実装中 |
 | ADM-04 | Should | §6.3 | api, data_model | server/gateway | integ | M4 | 検証済み |
 | ADM-05 | Should | §4.3 | ops | apps/desktop | integ | M6 | 実装中 |
-| ADM-06 | Should | §8.3 | api, data_model, ui | server/gateway, apps/desktop, ml/datagen | integ | M6 | 未着手 |
+| ADM-06 | Should | §8.3 | api, data_model, ui | server/gateway, apps/desktop, ml/datagen | integ | M6 | 検証済み |
 
 ## 5.4 継続実行（RUN）
 
@@ -193,7 +193,7 @@
 | ADM-03 | 実装中 | /admin/v1/dashboard と管理画面 / test_departments_and_dashboard_shape、admin E2E | GPU 負荷は空のまま返している（DCGM 未連携） |
 | ADM-04 | 検証済み | users.max_concurrent / test_per_user_and_global_limits | なし |
 | ADM-05 | 実装中 | モデル更新は台帳の promote・rollback / test_gw_registry、admin E2E | アプリの自動更新と署名が未実装 |
-| ADM-06 | 未着手 | なし | 評価ボタンと同意付きの収集が未実装 |
+| ADM-06 | 検証済み | 評価ボタン・同意したやり取りの暗号化保存・マスキングした確認・承認分の書き出し / test_gw_feedback、desktop E2E「E-01」、admin E2E「ADM-06」 | なし（2026-10-12 対応） |
 | RUN-01 | 検証済み | RunStore（手順・意図記録・バックアップの場所） / foundation、IT「RUN-02」 | なし |
 | RUN-02 | 検証済み | resumeOpen と FI-13 の修正 / IT「RUN-02」、FI-11、FI-12、FI-13 | なし |
 | RUN-03 | 検証済み | retry.ts（無制限の backoff）と retry 表示 / IT「AGT-05/RUN-03」、FI-06、FI-08、FI-15 | なし |

@@ -265,6 +265,35 @@ class EvalResult(Base):
     run_at: Mapped[datetime] = mapped_column(UTCDateTime, primary_key=True, server_default=func.now())
 
 
+class Feedback(Base):
+    """「良い／悪い」の評価（ADM-06）。やり取りの中身は本人が同意したときだけ、暗号化して持つ。
+
+    status: none（同意なし。評価と感想だけ）/ pending（同意あり・管理者の確認待ち）/ approved / rejected。
+    却下したら中身は消す。承認したものだけをマスキングして学習データの候補として書き出す。
+    """
+
+    __tablename__ = "feedback"
+    __table_args__ = (
+        CheckConstraint("rating IN ('good','bad')", name="rating"),
+        CheckConstraint("status IN ('none','pending','approved','rejected')", name="status"),
+        Index("feedback_status", "status"),
+    )
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    client_id: Mapped[str] = mapped_column(
+        Text, unique=True
+    )  # <user_id>:<run_id>（同じ作業は1件。送り直しは上書き）
+    user_id: Mapped[str] = mapped_column(Text, ForeignKey("users.id"))
+    org_id: Mapped[str] = mapped_column(Text)
+    rating: Mapped[str] = mapped_column(Text)
+    comment: Mapped[str | None] = mapped_column(Text)
+    consent: Mapped[bool] = mapped_column(Boolean)
+    status: Mapped[str] = mapped_column(Text)
+    payload_ct: Mapped[bytes | None] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, server_default=func.now())
+    reviewed_by: Mapped[str | None] = mapped_column(Text)
+    reviewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime)
+
+
 class Instruction(Base):
     __tablename__ = "instructions"
     org_id: Mapped[str] = mapped_column(Text, ForeignKey("orgs.id"), primary_key=True)

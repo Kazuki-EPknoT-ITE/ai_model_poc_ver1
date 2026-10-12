@@ -460,3 +460,9 @@ Runtime を経由しない操作は、preload が `window.app` として公開�
 - `packages/protocol/schemas/*.schema.json` の `$id` に版を入れる（例 `https://local-llm-agent/schemas/1.0/action.json`）。
 - Runtime は Gateway の `/v1/config` から、サーバーが対応するプロトコル版を受け取る。メジャー番号が合わない場合は、画面に「アプリの更新が必要です」と出して推論を始めない。
 - ツールの追加はマイナー版の更新とする。既存の引数の意味を変えるのはメジャー版の更新とする。
+
+## 追記: コマンド feedback.submit（ADM-06）
+
+| コマンド | 内容 |
+| --- | --- |
+| `feedback.submit` | `{ run_id, rating: "good"\|"bad", comment?, consent }` → Gateway の応答。consent が true のときだけ、この作業のやり取り（依頼・モデルの出力・ツールの結果）を添えて `POST /v1/feedback` に送る（ADM-06） |

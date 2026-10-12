@@ -389,6 +389,25 @@ class EventsSincePayload(BaseModel):
     seq: int = Field(..., ge=0)
 
 
+class Rating(StrEnum):
+    good = "good"
+    bad = "bad"
+
+
+class FeedbackPayload(BaseModel):
+    """
+    評価ボタン（ADM-06）。consent が true のときだけ、Runtime がこの作業のやり取りを添えて Gateway に送る
+    """
+
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    run_id: str
+    rating: Rating
+    comment: str | None = Field(None, max_length=2000)
+    consent: bool
+
+
 class Failure(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -821,6 +840,7 @@ class Type2(StrEnum):
     conversation_get = "conversation.get"
     conversation_search = "conversation.search"
     conversation_delete = "conversation.delete"
+    feedback_submit = "feedback.submit"
 
 
 class RuntimeCommand(BaseModel):

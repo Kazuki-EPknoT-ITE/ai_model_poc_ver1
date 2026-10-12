@@ -29,6 +29,17 @@ test("E-01/E-02: login, pick folder, request, step cards, final summary", async 
   await expect(page.getByRole("complementary", { name: "計画と承認" })).toContainText("中身を確認");
   await expect(page.getByRole("navigation", { name: "会話の履歴" })).toContainText("フォルダを確認して");
   await page.screenshot({ path: join(ARTIFACTS, "e02-final.png") });
+  // ADM-06: 評価を送る（同意したのでやり取りも送られる）
+  const fb = page.getByRole("region", { name: "この作業の評価" });
+  await fb.getByRole("button", { name: "👍 良い" }).click();
+  await fb.getByLabel("ひとこと（任意）").fill("速くて助かった");
+  await fb.getByRole("checkbox").check();
+  await fb.getByRole("button", { name: "送る" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "評価を送りました" })).toBeVisible();
+  const sent = (await (await fetch(`${ctx.url}/mock/feedback`)).json()) as { rating: string; comment: string; consent: boolean; status: string; messages: number }[];
+  expect(sent).toHaveLength(1);
+  expect(sent[0]).toMatchObject({ rating: "good", comment: "速くて助かった", consent: true, status: "pending" });
+  expect(sent[0]!.messages).toBeGreaterThan(2); // 依頼・モデルの出力・ツールの結果
   // APP-06: 履歴を検索する
   const history = page.getByRole("navigation", { name: "会話の履歴" });
   await page.getByLabel("会話を検索").fill("確認");

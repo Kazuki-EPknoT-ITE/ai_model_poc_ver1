@@ -286,6 +286,7 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
           </div>
         )}
         <Timeline view={view} messages={messages} />
+        {view.state === "done" && view.runId && <FeedbackBar key={view.runId} runId={view.runId} />}
         <Composer
           macros={macros}
           disabled={!workspace || hostState !== "ready"}
@@ -389,6 +390,59 @@ function Timeline({ view, messages }: { view: ConversationView; messages: Messag
       )}
       {view.finalSummary !== null && view.citations.length > 0 && <Citations items={view.citations} />}
       <div ref={end} />
+    </section>
+  );
+}
+
+/** 評価ボタン（ADM-06）。同意したときだけ、この作業のやり取りを送る（管理者が確認し、伏せ字にしてから使う） */
+function FeedbackBar({ runId }: { runId: string }) {
+  const [rating, setRating] = useState<"good" | "bad" | null>(null);
+  const [comment, setComment] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  if (state === "sent") {
+    return (
+      <p className="feedback-sent small muted" role="status">
+        評価を送りました。ありがとうございます。
+      </p>
+    );
+  }
+  const submit = async () => {
+    if (!rating) return;
+    setState("sending");
+    try {
+      await api.runtime.send(cmd("feedback.submit", { run_id: runId, rating, consent, ...(comment.trim() ? { comment: comment.trim() } : {}) }));
+      setState("sent");
+    } catch {
+      setState("error");
+    }
+  };
+  return (
+    <section className="feedback" aria-label="この作業の評価">
+      <span className="small">この作業はいかがでしたか？</span>
+      <button className={rating === "good" ? "active" : ""} aria-pressed={rating === "good"} onClick={() => setRating("good")}>
+        👍 良い
+      </button>
+      <button className={rating === "bad" ? "active" : ""} aria-pressed={rating === "bad"} onClick={() => setRating("bad")}>
+        👎 悪い
+      </button>
+      {rating && (
+        <>
+          <input aria-label="ひとこと（任意）" placeholder="ひとこと（任意）" value={comment} maxLength={2000} onChange={(e) => setComment(e.target.value)} />
+          <label className="small">
+            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
+            このやり取りを AI の改善に提供する（管理者が確認し、社名・金額などを伏せてから使います）
+          </label>
+          <button className="primary" disabled={state === "sending"} onClick={() => void submit()}>
+            送る
+          </button>
+          {state === "error" && (
+            <span className="error small" role="alert">
+              送れませんでした。時間をおいてもう一度お試しください
+            </span>
+          )}
+        </>
+      )}
     </section>
   );
 }

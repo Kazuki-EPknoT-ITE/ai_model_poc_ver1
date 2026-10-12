@@ -290,6 +290,19 @@ Model = { "id", "slot", "base_model", "quant", "lora": null, "status": "candidat
 
 管理 API はすべて `role=admin` のトークンが必要（それ以外は 403 `FORBIDDEN`）。変更系の操作は監査ログに `source=admin` で残す。
 
+### 9.1.1 評価ボタン（ADM-06。実装 server/gateway/src/llm_gateway/feedback.py）
+
+```jsonc
+// POST /v1/feedback（利用者）{ run_id, rating: "good"|"bad", comment?, consent, transcript?: [{ role: "user"|"assistant"|"tool", content }] }
+//   → { id, status: "none"|"pending" }
+//   consent が false なら transcript は保存しない（受け取っても捨てる）。true ならやり取りを暗号化して保存し、確認待ち（pending）。
+//   同じ (利用者, run_id) は1件で、送り直すと上書き。管理者の確認が済んだものは 409。やり取りは合計20万字・200件まで（413）。
+// GET /admin/v1/feedback?status=&limit= → { items: [{ id, rating, comment, consent, status, created_at, transcript }], counts, ratings }
+//   comment と transcript はマスキング済み（機密語辞書の語と読み・メール・電話番号・4桁以上の数字・C:\Users\<名前>）
+// POST /admin/v1/feedback/{id}/approve | /reject → { id, status }（pending のときだけ。却下したら中身を削除）
+// GET /admin/v1/feedback/export → application/x-ndjson（承認済みを1行1件、マスキング済み。ml/datagen の入力）
+```
+
 ### 9.2 内部 API（Web Relay 専用）
 
 ```jsonc

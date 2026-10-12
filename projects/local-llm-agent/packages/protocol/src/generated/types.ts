@@ -1369,6 +1369,18 @@ conversation_id: string
 seq: number
 }
 /**
+ * 評価ボタン（ADM-06）。consent が true のときだけ、Runtime がこの作業のやり取りを添えて Gateway に送る
+ * 
+ * This interface was referenced by `LocalLlmAgentProtocol`'s JSON-Schema
+ * via the `definition` "FeedbackPayload".
+ */
+export interface FeedbackPayload {
+run_id: string
+rating: ("good" | "bad")
+comment?: string
+consent: boolean
+}
+/**
  * This interface was referenced by `LocalLlmAgentProtocol`'s JSON-Schema
  * via the `definition` "FsCopyArgs".
  */
@@ -1733,7 +1745,7 @@ detail?: {
 export interface RuntimeCommand {
 v: 1
 id: string
-type: ("run.start" | "run.pause" | "run.resume" | "run.stop" | "approval.decide" | "question.answer" | "undo.run" | "events.since" | "settings.update" | "settings.get" | "config.get" | "artifact.diff" | "conversation.list" | "conversation.get" | "conversation.search" | "conversation.delete")
+type: ("run.start" | "run.pause" | "run.resume" | "run.stop" | "approval.decide" | "question.answer" | "undo.run" | "events.since" | "settings.update" | "settings.get" | "config.get" | "artifact.diff" | "conversation.list" | "conversation.get" | "conversation.search" | "conversation.delete" | "feedback.submit")
 payload: {
 [k: string]: unknown | undefined
 }

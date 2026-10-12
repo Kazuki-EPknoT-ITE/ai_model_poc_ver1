@@ -105,3 +105,19 @@ textarea.big {
 .mono {
   font-family: var(--mono);
 }
+
+/* 評価データ（A-09） */
+.feedback-item {
+  border: 1px solid var(--line, #ddd);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 8px 0;
+}
+.feedback-item .transcript {
+  padding-left: 1.2em;
+}
+.feedback-item .transcript pre {
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow: auto;
+}

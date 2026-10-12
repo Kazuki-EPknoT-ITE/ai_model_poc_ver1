@@ -41,6 +41,8 @@ export interface Ctx {
   ws: string;
   outside: string;
   mock: ChildProcess;
+  /** Gateway（モックまたは本物）の URL */
+  url: string;
   close(): Promise<void>;
 }
 
@@ -140,6 +142,7 @@ async function launchApp(dir: string, ws: string, outside: string, url: string, 
     ws,
     outside,
     mock,
+    url,
     close: async () => {
       await app.evaluate(({ app: a }) => a.exit(0)).catch(() => undefined);
       await app.close().catch(() => undefined);

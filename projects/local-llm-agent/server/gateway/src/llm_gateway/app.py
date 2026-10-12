@@ -23,6 +23,7 @@ from .admin_api import register_admin, register_internal
 from .audit import AuditBatch
 from .auth import Principal
 from .db import Instruction, Job, User
+from .feedback import register_feedback
 from .gateway import Gateway
 from .jobs import StepRequest
 from .netpolicy import admin_cap, decide
@@ -541,6 +542,7 @@ def create_app(gw: Gateway) -> FastAPI:
 
     register_admin(app, gw, Depends(admin_user))
     register_registry(app, gw, Depends(admin_user))
+    register_feedback(app, gw, Depends(current_user), Depends(admin_user))
     register_internal(app, gw)
 
     if gw.settings.admin_web_dir:
