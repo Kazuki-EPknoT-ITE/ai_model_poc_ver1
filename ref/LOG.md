@@ -18,6 +18,25 @@
 
 ---
 
+## 2026-10-12 06:50 — 会話履歴の検索（APP-06）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `apps/desktop/src/renderer/App.tsx`（検索欄。0.2秒待ってから conversation.search）、`styles/app.css`
+  - `packages/agent-runtime/src/store/store.ts`（LIKE の % _ をエスケープ）
+  - `packages/agent-runtime/test/foundation.test.ts`（+1件）、`apps/desktop/e2e/app.e2e.ts`（E-01 に検索を追加）
+  - 設計ドキュメント: traceability（APP-06 を検証済みに）
+- **やったこと**:
+  - Runtime にはもともと conversation.search があったが、画面から使えなかった。左の履歴の上に検索欄を置いた。
+  - 探す対象は、題名と利用者が送った依頼の文（読み取ったファイルの中身は対象外）。
+  - 「%」「_」を含む語でも文字どおりに探すよう、エスケープを直した（以前は「%」で全件が出ていた）。
+- **E2Eテスト**: **合格**。デスクトップ E2E 10件。E-01 で次を確認:
+  - 「確認」で見つかる。
+  - 「存在しない語100%」で「見つかりませんでした」。
+  - 空にすると一覧に戻る。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（runtime vitest 19件＋失敗なし、pytest 492件成功・47件スキップ）。
+- **次にやること / 申し送り**: ADM-06（評価ボタンと同意付きの収集）、AGT-09（プラグインの設定手段）、ADM-03（ダッシュボードの GPU）。
+
 ## 2026-10-12 06:20 — 出典の表示と照合（AGT-07 / NET-05）
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

@@ -62,6 +62,17 @@ describe("RunStore", () => {
   });
 });
 
+describe("conversation search (APP-06)", () => {
+  it("finds by title and treats % and _ literally", () => {
+    store.createConversation({ id: "s1", title: "請求書の転記 100%", workspace: ws });
+    store.createConversation({ id: "s2", title: "契約書の要約", workspace: ws });
+    expect(store.searchConversations("請求書").map((c) => c.id)).toEqual(["s1"]);
+    expect(store.searchConversations("100%").map((c) => c.id)).toEqual(["s1"]);
+    expect(store.searchConversations("%")).toHaveLength(1);
+    expect(store.searchConversations("_")).toHaveLength(0);
+  });
+});
+
 describe("policy", () => {
   it("allows reads and writes inside the workspace", () => {
     expect(decide(tool("fs.list"), { path: "." }, ctx()).kind).toBe("allow");

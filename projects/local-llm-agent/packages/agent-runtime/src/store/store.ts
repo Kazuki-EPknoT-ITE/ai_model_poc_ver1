@@ -228,8 +228,9 @@ export class RunStore {
   searchConversations(q: string, limit = 50): ConversationRow[] {
     return this.all(
       `SELECT DISTINCT c.* FROM conversations c LEFT JOIN messages m ON m.conversation_id = c.id AND m.role = 'user'
-       WHERE c.deleted_at IS NULL AND (c.title LIKE @q OR m.content LIKE @q) ORDER BY c.updated_at DESC LIMIT @limit`,
-      { q: `%${q}%`, limit },
+       WHERE c.deleted_at IS NULL AND (c.title LIKE @q ESCAPE '!' OR m.content LIKE @q ESCAPE '!') ORDER BY c.updated_at DESC LIMIT @limit`,
+      // 「%」「_」を含む語もそのまま探す
+      { q: `%${q.replace(/[!%_]/g, "!$&")}%`, limit },
     );
   }
   updateConversation(id: string, patch: Partial<ConversationRow>): void {

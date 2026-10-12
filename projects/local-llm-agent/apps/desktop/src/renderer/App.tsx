@@ -109,6 +109,22 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
     setConvs(list);
   }, []);
 
+  // 会話の履歴の検索（APP-06）: 題名と、自分が送った依頼の文から探す
+  const [query, setQuery] = useState("");
+  const [found, setFound] = useState<ConvRow[] | null>(null);
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setFound(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      void api.runtime.send(cmd("conversation.search", { q })).then((r) => setFound(r as ConvRow[]));
+    }, 200);
+    return () => clearTimeout(t);
+  }, [query]);
+  const shown = found ?? convs;
+
   const loadConversation = useCallback(async (id: string) => {
     const r = (await api.runtime.send(cmd("conversation.get", { conversation_id: id }))) as { conversation?: ConvRow; messages: MessageRow[] };
     setMessages(r.messages.filter((m) => m.role === "user"));
@@ -190,14 +206,23 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
         <button className="primary block" onClick={newConversation}>
           ＋ 新しい会話
         </button>
+        <input
+          type="search"
+          className="conv-search"
+          placeholder="会話を検索"
+          aria-label="会話を検索"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
         <nav className="conv-list" aria-label="会話の履歴">
-          {convs.map((c) => (
+          {shown.map((c) => (
             <button key={c.id} className={`conv ${c.id === current ? "active" : ""}`} onClick={() => openConversation(c.id)} title={c.workspace}>
               <span className="conv-title">{c.title}</span>
               {views[c.id]?.state && !["done", "stopped"].includes(views[c.id]!.state!) && <span className="badge run">実行中</span>}
             </button>
           ))}
-          {convs.length === 0 && <p className="muted small">まだ会話はありません</p>}
+          {found !== null && found.length === 0 && <p className="muted small">見つかりませんでした</p>}
+          {found === null && convs.length === 0 && <p className="muted small">まだ会話はありません</p>}
         </nav>
         {workspace && <FileTree root={workspace} refreshKey={view.artifacts.length} />}
         <div className="user-row">

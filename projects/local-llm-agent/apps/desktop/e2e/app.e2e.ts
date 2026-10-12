@@ -29,6 +29,14 @@ test("E-01/E-02: login, pick folder, request, step cards, final summary", async 
   await expect(page.getByRole("complementary", { name: "計画と承認" })).toContainText("中身を確認");
   await expect(page.getByRole("navigation", { name: "会話の履歴" })).toContainText("フォルダを確認して");
   await page.screenshot({ path: join(ARTIFACTS, "e02-final.png") });
+  // APP-06: 履歴を検索する
+  const history = page.getByRole("navigation", { name: "会話の履歴" });
+  await page.getByLabel("会話を検索").fill("確認");
+  await expect(history).toContainText("フォルダを確認して");
+  await page.getByLabel("会話を検索").fill("存在しない語100%");
+  await expect(history).toContainText("見つかりませんでした");
+  await page.getByLabel("会話を検索").fill("");
+  await expect(history).toContainText("フォルダを確認して");
 });
 
 test("APP-01: the answer is shown while it is being generated", async () => {

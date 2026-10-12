@@ -19,7 +19,7 @@
 | APP-03 | Must | §4.1 | protocol §3.1, ui, data_model | apps/desktop, packages/fs-tools | e2e | M4 | 検証済み |
 | APP-04 | Must | §4.1 | protocol §5.2(step), ui | apps/desktop | e2e | M4 | 検証済み |
 | APP-05 | Should | §4.1 | protocol §1(PlanUpdate), §5.2(plan), ui | apps/desktop | e2e | M4 | 検証済み |
-| APP-06 | Must | §4.1, §4.4 | protocol §5.1(conversation.*), data_model, ui | apps/desktop, packages/agent-runtime | unit, e2e | M4 | 実装中 |
+| APP-06 | Must | §4.1, §4.4 | protocol §5.1(conversation.*), data_model, ui | apps/desktop, packages/agent-runtime | unit, e2e | M4 | 検証済み |
 | APP-07 | Must | §4.1, §5.4 | protocol §5.1(run.stop), ui | apps/desktop, packages/agent-runtime | e2e, integ | M4 | 検証済み |
 | APP-08 | Should | §4.1, §6.3 | protocol §5.1(run.start.model), api, ui | apps/desktop, server/gateway | e2e, integ | M4 | 検証済み |
 | APP-09 | Should | §4.1, §9 | ui, prompts | apps/desktop, profiles/_template | e2e | M6 | 検証済み |
@@ -172,7 +172,7 @@
 | APP-03 | 検証済み | App.tsx のファイルツリー / E2E E-01/02（ツリーの内容を確認） | なし |
 | APP-04 | 検証済み | App.tsx の step-card（details） / E2E E-01/02 | なし |
 | APP-05 | 検証済み | App.tsx の計画パネルと plan_update / E2E E-01/02「計画と承認」 | なし |
-| APP-06 | 実装中 | RunStore（SQLCipher）と conversation.* / foundation「encrypted」、E-03 で履歴から再開 | 履歴の検索は Runtime のコマンドだけで、画面がない |
+| APP-06 | 検証済み | 会話の保存（SQLCipher）と再開、履歴の検索欄 / foundation「conversation search」、desktop E2E「E-01/E-02」 | なし（2026-10-12 対応） |
 | APP-07 | 検証済み | run.stop と変更一覧 / IT「RUN-11」、E2E E-07/08 | なし |
 | APP-08 | 検証済み | モデル選択（自動/高速/高精度） / E2E「settings」、FI-04（昇格） | なし |
 | APP-09 | 検証済み | config.get の macros と「/」候補 / E2E E-03/E-13 | なし |
