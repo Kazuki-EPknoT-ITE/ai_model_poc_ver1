@@ -21,6 +21,7 @@
 | [local_llm_traceability.md](local_llm_traceability.md) | — | 要件ID → 設計・仕様・実装・試験の対応表 |
 | [local_llm_adr/](local_llm_adr/README.md) | — | 設計判断の記録（ADR 001〜008） |
 | [local_llm_ops/server_setup.md](local_llm_ops/server_setup.md) | v1.0-draft | 推論サーバーの構築手順（Ubuntu 主・WSL2 付録） |
+| [local_llm_ops/trial_guide.md](local_llm_ops/trial_guide.md) | v1.0-draft | 部門代表による試用の手順書とアンケート（POC 合格条件 9.2-4） |
 
 - `-draft` の文書は、実装中に見つかった問題を反映して更新する。仕様と違う実装が必要になったら、先に仕様を直す（`local_llm_dev_guide.md` §4）。
 - 実装上の正本は、スキーマ（`packages/protocol`）・マイグレーション・OpenAPI。文書とずれたら同じコミットで両方を直す。
