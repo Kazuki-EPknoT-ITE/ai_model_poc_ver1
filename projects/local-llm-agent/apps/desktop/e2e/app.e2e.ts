@@ -132,6 +132,20 @@ test("ADM-05: a newer version from the gateway is downloaded, verified and insta
   expect(req.path.endsWith("LocalLLMAgent-Setup-9.9.9.exe")).toBe(true);
 });
 
+test("APP-10: while the server is busy, the position in the queue and the estimate are shown", async () => {
+  ctx = await launch("queue.yaml");
+  const { page } = ctx;
+  await login(page);
+  await page.getByRole("button", { name: /作業フォルダを選ぶ/ }).click();
+  await page.getByLabel("依頼").fill("集計して");
+  await page.keyboard.press("Control+Enter");
+  const status = page.getByTestId("run-state");
+  await expect(status).toContainText("順番待ち 3 番目（約 6 秒）", { timeout: 30_000 });
+  await expect(status).toContainText("順番待ち 2 番目（約 4 秒）");
+  await expect(page.getByTestId("final-summary")).toHaveText("順番が来て完了しました。", { timeout: 30_000 });
+  await expect(status).not.toContainText("順番待ち");
+});
+
 test("E-04/E-14: outside write, approval card focused on reject, approve by keyboard, executed", async () => {
   ctx = await launch("approval.yaml");
   writeFileSync(join(ctx.ws, "a.txt"), "A");

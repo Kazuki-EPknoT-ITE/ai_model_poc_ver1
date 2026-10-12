@@ -447,6 +447,7 @@ docker compose exec gateway sh -c '
 ### 8.1 監視（OPS-05, ADM-03）
 - Prometheus が収集するもの: vLLM の `/metrics`（待ち件数・実行中件数・KV使用率・トークン/秒）、`dcgm-exporter`（GPU温度・使用率・電力・VRAM）、Gateway の `/metrics`（キュー長・応答時間・エラー率）、node-exporter（CPU・メモリ・ディスク）。
 - Grafana: 社内LANからだけ見られるようにする（ufw で管理PCに限定）。初期パスワードは `/srv/llm/secrets/grafana.env` で設定する。
+- アラートのルールは `promtool test rules server/deploy/prometheus/alerts.test.yml` で試験できる（閾値・継続時間・文言。変えたら試験も直す）。
 - アラートの初期値（運用しながら調整する。ルールは `server/deploy/prometheus/alerts.yml`、通知先は `/srv/llm/secrets/alertmanager/alertmanager.yml`（例: `server/deploy/alertmanager/alertmanager.example.yml`））:
 
 | 条件 | 閾値 | 通知 |

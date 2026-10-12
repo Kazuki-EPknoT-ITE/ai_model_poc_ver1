@@ -18,6 +18,24 @@
 
 ---
 
+## 2026-10-12 14:30 — 順番待ちの表示の E2E（APP-10）と、アラートのルールの試験（OPS-05、promtool）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `apps/desktop/e2e/app.e2e.ts`（APP-10）、`eval/mock-gateway/scenarios/runtime/queue.yaml`（新規）
+  - `server/deploy`: `prometheus/alerts.test.yml`（新規。promtool のアラートの試験 6本）、`tests/test_deploy_alerts.py`（新規。promtool があれば検査と試験、無ければ飛ばす）
+  - 設計ドキュメント: ops/server_setup §8.1（試験の方法）、traceability（APP-10・OPS-05 を検証済みに）
+- **やったこと**:
+  - APP-10: モックの queue（3 → 2 → 1 番目）で「順番待ち 3 番目（約 6 秒）」の表示と、始まると消えることを E2E で確認した。
+  - OPS-05: 固定版の promtool 2.53.2 を scratchpad に取り、ルールの文法の検査と、次のアラートが閾値・継続時間・文言どおりに出るかの単体試験を作った。
+    - 対象: GPU 温度・待ち行列・エンジン停止・失敗率・バックアップと取り込みの遅れ・自動再起動。
+    - 試験のデータの間隔が粗いと、Prometheus の「5分で古くなる」規則で for が続かないことがわかり、実際の収集（15秒）に近い間隔に直した（ルール自体は正しい）。
+- **E2Eテスト**: **合格**。デスクトップ E2E **13件**（APP-10 を含む）。promtool の試験 2件も合格（PROMTOOL を指定して実行）。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（pytest 507件成功・55件スキップ。promtool の2件は PATH に無いため、pnpm check の中では飛ばした）。
+- **次にやること / 申し送り**: この PC でできる残りは少なくなった。
+  - 検証機の接続情報待ち: M0・T-45・性能 PRF・実モデル評価・コード署名・UPS。
+  - LibreOffice の導入で、試験3件のスキップを解消できる。
+
 ## 2026-10-12 13:40 — 社内文書の夜間の取り込み（OPS-01）と、PostgreSQL での Gateway の試験（初めて実施）
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

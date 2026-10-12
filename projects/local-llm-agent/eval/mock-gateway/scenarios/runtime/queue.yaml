@@ -1,0 +1,9 @@
+# 混雑時の順番待ちの表示（APP-10）: 最初の推論が 3 → 2 → 1 番目と待ってから始まる
+name: rt-queue
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { purpose: agent }
+    repeat: true
+    action: { type: final, summary: "順番が来て完了しました。", outputs: [], failures: [], needs_review: [] }
+faults:
+  - { kind: queue, positions: [3, 2, 1], interval_ms: 1500, at: { step_index: 0 } }

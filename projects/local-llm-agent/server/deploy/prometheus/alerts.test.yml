@@ -1,0 +1,101 @@
+# アラートのルールの試験（OPS-05）。promtool test rules alerts.test.yml で実行する（server/deploy/tests でも回す）。
+rule_files: [alerts.yml]
+evaluation_interval: 15s # 本番の prometheus.yml と同じ
+
+tests:
+  - name: GPU 温度は 85℃ を5分超えたら
+    interval: 1m
+    input_series:
+      - series: 'DCGM_FI_DEV_GPU_TEMP{gpu="0",Hostname="llm-sv01"}'
+        values: "80 86 86 86 86 86 86 86"
+    alert_rule_test:
+      - { eval_time: 4m, alertname: GpuTemperatureHigh, exp_alerts: [] }
+      - eval_time: 7m
+        alertname: GpuTemperatureHigh
+        exp_alerts:
+          - exp_labels: { severity: warning, gpu: "0", Hostname: llm-sv01 }
+            exp_annotations:
+              summary: "GPU 温度が 85℃ を5分超えています（86℃）"
+              description: "冷却（吸気・ファン・室温）を確認してください。続く場合は同時実行数を下げます。"
+
+  - name: 待ち行列が10件を10分超えたら（エンジン停止中は抑止は Alertmanager 側）
+    interval: 1m
+    input_series:
+      - series: 'llmgw_queue_depth{model="local-12b"}'
+        values: "12x15"
+    alert_rule_test:
+      - { eval_time: 9m, alertname: QueueTooLong, exp_alerts: [] }
+      - eval_time: 11m
+        alertname: QueueTooLong
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "推論の待ち行列が10件を10分超えています（12件）"
+              description: "利用の集中か推論の遅延です。管理画面のダッシュボードで実行中のジョブと GPU を確認してください。"
+
+  - name: 推論エンジンの停止
+    interval: 15s
+    input_series:
+      - series: 'llmgw_engine_up{model="local-12b"}'
+        values: "1 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 75s
+        alertname: InferenceEngineDown
+        exp_alerts:
+          - exp_labels: { severity: critical, model: local-12b }
+            exp_annotations:
+              summary: "推論エンジン local-12b が応答しません"
+              description: "自動再起動の後も続く場合は docker compose logs で原因を確認してください（作業は待機し、復旧後に再開します）。"
+
+  - name: ジョブの失敗率
+    interval: 1m
+    input_series:
+      - series: 'llmgw_jobs_total{state="done"}'
+        values: "0+10x15"
+      - series: 'llmgw_jobs_total{state="failed"}'
+        values: "0+2x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: JobErrorRateHigh
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "推論ジョブの失敗率が 5% を超えています（16.67%）"
+
+  - name: バックアップと取り込みの遅れ
+    interval: 1m # 1時間ごとの点だと、点と点の間で値が古くなり（5分）for が続かないため、実際の収集に近づける
+    input_series:
+      - series: "llm_backup_last_success_timestamp_seconds"
+        values: "0x1700"
+      - series: "llm_rag_ingest_last_success_timestamp_seconds"
+        values: "0x1700"
+    alert_rule_test:
+      - { eval_time: 25h, alertname: LlmBackupStale, exp_alerts: [] }
+      - eval_time: 27h
+        alertname: LlmBackupStale
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "バックアップが26時間以上成功していません"
+              description: "journalctl -u llm-backup で失敗の理由を確認してください（NAS のマウント、age の公開鍵など）。"
+      - eval_time: 27h
+        alertname: RagIngestStale
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "社内文書の取り込みが26時間以上成功していません（検索結果が古くなります）"
+              description: "journalctl -u llm-rag-ingest で原因を確認してください（NAS のマウント、Qdrant の停止など）。"
+
+  - name: ハングによる自動再起動
+    interval: 5m
+    input_series:
+      - series: 'llm_watchdog_restarts_total{container="llm-vllm-12b-1"}'
+        values: "0 0 1 1 1"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ContainerRestartedByWatchdog
+        exp_alerts:
+          - exp_labels: { severity: warning, container: llm-vllm-12b-1 }
+            exp_annotations:
+              summary: "llm-vllm-12b-1 がハングし、自動で再起動しました（直近1時間）"
+              description: "繰り返す場合は docker compose logs で原因を確認してください（OPS-02）。"

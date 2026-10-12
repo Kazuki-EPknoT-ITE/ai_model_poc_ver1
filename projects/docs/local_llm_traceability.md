@@ -23,7 +23,7 @@
 | APP-07 | Must | §4.1, §5.4 | protocol §5.1(run.stop), ui | apps/desktop, packages/agent-runtime | e2e, integ | M4 | 検証済み |
 | APP-08 | Should | §4.1, §6.3 | protocol §5.1(run.start.model), api, ui | apps/desktop, server/gateway | e2e, integ | M4 | 検証済み |
 | APP-09 | Should | §4.1, §9 | ui, prompts | apps/desktop, profiles/_template | e2e | M6 | 検証済み |
-| APP-10 | Should | §4.1, §6.3 | protocol §5.2(queue), api, ui | apps/desktop, server/gateway | integ, e2e | M4 | 実装済み |
+| APP-10 | Should | §4.1, §6.3 | protocol §5.2(queue), api, ui | apps/desktop, server/gateway | integ, e2e | M4 | 検証済み |
 | APP-11 | Must | §4.1 | ui | apps/desktop | e2e | M4 | 検証済み |
 
 ## 5.2 エージェント（AGT）
@@ -158,7 +158,7 @@
 | OPS-02 | NFR | §2.1, §6.3 | api, ops, ui | server/deploy, server/gateway, apps/desktop | fault | M4 | 検証済み |
 | OPS-03 | NFR | §6.7 | api, ops | apps/desktop, server/deploy | fault | M6 | 検証済み |
 | OPS-04 | NFR | §6.7 | ops | server/deploy | integ | M6 | 検証済み |
-| OPS-05 | NFR | §6.7 | ops | server/deploy | integ | M6 | 実装済み |
+| OPS-05 | NFR | §6.7 | ops | server/deploy | integ | M6 | 検証済み |
 | OPS-06 | NFR | §6.7 | ops | （機器・設備） | — | M6 | 未着手 |
 
 ## 状態の根拠（2026-10-12 の監査）
@@ -176,7 +176,7 @@
 | APP-07 | 検証済み | run.stop と変更一覧 / IT「RUN-11」、E2E E-07/08 | なし |
 | APP-08 | 検証済み | モデル選択（自動/高速/高精度） / E2E「settings」、FI-04（昇格） | なし |
 | APP-09 | 検証済み | config.get の macros と「/」候補 / E2E E-03/E-13 | なし |
-| APP-10 | 実装済み | App.tsx の queue（順番・目安秒） | 表示の自動試験なし |
+| APP-10 | 検証済み | App.tsx の queue（順番・目安秒） / desktop E2E「APP-10」（モックの queue 3→2→1） | なし（2026-10-12 対応） |
 | APP-11 | 検証済み | 日本語 UI（lang=ja） / 全 E2E が日本語ラベルで操作 | なし（英語切替は将来） |
 | AGT-01 | 検証済み | runtime.ts のループ / IT「I-basic」、I-01 | なし |
 | AGT-02 | 検証済み | policy.ts / foundation「policy」、E2E E-04/E-14 | なし |
@@ -261,5 +261,5 @@
 | OPS-02 | 検証済み | compose の restart とヘルスチェック、watchdog.sh（unhealthy を再起動）、エンジン異常時の再投入 / test_deploy_backup（watchdog 2件）、test_requeued_when_engine_crashes、FI-06 | 実機での確認は要検証機 |
 | OPS-03 | 検証済み | client.ts の予備機への切替・切り戻し / failover.test.ts、FI シナリオ OPS-03 | 予備機への復元訓練（要検証機） |
 | OPS-04 | 検証済み | backup.sh・restore.sh・timer / test_deploy_backup（5件） | 復元訓練は検証機で |
-| OPS-05 | 実装済み | alerts.yml と alertmanager（GPU 温度・待ち件数） | promtool での式の検証と通知の試験なし（要検証機） |
+| OPS-05 | 検証済み | alerts.yml と alertmanager（GPU 温度・待ち件数・エンジン停止・失敗率・バックアップ・取り込み・自動再起動） / promtool check・test rules（test_deploy_alerts） | 通知の到達（メール・Teams）は実機で確認 |
 | OPS-06 | 未着手 | なし（ハードウェアの推奨事項） | UPS の導入と接続（要検証機） |
