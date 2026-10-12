@@ -18,6 +18,34 @@
 
 ---
 
+## 2026-10-12 12:50 — アプリの自動更新（ADM-05、Gateway から配布）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `server/gateway`:
+    - `src/llm_gateway/updates.py`（新規）、`config.py`（updates_dir）、`app.py`、`cli.py`（publish-update）
+    - `tests/test_gw_updates.py`（新規 2件）、`examples/gateway.yaml`、`openapi.json`（作り直し。追加した API を反映）
+  - `server/deploy/compose.yaml`（gateway に更新の置き場をマウント）
+  - `apps/desktop`:
+    - `src/main/updater.ts`（新規）、`src/shared/version.ts`（新規）、`src/main/main.ts`、`src/preload/preload.ts`、`src/shared/ipc.ts`
+    - `src/renderer/App.tsx`（更新のお知らせ）、`app.css`
+    - `test/updater.test.ts`・`test/version.test.ts`（新規 5件）、`e2e/app.e2e.ts`（ADM-05）、`e2e/fixtures.ts`（LLA_UPDATE_DRY_RUN）
+  - `eval/mock-gateway`（/v1/app/latest・download、`scenarios/runtime/update.yaml`）
+  - 設計ドキュメント: api（追記）、ops/server_setup 付録C、traceability（ADM-05 を検証済みに）、impl_plan
+- **ユーザーの判断**: 配布元は「Gateway から配る」。また「毎回の継続確認で止まらず、GitHub へマージしてそのまま進める」との指示に従い、以後はチェックポイント → push → 次の作業と進める（メモリに記録）。
+- **やったこと**:
+  - 管理者が publish-update でインストーラーを登録すると、ログイン中のアプリが6時間ごとに確認する。新しい版を取って大きさと sha512 を確かめ、合うものだけを保存する。
+  - 画面上部の「再起動して更新」でインストーラーを /S で起動して終了する。作業中は更新しない。
+  - 依存を増やさないよう、electron-updater ではなく小さな自前の更新を作った。
+- **E2Eテスト**: **合格**。
+  - デスクトップ E2E **12件**。新規「ADM-05」: モックが 9.9.9 を配る → 取得・検証して保存 → お知らせ → 押すと /S での起動が要求される（試験ではファイルに記録するだけで、実際には起動しない）。
+  - 単体: 改ざんした（sha512 が合わない）更新は捨てる、古い版は無視する。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（pytest **505件**成功・53件スキップ、desktop vitest 13件）。
+- **次にやること / 申し送り**:
+  - コード署名（証明書の調達）。
+  - OPS-01（RAG の取り込みの timer）。
+  - 検証機の接続情報待ちの作業。
+
 ## 2026-10-12 11:40 — ピボットの読み取り（XLS-09）、出典の該当箇所を開く（PDF-07）、実行ファイルを開かない対策
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

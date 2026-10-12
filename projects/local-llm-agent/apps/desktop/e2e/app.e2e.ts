@@ -117,6 +117,21 @@ test("AGT-09: an admin-installed plugin can read freely, and its writes need app
   expect(readFileSync(join(ctx.ws, "stamped.txt"), "utf8")).toBe("STAMP: 確認済み\n");
 });
 
+test("ADM-05: a newer version from the gateway is downloaded, verified and installed on request", async () => {
+  ctx = await launch("update.yaml");
+  const { page } = ctx;
+  await login(page);
+  const bar = page.getByTestId("update-bar");
+  await expect(bar).toContainText("新しい版 9.9.9 があります（表示の改善）", { timeout: 30_000 });
+  const updates = join(ctx.dir, "userdata", "LocalLLMAgent", "updates");
+  expect(readFileSync(join(updates, "LocalLLMAgent-Setup-9.9.9.exe"), "utf8")).toBe("fake installer for e2e"); // sha512 を確かめて保存済み
+  await bar.getByRole("button", { name: "再起動して更新" }).click();
+  await expect.poll(() => existsSync(join(updates, "install-requested.json"))).toBe(true);
+  const req = JSON.parse(readFileSync(join(updates, "install-requested.json"), "utf8")) as { path: string; args: string[] };
+  expect(req.args).toEqual(["/S"]);
+  expect(req.path.endsWith("LocalLLMAgent-Setup-9.9.9.exe")).toBe(true);
+});
+
 test("E-04/E-14: outside write, approval card focused on reject, approve by keyboard, executed", async () => {
   ctx = await launch("approval.yaml");
   writeFileSync(join(ctx.ws, "a.txt"), "A");

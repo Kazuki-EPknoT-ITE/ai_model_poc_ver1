@@ -45,3 +45,4 @@ upstreams: # 未設定の機能は 503 FEATURE_UNAVAILABLE（/v1/config の feat
 metrics:
   allow_cidrs: [127.0.0.0/8, 10.0.0.0/8]
   dcgm_url: http://dcgm-exporter:9400/metrics # ダッシュボードの GPU（ADM-03）
+updates_dir: /srv/llm/data/app-updates # アプリの自動更新（ADM-05）。llm-gateway publish-update で版を置く

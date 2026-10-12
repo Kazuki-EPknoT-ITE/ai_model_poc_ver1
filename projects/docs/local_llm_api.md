@@ -336,3 +336,14 @@ Model = { "id", "slot", "base_model", "quant", "lora": null, "status": "candidat
 - 画像を読めないモデル（設定 `models[].vision: false`）に画像を送ると 400（`retryable: false`）。
 - `purpose` に `image_describe` を追加（ジョブの用途。マイグレーション `0004_image_describe`）。
 - 入力トークンの見積もりは、画像1枚を 300 として数える（base64 の長さでは数えない）。
+
+## 追記（2026-10-12）: アプリの自動更新（ADM-05。実装 server/gateway/src/llm_gateway/updates.py）
+
+```jsonc
+// GET /v1/app/latest（利用者） → { "available": false } または
+//   { "available": true, "version": "0.2.0", "file": "LocalLLMAgent-Setup-0.2.0.exe", "sha512": "<128桁>", "size": 123, "notes": "…", "published_at": "…" }
+// GET /v1/app/download/{file}（利用者） → application/octet-stream（latest の file だけ。ほかは 404）
+```
+
+- 版の登録は管理者が `llm-gateway publish-update --config … --file <インストーラー.exe> --version 0.2.0 --notes "…"`（設定 `updates_dir` に置き、latest.json を最後に書き換える）。
+- アプリはログイン中・6時間ごとに確認し、今の版より新しければ取得 → 大きさと sha512 が合うものだけを保存する。作業中でないときに利用者が「再起動して更新」を選ぶと、インストーラーを `/S` で起動して終了する。

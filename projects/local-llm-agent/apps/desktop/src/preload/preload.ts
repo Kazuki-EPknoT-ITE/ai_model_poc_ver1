@@ -28,6 +28,11 @@ const api: AppApi = {
     set: (patch) => ipcRenderer.invoke("settings:set", patch),
   },
   app: { quit: () => ipcRenderer.invoke("app:quit"), version: () => ipcRenderer.invoke("app:version") },
+  update: {
+    status: () => ipcRenderer.invoke("update:status"),
+    onReady: (cb) => on("update:ready", cb),
+    install: () => ipcRenderer.invoke("update:install"),
+  },
 };
 
 contextBridge.exposeInMainWorld("app", api);

@@ -61,4 +61,10 @@ export interface AppApi {
     set(patch: Partial<{ serverUrl: string; spareUrl: string; autoStart: boolean }>): Promise<void>;
   };
   app: { quit(): Promise<void>; version(): Promise<string> };
+  /** 自動更新（ADM-05）。新しい版を取って確かめ終わると onReady が呼ばれる */
+  update: {
+    status(): Promise<{ version: string; notes: string } | null>;
+    onReady(cb: (u: { version: string; notes: string }) => void): () => void;
+    install(): Promise<{ ok: boolean; error?: string }>;
+  };
 }

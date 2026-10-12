@@ -571,3 +571,16 @@ sudo systemctl daemon-reload && sudo systemctl enable --now llm-watchdog.timer
 | web-relay 以外が外に出られてしまう | frontend のサブネットの DROP ルールが抜けている | §5.3 のルールを入れ直して `netfilter-persistent save` する。§8.4 の試験6をやり直す |
 | 再起動後にスタックが上がらない | NAS のマウント待ちで止まっている、`llm-stack` が無効 | fstab に `nofail` があるか確認する。`systemctl status llm-stack` と `journalctl -u llm-stack` を見る |
 | WSL2: 外から接続できない | mirrored 未設定、portproxy の IP が古い | `.wslconfig` を見直して `wsl --shutdown`、または portproxy を更新する |
+
+## 付録C: デスクトップアプリの更新を配る（ADM-05）
+
+1. 開発側で配布物を作る（`pnpm --filter @lla/desktop package`）。`apps/desktop/package.json` の `version` を上げておく。
+2. サーバーにインストーラーを置いて登録する（Gateway のコンテナの中、または同じ設定ファイルで）:
+   ```bash
+   docker compose exec gateway llm-gateway publish-update --config /profiles/gateway.yaml \
+     --file /updates-in/LocalLLMAgent-Setup-0.2.0.exe --version 0.2.0 --notes "表示の改善"
+   ```
+   `gateway.yaml` の `updates_dir`（例 `/srv/llm/data/app-updates`）を、Gateway のコンテナに書き込み可でマウントしておく。
+3. 各 PC のアプリは、ログイン中に新しい版を見つけると自動で取得・検証し、画面上部に「新しい版 … があります」と出す。利用者が「再起動して更新」を押すとインストールされる（作業中は更新しない）。
+4. 戻すときは、前の版のインストーラーを新しい版番号で登録し直す（アプリは版番号が上がったときだけ更新する）。
+- コード署名は未導入（証明書の調達が必要）。配布の経路は社内の TLS と sha512 の照合で守っている。

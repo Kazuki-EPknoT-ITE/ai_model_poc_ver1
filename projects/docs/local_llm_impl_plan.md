@@ -92,7 +92,7 @@ flowchart LR
 | T-40 | Gateway 本体 | 認証（ADR-008）・永続キュー・公平スケジューリング・暗号化ペイロード・SSE・`/v1/config` | RUN-09, 10, SEC-02, 06 | llm-inference-engineer | **完了（server/gateway。SQLite で試験 50件、PostgreSQL 版は Docker 起動後に要実行。管理 API・管理画面の配信・上流への内部トークンを統合時に追加）** |
 | T-41 | OCR サービス | `/v1/vision/ocr`。エンジンの比較を準備する | PDF-03 | 同上 | **完了（server/ocr。エンジンは PaddleOCR / VLM / 試験用を差し替え可。実エンジンの比較は M0〜M5）** |
 | T-45 | 実機での一本通し | 検証機の vLLM＋Gateway で T-35 のシナリオが通る | 9.2-1 | 全員 | 未着手 |
-| T-46 | インストーラと自動更新 | electron-builder（NSIS）・社内配布・自動更新 | ADM-05 | desktop-app-engineer | **完了（Node 22.23.3 と office-tools を同梱した NSIS インストーラ 183MB。自動更新と署名は未）** |
+| T-46 | インストーラと自動更新 | electron-builder（NSIS）・社内配布・自動更新 | ADM-05 | desktop-app-engineer | **完了（Node 22.23.3 と office-tools を同梱した NSIS インストーラ 183MB。自動更新は Gateway からの配布で実装（ADM-05）。署名は未）** |
 
 ## M5: POC（2027年3月）
 

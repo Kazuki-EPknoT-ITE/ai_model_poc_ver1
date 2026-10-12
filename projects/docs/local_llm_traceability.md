@@ -49,7 +49,7 @@
 | ADM-02 | Should | §6.4, §10 | api, data_model, ui | server/gateway, server/rag, apps/admin-web | integ, sec | M6 | 検証済み |
 | ADM-03 | Should | §6.7 | api, ui, ops | apps/admin-web, server/deploy | e2e | M6 | 検証済み |
 | ADM-04 | Should | §6.3 | api, data_model | server/gateway | integ | M4 | 検証済み |
-| ADM-05 | Should | §4.3 | ops | apps/desktop | integ | M6 | 実装中 |
+| ADM-05 | Should | §4.3 | ops | apps/desktop | integ | M6 | 検証済み |
 | ADM-06 | Should | §8.3 | api, data_model, ui | server/gateway, apps/desktop, ml/datagen | integ | M6 | 検証済み |
 
 ## 5.4 継続実行（RUN）
@@ -192,7 +192,7 @@
 | ADM-02 | 検証済み | Gateway が部門・利用者の acl_groups を付与 / test_relay_rag_and_ocr、test_acl | 役職単位の制限と NAS 権限の書き出しがない |
 | ADM-03 | 検証済み | /admin/v1/dashboard と管理画面。GPU は dcgm-exporter から（metrics.dcgm_url） / test_gw_gpu、admin E2E | 実機の DCGM での確認は要検証機 |
 | ADM-04 | 検証済み | users.max_concurrent / test_per_user_and_global_limits | なし |
-| ADM-05 | 実装中 | モデル更新は台帳の promote・rollback / test_gw_registry、admin E2E | アプリの自動更新と署名が未実装 |
+| ADM-05 | 検証済み | モデル更新はサーバー側（台帳の本番化・切り戻し）。アプリは Gateway から版を取り sha512 を確かめて /S でインストール / test_gw_registry、test_gw_updates、updater.test、desktop E2E「ADM-05」 | コード署名は未（証明書の調達が必要） |
 | ADM-06 | 検証済み | 評価ボタン・同意したやり取りの暗号化保存・マスキングした確認・承認分の書き出し / test_gw_feedback、desktop E2E「E-01」、admin E2E「ADM-06」 | なし（2026-10-12 対応） |
 | RUN-01 | 検証済み | RunStore（手順・意図記録・バックアップの場所） / foundation、IT「RUN-02」 | なし |
 | RUN-02 | 検証済み | resumeOpen と FI-13 の修正 / IT「RUN-02」、FI-11、FI-12、FI-13 | なし |

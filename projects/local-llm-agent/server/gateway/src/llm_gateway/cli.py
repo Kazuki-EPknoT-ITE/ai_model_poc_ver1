@@ -150,6 +150,21 @@ def cmd_migrate(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_publish_update(args: argparse.Namespace) -> int:
+    """アプリの新しい版を配る（ADM-05）。updates_dir にインストーラーを置き、latest.json を書き換える。"""
+    from .updates import publish
+
+    settings = load_settings(args.config)
+    if not settings.updates_dir:
+        print("設定に updates_dir がありません", file=sys.stderr)
+        return 2
+    info = publish(settings.resolve(settings.updates_dir), args.file, args.version, args.notes or "")
+    print(
+        f"published {info['version']} ({info['file']}, {info['size']} bytes, sha512 {info['sha512'][:16]}…)"
+    )
+    return 0
+
+
 def cmd_openapi(args: argparse.Namespace) -> int:
     """OpenAPI の定義を書き出す（local_llm_api.md: server/gateway/openapi.json としてコミットする）。"""
     from .app import create_app
@@ -208,6 +223,12 @@ def main(argv: list[str] | None = None) -> None:
     mg.add_argument("--config", required=True, type=Path)
     mg.set_defaults(fn=cmd_migrate)
 
+    pu = sub.add_parser("publish-update", help="デスクトップアプリの新しい版を配る（ADM-05）")
+    pu.add_argument("--config", required=True, type=Path)
+    pu.add_argument("--file", required=True, type=Path, help="インストーラー（.exe）")
+    pu.add_argument("--version", required=True, help="版（例 0.2.0）")
+    pu.add_argument("--notes", default="", help="更新の内容（利用者に表示する）")
+    pu.set_defaults(fn=cmd_publish_update)
     oa = sub.add_parser("openapi", help="OpenAPI の定義（openapi.json）を書き出す")
     oa.add_argument("--out", required=True, type=Path)
     oa.set_defaults(fn=cmd_openapi)

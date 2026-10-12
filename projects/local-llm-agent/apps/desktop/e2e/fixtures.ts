@@ -125,6 +125,8 @@ async function launchApp(dir: string, ws: string, outside: string, url: string, 
       LLA_USER_DATA_DIR: join(dir, "userdata"),
       LLM_GATEWAY_URL: url,
       LLA_E2E: "1",
+      // 自動更新（ADM-05）: 試験ではインストーラーを起動しない（起動の要求をファイルに残す）
+      LLA_UPDATE_DRY_RUN: "1",
       // 既定の %ProgramData% のファイルを読まないよう、試験では必ず指定する（無いファイル＝プラグインなし）
       LLA_PLUGINS_FILE: pluginsFile ?? join(dir, "no-plugins.json"),
       // LLA_E2E_OFFICE_EXE があれば、PyInstaller でまとめた office-tools.exe を使う（配布物と同じ形で試験する）

@@ -84,7 +84,7 @@ services:
     build: { context: ../../../.., dockerfile: projects/local-llm-agent/server/deploy/Dockerfile.python, args: { PACKAGE: llm-gateway } }
     command: ["llm-gateway", "serve", "--config", "/profiles/gateway.yaml"]
     env_file: /srv/llm/secrets/gateway.env
-    volumes: ["/srv/llm/secrets/tls:/tls:ro", "/srv/llm/secrets/keys:/keys:ro", "/srv/llm/profiles:/profiles:ro"]
+    volumes: ["/srv/llm/secrets/tls:/tls:ro", "/srv/llm/secrets/keys:/keys:ro", "/srv/llm/profiles:/profiles:ro", "/srv/llm/data/app-updates:/srv/llm/data/app-updates", "/srv/llm/updates-in:/updates-in:ro"]
     ports: ["${SERVER_IP}:443:8443"]
     networks: [frontend, internal]
     depends_on:

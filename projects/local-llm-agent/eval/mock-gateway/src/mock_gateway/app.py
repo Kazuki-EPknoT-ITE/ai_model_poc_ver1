@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import itertools
 import json
 import threading
@@ -272,6 +273,39 @@ def create_app(
     @app.post("/v1/audit", status_code=204)
     async def audit() -> Response:
         return Response(status_code=204)
+
+    # ---- アプリの自動更新（ADM-05。本物は server/gateway の updates.py）----
+    # シナリオの fixtures.app_update: { version, notes, content }（content の文字列をインストーラーの中身にする）
+    def _update() -> dict[str, Any] | None:
+        u = scenario.fixtures.get("app_update")
+        if not isinstance(u, dict):
+            return None
+        body = str(u.get("content", "fake installer")).encode()
+        return {
+            "version": str(u["version"]),
+            "file": f"LocalLLMAgent-Setup-{u['version']}.exe",
+            "sha512": hashlib.sha512(body).hexdigest(),
+            "size": len(body),
+            "notes": str(u.get("notes", "")),
+            "published_at": "2026-10-12T00:00:00+00:00",
+            "_body": body,
+        }
+
+    @app.get("/v1/app/latest")
+    async def app_latest() -> Any:
+        u = _update()
+        return (
+            {"available": False}
+            if u is None
+            else {"available": True, **{k: v for k, v in u.items() if k != "_body"}}
+        )
+
+    @app.get("/v1/app/download/{name}")
+    async def app_download(name: str) -> Any:
+        u = _update()
+        if u is None or name != u["file"]:
+            raise GatewayError(404, "NOT_FOUND", "配布しているファイルではありません")
+        return Response(u["_body"], media_type="application/octet-stream")
 
     # ---- 評価ボタン（ADM-06。本物は server/gateway の feedback.py）----
     @app.post("/v1/feedback")

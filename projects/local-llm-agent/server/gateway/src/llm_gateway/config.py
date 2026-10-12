@@ -147,6 +147,9 @@ class Settings(_Strict):
     upstreams: UpstreamSettings = Field(default_factory=UpstreamSettings)
     metrics: MetricsSettings = Field(default_factory=MetricsSettings)
     admin_web_dir: str | None = None  # 管理画面（apps/admin-web の dist）。あれば /admin で配る
+    updates_dir: str | None = (
+        None  # アプリの更新（ADM-05）。publish-update で置いたインストーラーと latest.json
+    )
     base_dir: str = "."  # 相対パスの基準（読み込み時に設定ファイルのフォルダを入れる）
 
     def database_url(self) -> str:

@@ -30,6 +30,7 @@ from .jobs import StepRequest
 from .netpolicy import admin_cap, decide
 from .registry import register_registry
 from .relay import forward, require_upstream
+from .updates import register_updates
 from .users import UserCreate, UserPatch, user_view
 from .util import NET_LEVELS, ApiError, new_ulid
 
@@ -544,6 +545,7 @@ def create_app(gw: Gateway) -> FastAPI:
     register_admin(app, gw, Depends(admin_user))
     register_registry(app, gw, Depends(admin_user))
     register_feedback(app, gw, Depends(current_user), Depends(admin_user))
+    register_updates(app, gw, Depends(current_user))
     register_internal(app, gw)
 
     if gw.settings.admin_web_dir:

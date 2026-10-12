@@ -1,0 +1,9 @@
+# アプリの自動更新（ADM-05）: Gateway が新しい版（9.9.9）を配っている
+name: rt-update
+config: { context_budget: 32768, models: [local-12b] }
+fixtures:
+  app_update: { version: "9.9.9", notes: "表示の改善", content: "fake installer for e2e" }
+steps:
+  - match: { purpose: agent }
+    repeat: true
+    action: { type: final, summary: "完了", outputs: [], failures: [], needs_review: [] }

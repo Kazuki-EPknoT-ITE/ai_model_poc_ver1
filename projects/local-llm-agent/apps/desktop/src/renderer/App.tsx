@@ -87,6 +87,13 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [hostState, setHostState] = useState<string>("starting");
   const [spareActive, setSpareActive] = useState<string | null>(null);
+  // 自動更新（ADM-05）
+  const [update, setUpdate] = useState<{ version: string; notes: string } | null>(null);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  useEffect(() => {
+    void api.update.status().then((u) => u && setUpdate(u));
+    return api.update.onReady(setUpdate);
+  }, []);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [netLevel, setNetLevel] = useState<"off" | "search" | "browse">("off");
   const [model, setModel] = useState<"auto" | "fast" | "accurate">("auto");
@@ -278,6 +285,21 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
             </span>
           )}
         </header>
+        {update && (
+          <div className="update-bar" role="status" data-testid="update-bar">
+            新しい版 {update.version} があります{update.notes ? `（${update.notes}）` : ""}。
+            <button
+              className="primary"
+              onClick={async () => {
+                const r = await api.update.install();
+                setUpdateError(r.ok ? null : (r.error ?? "更新できませんでした"));
+              }}
+            >
+              再起動して更新
+            </button>
+            {updateError && <span className="error small">{updateError}</span>}
+          </div>
+        )}
         {warnings.length > 0 && (
           <div className="warn-bar" role="status">
             {warnings.join(" / ")}

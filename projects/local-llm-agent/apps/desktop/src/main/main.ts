@@ -8,6 +8,7 @@ import { RuntimeHost } from "./runtime-host.js";
 import { SecureStore } from "./secure-store.js";
 import type { PluginConfig } from "../shared/ipc.js";
 import { canOpen } from "../shared/open-policy.js";
+import { Updater } from "./updater.js";
 
 // 試験では userData を差し替える（LLA_USER_DATA_DIR）
 if (process.env.LLA_USER_DATA_DIR) app.setPath("userData", process.env.LLA_USER_DATA_DIR);
@@ -50,6 +51,22 @@ let host: RuntimeHost | null = null;
 let session: { access: string; refresh: string; user: { display_name: string; role: string } } | null = null;
 let blockerId: number | null = null;
 const activeRuns = new Set<string>();
+
+// ------------------------------------------------------------------ 自動更新（ADM-05）
+const updater = new Updater({
+  bases: () => serverUrls(),
+  token: () => session?.access ?? null,
+  dir: join(dataDir, "updates"),
+  currentVersion: app.getVersion(),
+  onReady: (info) => win?.webContents.send("update:ready", { version: info.version, notes: info.notes }),
+  log: (m) => console.warn(m),
+  dryRun: process.env.LLA_UPDATE_DRY_RUN === "1",
+});
+let updateTimer: NodeJS.Timeout | null = null;
+function scheduleUpdateChecks(): void {
+  void updater.check();
+  updateTimer ??= setInterval(() => void updater.check(), 6 * 3600_000);
+}
 
 // ------------------------------------------------------------------ 認証
 const serverUrls = () => [settings.serverUrl, settings.spareUrl].filter(Boolean);
@@ -156,6 +173,7 @@ async function startHost(): Promise<void> {
     }),
   });
   host.on("event", onRuntimeEvent);
+  scheduleUpdateChecks();
   host.on("status", (s) => win?.webContents.send("runtime:status", s));
   host.on("tokens", (t) => {
     if (!session) return;
@@ -320,6 +338,18 @@ function registerIpc(): void {
     if (!E2E) app.setLoginItemSettings({ openAtLogin: settings.autoStart });
   });
   ipcMain.handle("app:quit", () => quit());
+  ipcMain.handle("update:status", () => (updater.ready ? { version: updater.ready.version, notes: updater.ready.notes } : null));
+  ipcMain.handle("update:install", async () => {
+    // 作業中はインストールしない（終わってから。作業は Run Store に残るので、更新後に再開もできる）
+    if (activeRuns.size > 0) return { ok: false, error: "作業中です。作業が終わってから更新してください" };
+    try {
+      updater.install();
+    } catch (e) {
+      return { ok: false, error: (e as Error).message };
+    }
+    if (process.env.LLA_UPDATE_DRY_RUN !== "1") await quit();
+    return { ok: true };
+  });
   ipcMain.handle("app:version", () => app.getVersion());
 }
 
