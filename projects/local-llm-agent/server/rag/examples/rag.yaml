@@ -1,0 +1,17 @@
+# 社内文書検索（server/rag）の設定例（本番: /srv/llm/profiles/rag.yaml。compose の rag サービスが読む）
+# 共有シークレットは環境変数 LLM_RAG_SECRET（Gateway の LLMGW_RAG_SECRET と同じ値）で渡す。
+org_id: default
+# 取り込む NAS のフォルダ（compose で /mnt/nas-docs を /nas に読み取り専用でマウントする）
+sources: [/nas]
+index_dir: /data/index # BM25 の索引と取り込みの状態
+acl_map: acl.yaml # パスの接頭辞 → 閲覧できるグループ（この設定ファイルからの相対）
+tokenizer: auto
+qdrant: { url: http://qdrant:6333 }
+embedder:
+  kind: sentence-transformers
+  model_path: /models/embed/ruri-v3-310m # /srv/llm/models/embed を読み取り専用でマウント
+  query_prefix: "検索クエリ: "
+  passage_prefix: "検索文書: "
+  device: cuda
+server: { host: 0.0.0.0, port: 8094 }
+max_file_mb: 200

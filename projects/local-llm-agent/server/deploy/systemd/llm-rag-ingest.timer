@@ -1,0 +1,10 @@
+[Unit]
+Description=Ingest internal documents every night at 1:00
+
+[Timer]
+OnCalendar=*-*-* 01:00:00
+RandomizedDelaySec=5m
+Persistent=true
+
+[Install]
+WantedBy=timers.target

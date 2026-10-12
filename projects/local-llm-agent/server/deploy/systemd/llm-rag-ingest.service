@@ -1,0 +1,16 @@
+# 社内文書の夜間の取り込み（OPS-01）。llm-rag-ingest.timer から起動する。
+#   sudo cp llm-rag-ingest.service llm-rag-ingest.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now llm-rag-ingest.timer
+[Unit]
+Description=Local LLM nightly RAG ingest
+Requires=docker.service
+After=docker.service network-online.target mnt-nas\x2ddocs.mount
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=llmadmin
+Group=docker
+ExecStart=/srv/llm/deploy/scripts/rag-ingest.sh
+Nice=10
+TimeoutStartSec=5h

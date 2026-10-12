@@ -72,3 +72,11 @@ groups:
         annotations:
           summary: "{{ $labels.container }} がハングし、自動で再起動しました（直近1時間）"
           description: "繰り返す場合は docker compose logs で原因を確認してください（OPS-02）。"
+
+      - alert: RagIngestStale
+        expr: time() - llm_rag_ingest_last_success_timestamp_seconds > 26 * 3600
+        for: 10m
+        labels: { severity: warning }
+        annotations:
+          summary: "社内文書の取り込みが26時間以上成功していません（検索結果が古くなります）"
+          description: "journalctl -u llm-rag-ingest で原因を確認してください（NAS のマウント、Qdrant の停止など）。"

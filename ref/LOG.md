@@ -18,6 +18,26 @@
 
 ---
 
+## 2026-10-12 13:40 — 社内文書の夜間の取り込み（OPS-01）と、PostgreSQL での Gateway の試験（初めて実施）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `server/deploy`:
+    - `scripts/rag-ingest.sh`・`systemd/llm-rag-ingest.{service,timer}`（新規）
+    - `compose.yaml`（rag に NAS を読み取り専用でマウント）、`prometheus/alerts.yml`（RagIngestStale）
+    - `tests/test_deploy_backup.py`（ingest の試験 2件）
+  - `server/rag/examples/rag.yaml`・`acl.yaml`（新規。コンテナ用の設定例）
+  - 設計ドキュメント: ops/server_setup 付録D、dev_guide（Docker なしでの PostgreSQL の試験）、traceability（OPS-01 を検証済みに）
+- **やったこと**:
+  - 毎晩 1:00 に差分取り込みを実行する（2:00 のバックアップより前）。成功時刻・所要時間・追加更新の件数を textfile に書き、26時間を超えたらアラートを出す。失敗したら前回の記録を残したまま、終了コードを返す。
+  - これまで Docker が無く飛ばしていた **Gateway の PostgreSQL 版の試験**を、pgserver（PostgreSQL を同梱した pip パッケージ）で一時的に立てて実行した。
+- **E2Eテスト**: **N/A（起動アプリの変更なし）→ 代わりに試験で合格**。
+  - deploy の試験 9件（ingest: docker を差し替えて成功と失敗を確認）。
+  - **Gateway の PostgreSQL 版の試験 50件すべて合格**（migration 0001〜0004、feedback、registry、updates、vision などを含む。これまで SQLite だけで確認していた）。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（pytest **507件**成功・53件スキップ）。
+  - 一時的な PostgreSQL は試験の後に止めた。
+- **次にやること / 申し送り**: 検証機の接続情報待ちの作業（M0・T-45・性能・実モデル評価・コード署名）。この PC でできる残りを探して進める。
+
 ## 2026-10-12 12:50 — アプリの自動更新（ADM-05、Gateway から配布）
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

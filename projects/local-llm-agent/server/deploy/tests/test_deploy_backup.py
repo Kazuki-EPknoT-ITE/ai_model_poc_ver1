@@ -219,3 +219,48 @@ def test_watchdog_does_nothing_when_healthy(tmp_path: Path) -> None:
     r = _watchdog(tmp_path, 1_000_000, "")
     assert r.returncode == 0 and not (tmp_path / "restarts.txt").exists()
     assert (tmp_path / "textfile" / "watchdog.prom").exists()
+
+
+# ---------------------------------------------------------------- rag-ingest.sh（OPS-01）
+INGEST = Path(__file__).resolve().parents[1] / "scripts" / "rag-ingest.sh"
+
+STUB_DOCKER_INGEST = r"""#!/usr/bin/env bash
+# docker compose ... run --rm -T rag llm-rag ingest --config /profiles/rag.yaml
+[[ "$*" == *"run --rm -T rag llm-rag ingest --config /profiles/rag.yaml"* ]] || exit 9
+if [ -n "${FAKE_FAIL:-}" ]; then echo "qdrant に接続できません" >&2; exit 1; fi
+echo "取り込み中..."
+echo '{"added": 3, "updated": 2, "unchanged": 40, "deleted": 1, "failed": 0}'
+"""
+
+
+def _ingest(tmp_path: Path, **extra: str) -> subprocess.CompletedProcess[str]:
+    assert BASH is not None
+    bindir = tmp_path / "ibin"
+    bindir.mkdir(exist_ok=True)
+    stub = bindir / "docker"
+    stub.write_text(STUB_DOCKER_INGEST, encoding="utf-8", newline="\n")
+    stub.chmod(0o755)
+    env = {
+        **os.environ,
+        "TEXTFILE_DIR": _posix(tmp_path / "textfile"),
+        "COMPOSE_DIR": _posix(tmp_path),
+        **extra,
+    }
+    cmd = f'export PATH="{_posix(bindir)}:$PATH"; bash "{_posix(INGEST)}"'
+    return subprocess.run(
+        [BASH, "-c", cmd], env=env, capture_output=True, text=True, encoding="utf-8", check=False
+    )
+
+
+def test_rag_ingest_records_success(tmp_path: Path) -> None:
+    r = _ingest(tmp_path)
+    assert r.returncode == 0, r.stderr
+    prom = (tmp_path / "textfile" / "rag_ingest.prom").read_text(encoding="utf-8")
+    assert "llm_rag_ingest_last_success_timestamp_seconds " in prom
+    assert "llm_rag_ingest_changed_documents 5" in prom
+
+
+def test_rag_ingest_failure_keeps_previous_record(tmp_path: Path) -> None:
+    r = _ingest(tmp_path, FAKE_FAIL="1")
+    assert r.returncode != 0 and "qdrant に接続できません" in r.stderr
+    assert not (tmp_path / "textfile" / "rag_ingest.prom").exists()

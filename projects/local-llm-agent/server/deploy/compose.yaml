@@ -130,7 +130,8 @@ services:
     build: { context: ../../../.., dockerfile: projects/local-llm-agent/server/deploy/Dockerfile.python, args: { PACKAGE: llm-rag } }
     command: ["llm-rag", "serve", "--config", "/profiles/rag.yaml", "--host", "0.0.0.0", "--port", "8094"]
     env_file: /srv/llm/secrets/rag.env
-    volumes: ["/srv/llm/profiles:/profiles:ro", "/srv/llm/models/embed:/models/embed:ro", "/srv/llm/data/rag:/data"]
+    # /mnt/nas-docs: 取り込む社内文書（NAS。読み取り専用。OPS-01 の夜間の取り込みで使う）
+    volumes: ["/srv/llm/profiles:/profiles:ro", "/srv/llm/models/embed:/models/embed:ro", "/srv/llm/data/rag:/data", "/mnt/nas-docs:/nas:ro"]
     networks: [internal]
     depends_on: { qdrant: { condition: service_started } }
     healthcheck: { test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8094/healthz', timeout=5)"], interval: 30s, timeout: 10s, retries: 3, start_period: 120s }

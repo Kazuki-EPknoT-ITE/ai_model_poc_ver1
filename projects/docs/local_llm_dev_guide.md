@@ -186,3 +186,15 @@ pnpm exec playwright install chromium
 - パスの引数は作業フォルダ基準の絶対パスで渡り、書き込みは office-tools と同じく staging → 置き換え（元に戻せる）。結果のテキストは外部由来（untrusted）として包む。
 - プラグインは推論（sampling）を使えない。
 - 見本: `eval/plugins/sample/sample_plugin.py`（word_count・stamp）。デスクトップ E2E「AGT-09」で使う。
+
+## 付録: Docker なしで PostgreSQL の試験を回す
+
+Docker が使えない開発 PC では、`pgserver`（PostgreSQL の実行ファイルを同梱した pip パッケージ）で一時的な PostgreSQL を立てられる。
+
+```bash
+uv run --no-project --with pgserver python -c "import pgserver, os; s = pgserver.get_server(os.path.abspath('pgdata'), cleanup_mode=None); s.psql('create database llmgw_test;'); print(s.get_uri())"
+# 表示された URL の port を使う
+LLA_TEST_PG_URL=postgresql+asyncpg://postgres@127.0.0.1:<port>/llmgw_test uv run pytest server/gateway -k postgresql
+```
+
+試験のたびに public スキーマを作り直すので、専用のデータベース（llmgw_test）を使う。

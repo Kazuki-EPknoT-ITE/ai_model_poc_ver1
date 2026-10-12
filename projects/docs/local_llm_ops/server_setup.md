@@ -584,3 +584,21 @@ sudo systemctl daemon-reload && sudo systemctl enable --now llm-watchdog.timer
 3. 各 PC のアプリは、ログイン中に新しい版を見つけると自動で取得・検証し、画面上部に「新しい版 … があります」と出す。利用者が「再起動して更新」を押すとインストールされる（作業中は更新しない）。
 4. 戻すときは、前の版のインストーラーを新しい版番号で登録し直す（アプリは版番号が上がったときだけ更新する）。
 - コード署名は未導入（証明書の調達が必要）。配布の経路は社内の TLS と sha512 の照合で守っている。
+
+## 付録D: 社内文書の夜間の取り込み（OPS-01、AGT-07）
+
+1. NAS の文書のフォルダを、サーバーに読み取り専用でマウントする（資格情報ファイルは chmod 600）:
+   ```bash
+   sudo mkdir -p /mnt/nas-docs
+   echo "//nas01/share /mnt/nas-docs cifs credentials=/srv/llm/secrets/nas-docs.cred,ro,uid=llmadmin,gid=llmadmin,vers=3.0,_netdev,nofail 0 0" | sudo tee -a /etc/fstab
+   sudo mount -a
+   ```
+2. `server/rag/examples/rag.yaml` と `acl.yaml` を `/srv/llm/profiles/` に置き、取り込むフォルダ（`/nas/...`）と、パスごとの閲覧グループを書く。グループは管理画面の部門の `acl_groups` と合わせる。
+3. 取り込みの timer を有効にする（毎晩 1:00。2:00 のバックアップより前）:
+   ```bash
+   sudo cp server/deploy/systemd/llm-rag-ingest.{service,timer} /etc/systemd/system/
+   sudo systemctl daemon-reload && sudo systemctl enable --now llm-rag-ingest.timer
+   sudo systemctl start llm-rag-ingest && journalctl -u llm-rag-ingest -n 50   # 初回は手で実行して確認する（全件なので時間がかかる）
+   ```
+- 2回目からは変わったファイルだけを取り込む。成功すると `/srv/llm/data/node-exporter/rag_ingest.prom` に時刻と件数が書かれ、26時間を超えて更新がないとアラート `RagIngestStale` が出る。
+- 24時間運用は不要（夜間に取り込み、日中は検索だけ）。取り込み中も検索は使える。

@@ -154,7 +154,7 @@
 
 | 要件ID | 優先度 | 設計書の節 | 詳細仕様 | 実装モジュール | テスト | M | 状態 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| OPS-01 | NFR | §6.4, §6.7 | ops | server/deploy, server/rag | integ | M6 | 実装中 |
+| OPS-01 | NFR | §6.4, §6.7 | ops | server/deploy, server/rag | integ | M6 | 検証済み |
 | OPS-02 | NFR | §2.1, §6.3 | api, ops, ui | server/deploy, server/gateway, apps/desktop | fault | M4 | 検証済み |
 | OPS-03 | NFR | §6.7 | api, ops | apps/desktop, server/deploy | fault | M6 | 検証済み |
 | OPS-04 | NFR | §6.7 | ops | server/deploy | integ | M6 | 検証済み |
@@ -257,7 +257,7 @@
 | SEC-06 | 検証済み | 暗号化キューと10分削除 / test_no_plaintext_in_db_and_logs、test_results_deleted_ten_minutes | 同意分の学習データ収集（ADM-06）が未実装 |
 | SEC-07 | 検証済み | rag の acl.py（ACL はサーバー側で付与） / test_acl、test_relay_rag_and_ocr | なし |
 | SEC-08 | 未着手 | なし（将来の機能） | クラウド AI への送信制御は未実装 |
-| OPS-01 | 実装中 | 夜間のバックアップ timer。RAG の取り込みは timer 前提（compose のコメント） | 24時間運用は要否確認。取り込みの timer 定義がない |
+| OPS-01 | 検証済み | 夜間の取り込み（rag-ingest.sh・llm-rag-ingest.timer 1:00）とバックアップ（2:00）、取り込みの遅れのアラート / test_deploy_backup（ingest 2件）、rag の差分取り込みの試験 | 実機の NAS での確認は要検証機 |
 | OPS-02 | 検証済み | compose の restart とヘルスチェック、watchdog.sh（unhealthy を再起動）、エンジン異常時の再投入 / test_deploy_backup（watchdog 2件）、test_requeued_when_engine_crashes、FI-06 | 実機での確認は要検証機 |
 | OPS-03 | 検証済み | client.ts の予備機への切替・切り戻し / failover.test.ts、FI シナリオ OPS-03 | 予備機への復元訓練（要検証機） |
 | OPS-04 | 検証済み | backup.sh・restore.sh・timer / test_deploy_backup（5件） | 復元訓練は検証機で |

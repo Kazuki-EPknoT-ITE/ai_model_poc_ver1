@@ -1,0 +1,6 @@
+# パスの接頭辞 → 閲覧できるグループ（ADM-02, SEC-07）。最も長く一致した規則を使う。どの規則にも合わない文書は取り込まない。
+# グループは Gateway の部門の acl_groups と合わせる（管理画面の「利用者」→ 部門）。
+rules:
+  - { prefix: /nas/規程, acl_groups: [all] }
+  - { prefix: /nas/契約, acl_groups: [executive, chartering], doc_type: contract }
+  - { prefix: /nas/経理, acl_groups: [executive, accounting] }
