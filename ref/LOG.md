@@ -18,6 +18,24 @@
 
 ---
 
+## 2026-10-13 02:45 — 評価の Word の判定を「変更履歴を承諾した本文」に変更し、変更履歴付きの修正を学習データに入れた
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `eval/harness/lla_eval/scoring.py`: `read_docx_paragraphs`・`read_docx_all_text` が、変更履歴の挿入（w:ins）を含め、削除（w:delText）を含めない本文を読むようにした。
+  - `eval/harness/tests/test_lla_eval.py`（変更履歴付きの文書の試験を追加）
+  - `ml/datagen/src/templates.ts`: `docx_clause_fix` の半分を「変更履歴を付けて」の依頼にし、`track_changes: true` で直すようにした。
+  - docs: design §8.3、test_spec（tool_tasks の判定の説明）
+- **理由/背景**:
+  - python-docx の paragraph.text は w:ins の中の文字を拾わない。そのため、変更履歴付きで正しく直しても「新しい文言がない」と判定され、評価（tool_tasks の docx_contains など）が不当に不合格になっていた。前回は、このために変更履歴付きの雛形を見送っていた。
+- **E2Eテスト**: **合格**（Runtime・アプリは変更なし。データ生成と評価の流れを E2E として実施）。
+  - datagen の統合試験 2件。
+  - 6件の生成: 6/6 件合格。変更履歴付きの3件は、出力の docx に w:ins・w:del が実際にあることを確認した。
+  - 評価セット（モック）: `tool_tasks_sample`・`doc_quality_sample` とも総合合格。
+- **結果/確認**: `pnpm check` が全体で成功（pytest 509件成功・55件スキップ）。
+- **次にやること / 申し送り**:
+  - 評価には「学習データとの重複があれば実行しない」確認がある（dev_guide）。datagen の出力がその確認に載るかを次に確かめる。
+  - QLoRA は検証機待ち。
+
 ## 2026-10-13 01:00 — 手順例の雛形を追加（Word の条文修正・社内文書の検索で回答）と final_cites の確認
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

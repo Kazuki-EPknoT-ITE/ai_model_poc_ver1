@@ -240,21 +240,30 @@ def read_xlsx_rows(path: Path, sheet: str | None = None) -> list[list[Any]]:
     return rows
 
 
+def _accepted_text(p: Any) -> str:
+    """変更履歴を「すべて承諾した」状態の段落の文字列（挿入 w:ins は含め、削除 w:delText は含めない）。
+    python-docx の paragraph.text は w:ins の中の文字を拾わないため、w:t を直接たどる。"""
+    from docx.oxml.ns import qn  # noqa: PLC0415
+
+    return "".join(t.text or "" for t in p._p.iter(qn("w:t")))  # noqa: SLF001
+
+
 def read_docx_paragraphs(path: Path) -> list[str]:
     import docx  # noqa: PLC0415
 
     d = docx.Document(str(path))
-    return [p.text for p in d.paragraphs if p.text.strip()]
+    texts = [_accepted_text(p) for p in d.paragraphs]
+    return [t for t in texts if t.strip()]
 
 
 def read_docx_all_text(path: Path) -> str:
     import docx  # noqa: PLC0415
 
     d = docx.Document(str(path))
-    parts = [p.text for p in d.paragraphs]
+    parts = [_accepted_text(p) for p in d.paragraphs]
     for t in d.tables:
         for row in t.rows:
-            parts.extend(c.text for c in row.cells)
+            parts.extend("\n".join(_accepted_text(p) for p in c.paragraphs) for c in row.cells)
     return "\n".join(parts)
 
 

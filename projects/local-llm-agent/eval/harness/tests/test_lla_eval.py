@@ -192,3 +192,24 @@ def test_final_cites_check(tmp_path: Path) -> None:
     assert run_check(
         {"type": "final_cites", "summary_contains": ["見つかりません"], "refs": []}, none, tmp_path
     )[0]
+
+
+def test_docx_reads_tracked_changes_as_accepted(tmp_path: Path) -> None:
+    import docx
+    from docx.oxml import parse_xml
+
+    d = docx.Document()
+    p = d.add_paragraph("支払期限は")
+    ns = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
+    p._p.append(
+        parse_xml(f'<w:del {ns} w:id="1" w:author="a"><w:r><w:delText>30日</w:delText></w:r></w:del>')
+    )
+    p._p.append(parse_xml(f'<w:ins {ns} w:id="2" w:author="a"><w:r><w:t>45日</w:t></w:r></w:ins>'))
+    p.add_run("以内とする。")
+    f = tmp_path / "a.docx"
+    d.save(str(f))
+    out = {"workspace": str(tmp_path)}
+    assert run_check(
+        {"type": "docx_contains", "file": "a.docx", "text": "支払期限は45日以内とする。"}, out, tmp_path
+    )[0]
+    assert not run_check({"type": "docx_contains", "file": "a.docx", "text": "30日"}, out, tmp_path)[0]

@@ -324,17 +324,25 @@ function docxClauseFix(r: () => number, id: string): Episode {
   const k = int(r, 0, 2);
   const from = `${days[k]}日`;
   const to = `${days[k]! + int(r, 1, 3) * 15}日`;
+  // 半分は「変更履歴を付けて」と頼まれる（相手方に見せる修正案）
+  const track = r() < 0.5;
   return {
     id,
     template: "docx_clause_fix",
-    request: pick(r, [`${file} の第${k + 1}条、${from}を${to}に直してください`, `契約書（${file}）の第${k + 1}条の日数を ${to} に変更して`]),
+    request:
+      pick(r, [`${file} の第${k + 1}条、${from}を${to}に直してください`, `契約書（${file}）の第${k + 1}条の日数を ${to} に変更して`]) +
+      (track ? "。変更履歴を付けてください" : ""),
     files: {},
     docx: { [file]: { heading: "業務委託契約書", paragraphs } },
     actions: [
       plan([`第${k + 1}条の段落を確かめる`, "日数を書き換える", "完了報告"]),
       tool("docx.read", { path: file }, "契約書を読み、第" + (k + 1) + "条の段落を確かめます"),
-      tool("docx.edit", { path: file, ops: [{ op: "replace_in_block", block_id: `p:${k + 2}`, find: from, replace: to }] }, `第${k + 1}条（p:${k + 2}）の${from}を${to}に置き換えます`),
-      final(`${file} の第${k + 1}条を「${from}」から「${to}」に直しました。`, [{ path: file, description: "修正した契約書" }]),
+      tool(
+        "docx.edit",
+        { path: file, ops: [{ op: "replace_in_block", block_id: `p:${k + 2}`, find: from, replace: to }], ...(track ? { track_changes: true } : {}) },
+        `第${k + 1}条（p:${k + 2}）の${from}を${to}に置き換えます${track ? "（変更履歴付き）" : ""}`,
+      ),
+      final(`${file} の第${k + 1}条を「${from}」から「${to}」に直しました${track ? "（変更履歴付き）" : ""}。`, [{ path: file, description: "修正した契約書" }]),
     ],
     checks: [
       { type: "docx_contains", file, text: paragraphs[k]!.replace(from, to) },
