@@ -1,6 +1,6 @@
 # uv workspace root (virtual: no [project] here)
 [tool.uv.workspace]
-members = ["packages/protocol/python", "eval/mock-gateway", "tools/office", "server/gateway", "server/web-relay", "server/ocr", "server/rag"]
+members = ["packages/protocol/python", "eval/mock-gateway", "tools/office", "server/gateway", "server/web-relay", "server/ocr", "server/rag", "ml/training"]
 
 [dependency-groups]
 dev = [
@@ -35,7 +35,7 @@ ignore = [
 "**/generated/*.py" = ["E", "UP", "I", "S", "B"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["lla_protocol", "mock_gateway", "office_tools", "llm_gateway", "web_relay", "llm_ocr", "llm_rag"]
+known-first-party = ["lla_protocol", "mock_gateway", "office_tools", "llm_gateway", "web_relay", "llm_ocr", "llm_rag", "lla_train"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -53,6 +53,7 @@ testpaths = [
   "server/rag/tests",
   "eval/harness/tests",
   "server/deploy/tests",
+  "ml/training/tests",
 ]
 # 評価ハーネスの Python 側（lla_eval）はパッケージにせず、PYTHONPATH で読む（eval/harness/src/env.ts と同じ）
 pythonpath = ["eval/harness"]

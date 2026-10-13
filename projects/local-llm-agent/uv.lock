@@ -19,6 +19,7 @@ resolution-markers = [
 [manifest]
 members = [
     "lla-protocol",
+    "lla-train",
     "llm-gateway",
     "llm-ocr",
     "llm-rag",
@@ -1577,6 +1578,17 @@ requires-dist = [
     { name = "pydantic", specifier = ">=2.9" },
     { name = "referencing", specifier = ">=0.35" },
 ]
+
+[[package]]
+name = "lla-train"
+version = "0.1.0"
+source = { editable = "ml/training" }
+dependencies = [
+    { name = "pyyaml" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "pyyaml", specifier = ">=6.0" }]
 
 [[package]]
 name = "llm-gateway"

@@ -1,0 +1,11 @@
+# 学習本体のライブラリ（検証機・RTX5080 でだけ入れる）。
+# 版は検証機で動作を確かめたうえで == に固定し、この行の注記を消すこと（未固定のまま本番の学習に使わない）。
+#   uv pip install -r ml/training/requirements-gpu.txt
+# TRL は prompt-completion 形式と SFTConfig.completion_only_loss を使う。
+unsloth
+trl
+peft
+transformers
+datasets
+bitsandbytes
+accelerate

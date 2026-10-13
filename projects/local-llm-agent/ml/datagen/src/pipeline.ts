@@ -58,7 +58,7 @@ for rel, f in a["xlsx"].items():
 
 export async function runEpisode(ep: Episode, work: string, samplesOut: string[]): Promise<Result> {
   const dir = join(work, ep.id);
-  const ws = join(dir, "ws");
+  const ws = join(dir, "作業");
   const outside = join(dir, "outside");
   const appData = join(dir, "appdata");
   for (const d of [ws, outside, appData]) mkdirSync(d, { recursive: true });
@@ -166,7 +166,8 @@ export async function runEpisode(ep: Episode, work: string, samplesOut: string[]
     : [];
   const agent = recs.filter((x) => x.purpose === "agent");
   for (const x of agent) {
-    samplesOut.push(JSON.stringify({ episode: ep.id, template: ep.template, step: x.index, messages: x.messages, completion: x.output, constrained: x.constrained }));
+    const messages = anonymizePaths(x.messages, dir);
+    samplesOut.push(JSON.stringify({ episode: ep.id, template: ep.template, step: x.index, messages, completion: anonymizePaths(x.output, dir), constrained: x.constrained }));
   }
   return { id: ep.id, template: ep.template, ok: true, samples: agent.length, steps: stepCount, inputHashes };
 }
@@ -174,4 +175,30 @@ export async function runEpisode(ep: Episode, work: string, samplesOut: string[]
 
 function listFiles(d: string): string[] {
   return readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? listFiles(join(d, e.name)) : [join(d, e.name)]));
+}
+
+/** 学習データに入れる作業フォルダの場所（実在しない固定の場所）。手順例のフォルダ（PC の一時フォルダ・利用者名を含む）を置き換える */
+export const FAKE_EPISODE_DIR = "D:\\業務";
+
+/**
+ * 推論の入力に入った手順例のフォルダの絶対パスを、固定の架空の場所に置き換える。
+ * 文字列のままのもの・JSON に埋め込まれて \ が重なったもの・/ 区切りのものを、すべて置き換える。
+ */
+export function anonymizePaths<T>(value: T, episodeDir: string): T {
+  const fake = FAKE_EPISODE_DIR;
+  const variants: [string, string][] = [];
+  for (let level = 0, from = episodeDir, to = fake; level < 3; level++) {
+    variants.push([from, to]);
+    from = from.split("\\").join("\\\\");
+    to = to.split("\\").join("\\\\");
+  }
+  variants.push([episodeDir.split("\\").join("/"), fake.split("\\").join("/")]);
+  const fix = (s: string): string => {
+    let out = s;
+    // 長いもの（\ が重なったもの）から置き換える
+    for (const [from, to] of [...variants].reverse()) out = out.split(from).join(to);
+    return out;
+  };
+  const walk = (v: unknown): unknown => (typeof v === "string" ? fix(v) : Array.isArray(v) ? v.map(walk) : v && typeof v === "object" ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, walk(x)])) : v);
+  return walk(value) as T;
 }

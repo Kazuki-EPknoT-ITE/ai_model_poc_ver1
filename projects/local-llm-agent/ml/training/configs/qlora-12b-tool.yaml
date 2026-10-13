@@ -1,0 +1,22 @@
+# ツール呼び出し学習（design §8.2-2）の初期設定。値は検証機での試行で調整する。
+# base_model は検証機のモデル置き場（/srv/llm/models）の量子化前のモデル。REVISION は取得した版に置き換える。
+name: gemma-4-12b-tool-v1
+base_model: /srv/llm/models/base/gemma-4-12b-it/REVISION
+# Runtime の文脈の上限は 32768。手順例は長くても約5,000トークン（ml/datagen の生成で確認）なので 8192 で学習する
+max_seq_len: 8192
+output_dir: /srv/llm/train
+load_in_4bit: true
+lora:
+  r: 16
+  alpha: 32
+  dropout: 0.0
+  target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+train:
+  learning_rate: 2.0e-4
+  epochs: 2
+  batch_size: 2
+  grad_accum: 8
+  warmup_ratio: 0.03
+  seed: 3407
+  eval_steps: 50
+  save_steps: 200

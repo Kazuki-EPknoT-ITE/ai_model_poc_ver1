@@ -18,6 +18,37 @@
 
 ---
 
+## 2026-10-13 04:30 — 学習の準備（ml/training: 形式変換・分割・設定の検証・QLoRA スクリプト）と、学習データからの PC のパス・利用者名の除去
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `ml/training`（新規。uv workspace のメンバー `lla-train`）
+    - `src/lla_train/prepare.py`: datagen の出力を、TRL の prompt-completion 形式（損失は completion の1手だけ）にする。
+      - 検証用は手順例単位で分ける（学習と検証に同じ手順例が入らない）。重複を除き、長すぎる例を落とす。
+      - 次のものは受け付けない: sha256 の不一致、評価セットとの重複、版の混在、アクションでない completion。
+      - `stats.json` に `data_hash`（台帳の train_data_hash）を残す。
+    - `src/lla_train/config.py`: 設定の検証（不明な項目・値の範囲）。
+    - `src/lla_train/train.py`: Unsloth＋TRL の QLoRA。GPU 用ライブラリは学習時にだけ読み込む。`--dry-run` は手順数の見積もりまで行う。
+    - `src/lla_train/__main__.py`: CLI（prepare / check-config / train）。
+    - `configs/qlora-12b-tool.yaml`、`requirements-gpu.txt`（版は検証機で固定する）、`tests/test_train.py`（10件）
+  - `ml/datagen/src/pipeline.ts`
+    - 学習データの匿名化（`anonymizePaths`）。手順例のフォルダの絶対パスを架空の `D:\業務` に置き換える（そのまま・JSON で \ が重なったもの・/ 区切り）。
+    - 作業フォルダ名を `作業` にした。
+  - `ml/datagen/src/pipeline.integration.test.ts`: 匿名化の試験を追加した（一時フォルダ・利用者名が残らない）。
+  - `pyproject.toml`（workspace・pytest・isort）、`package.json`（mypy の対象に ml/training）
+  - docs: design §8.3、dev_guide、impl_plan T-52
+- **やったこと / 理由**:
+  - 検証機が来たらすぐ学習できるよう、GPU なしでできる部分（データの形式・分割・設定）を先に作って試験した。
+  - **見つけた問題**: 同じ種の2回の生成を比べたところ、推論の入力に**生成した PC の一時フォルダの絶対パス（利用者名 `C:\Users\<名前>\AppData\Local\Temp\lla-datagen-…`）**が入っていた。個人の情報が学習データに入り、モデルが意味のないパスを覚えるため、架空の固定の場所に置き換えた。生成し直して、利用者名・一時フォルダが0行であることを確認した。
+  - ファイル一覧の mtime は回ごとに変わるが、実際の利用でも変わる値なので残した。
+- **E2Eテスト**: **合格**（Runtime・アプリは変更なし。データ生成から学習の準備までを E2E として実施）。
+  - datagen の統合試験 4件（匿名化・重複照合を含む）。
+  - 生成 2件×10種: 20/20 件合格、88行。漏れ0行。
+  - `lla_train prepare`（学習66・検証20・重複2）→ `train --dry-run`（9手順）→ `check-config` が成功。
+- **結果/確認**: `pnpm check` が全体で成功（pytest 519件成功・55件スキップ、mypy 110件）。
+- **次にやること / 申し送り**:
+  - 検証機で `requirements-gpu.txt` を入れて版を固定し、少量で学習を試す。base_model の REVISION も置き換える。
+  - Gemma の chat template が system の役割を扱えるかは、検証機で tokenizer を読んで確かめる（扱えなければ prepare で先頭の user に寄せる）。
+
 ## 2026-10-13 03:30 — 学習データと評価データの重複を検出・解消（合成請求書が評価セットと同一だった）
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

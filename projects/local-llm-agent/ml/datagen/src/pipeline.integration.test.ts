@@ -56,3 +56,20 @@ describe("checkEvalOverlap", () => {
     expect((await checkEvalOverlap(r.inputHashes ?? [])).overlap).toEqual([]);
   }, 180_000);
 });
+
+describe("学習データの匿名化", () => {
+  it("PC の一時フォルダ・利用者名・手順例のフォルダが学習データに残らない", async () => {
+    const { userInfo } = await import("node:os");
+    const { FAKE_EPISODE_DIR } = await import("./pipeline.js");
+    const out: string[] = [];
+    // 作業フォルダ外のパスも出る例（承認待ちのコピー）と、ファイル一覧の例
+    for (const ep of [TEMPLATES.copy_outside_approval!(rng(21), "anon-21"), TEMPLATES.ask_which_memo!(rng(22), "anon-22")]) {
+      expect((await runEpisode(ep, work, out)).ok).toBe(true);
+    }
+    const all = out.join("\n");
+    expect(all).not.toContain(work.split("\\").join("\\\\"));
+    expect(all).not.toContain("lla-datagen-test-");
+    expect(all.toLowerCase()).not.toContain(userInfo().username.toLowerCase());
+    expect(all).toContain(JSON.stringify(FAKE_EPISODE_DIR).slice(1, -1));
+  }, 180_000);
+});
