@@ -194,6 +194,14 @@ def test_final_cites_check(tmp_path: Path) -> None:
     )[0]
 
 
+def test_final_needs_review_check(tmp_path: Path) -> None:
+    fin = {"summary": "転記しました", "needs_review": [{"path": "送金明細.xlsx", "reason": "金額"}]}
+    out = {"workspace": str(tmp_path), "final": fin}
+    assert run_check({"type": "final_needs_review", "paths": ["送金明細.xlsx"]}, out, tmp_path)[0]
+    assert not run_check({"type": "final_needs_review", "paths": []}, out, tmp_path)[0]
+    assert run_check({"type": "final_needs_review", "paths": []}, {"final": {}}, tmp_path)[0]
+
+
 def test_docx_reads_tracked_changes_as_accepted(tmp_path: Path) -> None:
     import docx
     from docx.oxml import parse_xml

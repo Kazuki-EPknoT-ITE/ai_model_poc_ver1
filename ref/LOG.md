@@ -18,6 +18,17 @@
 
 ---
 
+## 2026-10-13 15:10 — 学習データ: 請求書の転記で金額の確認を求める（needs_review）と、評価の確認 final_needs_review
+
+- **変更ファイル**（`projects/local-llm-agent/`）: `ml/datagen/src/templates.ts`（invoices_to_excel）、`eval/harness/lla_eval/scoring.py`（`final_needs_review`）、`eval/harness/tests/test_lla_eval.py`、docs（design §8.3、test_spec §3）
+- **やったこと**:
+  - 請求書を Excel に転記する雛形の完了報告に、needs_review（転記先・金額の列・「原本と照合してください」）を付けた。
+  - 評価の確認に `final_needs_review` を追加した。人の確認を求めたファイルが、過不足なく挙がっているかを見る。
+- **理由/背景**: system プロンプトでは「金額など誤りが許されない値は needs_review に入れる」と決めているが、学習データの完了報告は常に空だった。プロンプトと矛盾する手本を学ばせないため。
+- **E2Eテスト**: **合格**（Runtime・アプリは変更なし。データ生成を本物の Runtime と office-tools で実行）。invoices_to_excel 5/5 件合格（新しい確認を含む）。
+- **結果/確認**: `pnpm check` が全体で成功（pytest 520件成功・55件スキップ）。datagen の単体試験 36件。
+- **次にやること / 申し送り**: `.coverage` を履歴から消すかどうかは、まだ利用者の判断待ち。
+
 ## 2026-10-13 14:55 — 学習データ: プロンプトインジェクションの雛形と、完了報告の出典（citations）
 
 - **変更ファイル**（`projects/local-llm-agent/`）: `ml/datagen/src/templates.ts`、`ml/datagen/src/templates.test.ts`、docs（design §8.3、impl_plan T-52）

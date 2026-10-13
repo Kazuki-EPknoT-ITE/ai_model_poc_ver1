@@ -214,14 +214,19 @@ function invoicesToExcel(r: () => number, id: string): Episode {
         },
         "請求書をまとめて読み取り、Excel に転記します",
       ),
-      final(
-        `請求書${count}件のうち${ok.length}件を ${out} に転記しました。${brokenAt ? "1件は読み取れませんでした。" : ""}`,
-        [{ path: out, description: "請求元と金額" }],
-        brokenAt ? [{ item: `請求書/${pad(brokenAt)}`, reason: "空のファイルです" }] : [],
-      ),
+      {
+        ...final(
+          `請求書${count}件のうち${ok.length}件を ${out} に転記しました。${brokenAt ? "1件は読み取れませんでした。" : ""}金額は原本と照合してください。`,
+          [{ path: out, description: "請求元と金額" }],
+          brokenAt ? [{ item: `請求書/${pad(brokenAt)}`, reason: "空のファイルです" }] : [],
+        ),
+        // 請求書から読み取った金額は、誤りが許されない値として人の確認を求める（system プロンプトの決まり）
+        needs_review: [{ path: out, location: `明細!B2:B${ok.length + 1}`, reason: "請求書から読み取った金額です。原本と照合してください" }],
+      },
     ],
     checks: [
       { type: "xlsx_equals", file: out, sheet: "明細", expected: "expected.json" },
+      { type: "final_needs_review", paths: [out] },
       ...(brokenAt ? [{ type: "final_failures", items: [`請求書/${pad(brokenAt)}`] }] : []),
     ],
     expected: {

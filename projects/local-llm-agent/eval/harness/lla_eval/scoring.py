@@ -362,6 +362,16 @@ def run_check(check: dict[str, Any], out: dict[str, Any], set_dir: Path) -> tupl
                 ok,
                 "" if ok else f"本文に無い語 {missing}、出典（期待 {sorted(want_c)}、実際 {sorted(got_c)}）",
             )
+        if kind == "final_needs_review":
+            # 人の確認を求めたファイルが過不足なく挙がっているか（金額など誤りが許されない値。prompts §2）
+            got_r = {str(x.get("path", "")) for x in (out.get("final") or {}).get("needs_review") or []}
+            want_r = {str(x) for x in check["paths"]}
+            return (
+                got_r == want_r,
+                ""
+                if got_r == want_r
+                else f"needs_review が違います（期待 {sorted(want_r)}、実際 {sorted(got_r)}）",
+            )
         if kind == "max_steps":
             steps = int(out.get("steps", 0))
             return steps <= int(check["value"]), f"手順数 {steps}"
