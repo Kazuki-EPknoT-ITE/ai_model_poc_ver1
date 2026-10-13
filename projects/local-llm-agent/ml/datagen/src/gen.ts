@@ -13,6 +13,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { PROMPT_VERSION } from "@lla/agent-runtime";
 import { PROTOCOL_VERSION } from "@lla/protocol";
+import { checkEvalOverlap } from "./overlap.js";
 import { type Result, runEpisode } from "./pipeline.js";
 import { TEMPLATES, rng } from "./templates.js";
 
@@ -66,9 +67,26 @@ async function main(): Promise<number> {
     // モデル台帳の train_data_hash に登録する値
     sha256: createHash("sha256").update(body).digest("hex"),
   };
-  writeFileSync(join(o.out, "manifest.json"), JSON.stringify(manifest, null, 1));
+  // 学習に使った入力ファイルのハッシュ一覧。評価セットの manifest の train_hash_index（または LLA_EVAL_TRAIN_HASHES）に指定すると、
+  // 評価データと重複していれば評価が実行されない（test_spec §3.1）
+  const hashes = [...new Set(results.filter((r) => r.ok).flatMap((r) => r.inputHashes ?? []))].sort();
+  writeFileSync(
+    join(o.out, "train_hashes.txt"),
+    `# ml/datagen の入力ファイルの sha256（${manifest.created_at}、seed ${o.seed}）\n` + hashes.map((h) => `sha256:${h}\n`).join(""),
+  );
+  // 評価セットと同じファイルを学習に使っていないか（使っていれば、このデータは使えない）
+  const overlap = await checkEvalOverlap(hashes);
+  writeFileSync(
+    join(o.out, "manifest.json"),
+    JSON.stringify({ ...manifest, input_files: hashes.length, eval_overlap: { checked: overlap.checked, skipped: overlap.skipped, files: overlap.overlap } }, null, 1),
+  );
   if (!o.keep) rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
   process.stderr.write(`\n${manifest.passed}/${manifest.episodes} 件合格、学習データ ${manifest.samples} 件 → ${o.out}\n`);
+  if (overlap.skipped.length) process.stderr.write(`評価セットとの照合をしていません（データが手元に無い）: ${overlap.skipped.join("、")}\n`);
+  if (overlap.overlap.length) {
+    process.stderr.write(`評価セットと同じファイルを学習データに使っています（${overlap.overlap.length}件）: ${overlap.overlap.slice(0, 5).join("、")}。このデータは使えません\n`);
+    return 3;
+  }
   return manifest.passed === manifest.episodes ? 0 : 1;
 }
 

@@ -79,11 +79,18 @@ def invoice_pdf(path: Path, n: int, *, encrypt_password: str | None = None) -> N
 
 
 def make_invoices(
-    out: Path, count: int, *, broken: dict[str, list[int]] | None = None, expected: bool = True
+    out: Path,
+    count: int,
+    *,
+    broken: dict[str, list[int]] | None = None,
+    expected: bool = True,
+    start: int = 1,
 ) -> list[str]:
     """INV-NNN.pdf を count 件作る。broken で壊れたファイルを混ぜる（FI-18、long_batch）。
 
-    broken: {"header": [番号...], "empty": [...], "encrypted": [...]}。戻り値は壊したファイル名。
+    broken: {"header": [番号...], "empty": [...], "encrypted": [...]}（番号はファイル名の NNN）。戻り値は壊したファイル名。
+    start: 中身（請求元・金額など）の通し番号の始まり。ファイル名は 1 からのまま。学習データ（ml/datagen）は
+    評価セットと同じファイルにならないよう、大きな番号から作る（test_spec §3.1 の重複照合）。
     """
     out.mkdir(parents=True, exist_ok=True)
     bad: list[str] = []
@@ -96,9 +103,9 @@ def make_invoices(
         if kind == "empty":
             p.write_bytes(b"")
         elif kind == "encrypted":
-            invoice_pdf(p, n, encrypt_password="secret-pw")  # noqa: S106  合成データのパスワード
+            invoice_pdf(p, n + start - 1, encrypt_password="secret-pw")  # noqa: S106  合成データのパスワード
         else:
-            invoice_pdf(p, n)
+            invoice_pdf(p, n + start - 1)
             if kind == "header":
                 data = bytearray(p.read_bytes())
                 data[0:64] = b"\x00GARBAGE-HEADER" + b"\xff" * 49
@@ -108,7 +115,7 @@ def make_invoices(
         elif expected:
             (out / "expected").mkdir(exist_ok=True)
             (out / "expected" / f"{p.stem}.json").write_text(
-                json.dumps(invoice_truth(n), ensure_ascii=False, indent=1), encoding="utf-8"
+                json.dumps(invoice_truth(n + start - 1), ensure_ascii=False, indent=1), encoding="utf-8"
             )
     return bad
 

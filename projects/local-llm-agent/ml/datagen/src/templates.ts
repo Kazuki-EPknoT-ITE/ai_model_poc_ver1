@@ -7,7 +7,7 @@ export interface Episode {
   request: string;
   /** 作業フォルダに置くファイル（相対パス → 中身）。invoices は Python で PDF を作る */
   files: Record<string, string>;
-  invoices?: { dir: string; count: number; broken?: Record<string, number[]> };
+  invoices?: { dir: string; count: number; start: number; broken?: Record<string, number[]> };
   /** 承認待ちになったら、利用者としてこの判断を返す（承認待ちで完了を出したあと） */
   approval?: "approve" | "reject";
   /** 質問（ask_user）への利用者の回答（承認待ちと同じく、待ちの完了を出したあとに返す） */
@@ -139,6 +139,8 @@ function invoicesToExcel(r: () => number, id: string): Episode {
   const pad = (n: number) => `INV-${String(n).padStart(3, "0")}.pdf`;
   const ok = Array.from({ length: count }, (_, i) => i + 1).filter((n) => n !== brokenAt);
   const out = pick(r, ["送金明細.xlsx", "請求一覧.xlsx"]);
+  // 中身の通し番号は評価セット（1〜数百）と重ならない範囲から取る（評価データとの重複照合、test_spec §3.1）
+  const start = int(r, 10, 99) * 1000;
   return {
     id,
     template: "invoices_to_excel",
@@ -147,7 +149,7 @@ function invoicesToExcel(r: () => number, id: string): Episode {
       `請求書をまとめて読み取り、${out} に転記してください。列は請求元・金額`,
     ]),
     files: {},
-    invoices: { dir: "請求書", count, ...(brokenAt ? { broken: { empty: [brokenAt] } } : {}) },
+    invoices: { dir: "請求書", count, start, ...(brokenAt ? { broken: { empty: [brokenAt] } } : {}) },
     actions: [
       plan(["請求書を一括で読み取る", "Excel に転記する", "完了報告"]),
       tool(
@@ -177,7 +179,7 @@ function invoicesToExcel(r: () => number, id: string): Episode {
       ...(brokenAt ? [{ type: "final_failures", items: [`請求書/${pad(brokenAt)}`] }] : []),
     ],
     expected: {
-      "expected.json": JSON.stringify({ rows: [["請求元", "金額"], ...ok.map((n) => [`Example Shipping Co. ${n}`, n * 1000])] }),
+      "expected.json": JSON.stringify({ rows: [["請求元", "金額"], ...ok.map((n) => [`Example Shipping Co. ${n + start - 1}`, (n + start - 1) * 1000])] }),
     },
   };
 }

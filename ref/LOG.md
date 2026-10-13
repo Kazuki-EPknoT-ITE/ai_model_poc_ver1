@@ -18,6 +18,31 @@
 
 ---
 
+## 2026-10-13 03:30 — 学習データと評価データの重複を検出・解消（合成請求書が評価セットと同一だった）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `eval/harness/lla_eval/synth.py`・`__main__.py`: `make_invoices` と `gen-invoices` に `start`（中身の通し番号の始まり）を追加した。既定は 1 で、従来どおり。
+  - `ml/datagen/src/pipeline.ts`: 入力ファイルの sha256 を記録する。
+  - `ml/datagen/src/overlap.ts`（新規）: 評価セットとの照合。split_check と同じ sha256 照合で、手元に無いセットは skipped にする。
+  - `ml/datagen/src/gen.ts`: `train_hashes.txt` を出力し、最後に評価セットと照合する。重複があれば終了コード 3。`manifest.json` に `eval_overlap` を残す。
+  - `ml/datagen/src/templates.ts`: 請求書の通し番号を 10000〜99000 から取る。
+  - `ml/datagen/src/pipeline.integration.test.ts`: 照合の試験を追加した（評価と同じ作り方の請求書は重複として検出し、datagen の請求書は重ならない）。
+  - docs: design §8.3、dev_guide
+- **やったこと / 理由**:
+  - 評価には「学習データと重複するファイルがあれば実行しない」照合がある（test_spec §3.1）。datagen の出力をそれにかけたところ、**請求書の PDF が `invoice_extraction_sample`・`tool_tasks_sample` の評価データとバイト単位で同一**だった。
+  - 原因: どちらも gen-invoices で通し番号 1 から作っており、中身が決まった値だった。そのまま学習すれば評価の答えを学習することになる。
+  - 中身の番号を評価と重ならない範囲に移したうえで、照合を生成の標準手順に組み込んで再発を防いだ。
+- **E2Eテスト**: **合格**（Runtime・アプリは変更なし。データ生成と評価の流れを E2E として実施）。
+  - datagen の統合試験 3件。
+  - 生成 2件×10種: 20/20 件合格。評価セット5つと照合して重複0、照合できなかったセットなし。
+  - 評価セット（モック）:
+    - `tool_tasks_sample`: 合格。
+    - `invoice_extraction_sample`: 未達。従来どおりの意図した結果（モックが誤りを仕込んでいる。変更前に戻して実行しても同じ値）。
+- **結果/確認**: `pnpm check` が全体で成功（pytest 509件成功・55件スキップ）。
+- **次にやること / 申し送り**:
+  - 本番の評価セット（NAS）は、検証機・NAS の接続後に `eval_overlap` で照合する。今は skipped になる。
+  - QLoRA は検証機待ち。
+
 ## 2026-10-13 02:45 — 評価の Word の判定を「変更履歴を承諾した本文」に変更し、変更履歴付きの修正を学習データに入れた
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

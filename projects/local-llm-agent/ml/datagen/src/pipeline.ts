@@ -1,5 +1,6 @@
 // 手順例1件の実行と検証（gen.ts と試験から使う）
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { RuntimeEvent } from "@lla/protocol";
 import { sleep, uvPython } from "../../../eval/harness/src/env.js";
@@ -17,6 +18,8 @@ export interface Result {
   reason?: string;
   samples: number;
   steps: number;
+  /** 作業フォルダに置いた入力ファイルの sha256（評価データとの重複照合用。test_spec §3.1） */
+  inputHashes?: string[];
 }
 
 const CHECK_PY = `
@@ -82,6 +85,8 @@ export async function runEpisode(ep: Episode, work: string, samplesOut: string[]
       join(ws, ep.invoices.dir),
       "--count",
       String(ep.invoices.count),
+      "--start",
+      String(ep.invoices.start),
       "--no-expected",
       "--mock-fixtures",
       join(dir, "fixtures", "invoice"),
@@ -90,6 +95,7 @@ export async function runEpisode(ep: Episode, work: string, samplesOut: string[]
     if (gen.code !== 0) return { id: ep.id, template: ep.template, ok: false, reason: `請求書を作れません: ${gen.stderr.slice(-200)}`, samples: 0, steps: 0 };
     steps.push({ match: { purpose: "invoice_extract" }, repeat: true, latency_ms: 0, action_from_fixture: "fixtures/invoice/{item_basename}.json" });
   }
+  const inputHashes = listFiles(ws).map((f) => createHash("sha256").update(readFileSync(f)).digest("hex"));
   const scenario = join(dir, "scenario.yaml");
   writeFileSync(
     scenario,
@@ -162,6 +168,10 @@ export async function runEpisode(ep: Episode, work: string, samplesOut: string[]
   for (const x of agent) {
     samplesOut.push(JSON.stringify({ episode: ep.id, template: ep.template, step: x.index, messages: x.messages, completion: x.output, constrained: x.constrained }));
   }
-  return { id: ep.id, template: ep.template, ok: true, samples: agent.length, steps: stepCount };
+  return { id: ep.id, template: ep.template, ok: true, samples: agent.length, steps: stepCount, inputHashes };
 }
 
+
+function listFiles(d: string): string[] {
+  return readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? listFiles(join(d, e.name)) : [join(d, e.name)]));
+}

@@ -33,3 +33,26 @@ describe("runEpisode", () => {
     expect(out).toHaveLength(0);
   }, 120_000);
 });
+
+describe("checkEvalOverlap", () => {
+  it("評価セットと同じファイルを検出し、datagen の請求書は重ならない", async () => {
+    const { checkEvalOverlap } = await import("./overlap.js");
+    const { createHash } = await import("node:crypto");
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const { uvPython } = await import("../../../eval/harness/src/env.js");
+    // 評価セットと同じ作り方（通し番号 1 から）の請求書 → 重複として検出される
+    const dir = join(work, "eval-like");
+    expect((await uvPython(["-m", "lla_eval", "gen-invoices", dir, "--count", "3", "--no-expected"])).code).toBe(0);
+    const evalHashes = readdirSync(dir)
+      .filter((f) => f.endsWith(".pdf"))
+      .map((f) => createHash("sha256").update(readFileSync(join(dir, f))).digest("hex"));
+    const hit = await checkEvalOverlap(evalHashes);
+    expect(hit.overlap.length).toBeGreaterThan(0);
+    expect(hit.checked).toContain("tool_tasks_sample");
+    // datagen の請求書の手順例 → 重ならない
+    const out: string[] = [];
+    const r = await runEpisode(TEMPLATES.invoices_to_excel!(rng(13), "inv-13"), work, out);
+    expect(r.ok).toBe(true);
+    expect((await checkEvalOverlap(r.inputHashes ?? [])).overlap).toEqual([]);
+  }, 180_000);
+});

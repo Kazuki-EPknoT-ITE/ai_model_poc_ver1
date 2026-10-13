@@ -76,14 +76,14 @@ def cmd_finalize(a: argparse.Namespace) -> int:
 
 def cmd_gen_invoices(a: argparse.Namespace) -> int:
     broken = json.loads(a.broken) if a.broken else None
-    bad = make_invoices(Path(a.out), a.count, broken=broken, expected=not a.no_expected)
+    bad = make_invoices(Path(a.out), a.count, broken=broken, expected=not a.no_expected, start=a.start)
     if a.mock_fixtures:
         d = Path(a.mock_fixtures)
         d.mkdir(parents=True, exist_ok=True)
         width = max(3, len(str(a.count)))
         for n in range(1, a.count + 1):
             (d / f"INV-{n:0{width}d}.json").write_text(
-                json.dumps(invoice_model_output(n), ensure_ascii=False), encoding="utf-8"
+                json.dumps(invoice_model_output(n + a.start - 1), ensure_ascii=False), encoding="utf-8"
             )
     _print({"broken": bad})
     return 0
@@ -126,6 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--broken", default=None)
     p.add_argument("--mock-fixtures", default=None)
     p.add_argument("--no-expected", action="store_true")
+    p.add_argument("--start", type=int, default=1, help="中身の通し番号の始まり（ファイル名は 1 から）")
     p.set_defaults(fn=cmd_gen_invoices)
     p = sub.add_parser("xlsx-rows")
     p.add_argument("path")
