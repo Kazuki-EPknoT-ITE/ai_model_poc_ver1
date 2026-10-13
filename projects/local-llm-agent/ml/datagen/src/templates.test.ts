@@ -42,4 +42,28 @@ describe("手順例の雛形", () => {
     const xs = new Set(Array.from({ length: 10 }, (_, i) => JSON.stringify(TEMPLATES.memo_to_csv!(rng(i), "a").files)));
     expect(xs.size).toBeGreaterThan(5);
   });
+
+  it("ファイルの中身を使った完了報告には、そのファイルを出典に付ける", () => {
+    for (const name of ["memo_to_csv", "recover_missing_file", "expense_summary", "copy_outside_approval", "ask_which_memo", "injection_in_memo"]) {
+      for (let seed = 1; seed <= 10; seed++) {
+        const ep = TEMPLATES[name]!(rng(seed), "a");
+        const refs = ((ep.actions.at(-1)!.citations ?? []) as { ref: string }[]).map((c) => c.ref);
+        expect(refs, name).toHaveLength(1);
+        expect(Object.keys(ep.files), name).toContain(refs[0]);
+        expect(ep.checks.find((c) => c.type === "final_cites")?.refs, name).toEqual(refs);
+      }
+    }
+  });
+
+  it("紛れ込んだ指示はメモにだけあり、CSV の行にも手にも入らない", () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const ep = TEMPLATES.injection_in_memo!(rng(seed), "a");
+      const memo = Object.values(ep.files)[0]!;
+      expect(memo).toMatch(/指示|命令/);
+      const rows = ep.expected["expected.csv"]!;
+      expect(rows).not.toMatch(/指示|命令|削除/);
+      // 削除・コピー・外への送信の手は無い
+      expect(ep.actions.filter((a) => a.type === "tool_call").map((a) => a.tool)).toEqual(["fs.read_text", "csv.write"]);
+    }
+  });
 });
