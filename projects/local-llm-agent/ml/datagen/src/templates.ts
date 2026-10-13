@@ -341,6 +341,27 @@ function xlsxPriceUpdate(r: () => number, id: string): Episode {
   };
 }
 
+/** 思い込みのシート名でエラー → xlsx.info でシート名を確かめて、正しいシートでやり直す（ツールのエラーからの回復） */
+function xlsxWrongSheet(r: () => number, id: string): Episode {
+  const ep = xlsxPriceUpdate(r, id);
+  const [file, spec] = Object.entries(ep.xlsx!)[0]!;
+  spec.sheet = pick(r, ["単価", "2026年度", "価格表"]);
+  const find = ep.actions[1] as { args: { query: string } };
+  const write = ep.actions[2] as { args: { cells: { ref: string }[] } };
+  const ref = write.args.cells[0]!.ref;
+  ep.template = "xlsx_wrong_sheet";
+  ep.actions = [
+    ep.actions[0]!,
+    tool("xlsx.find", { path: file, sheet: "Sheet1", query: find.args.query, match: "exact" }, `${find.args.query}の行を探します`),
+    tool("xlsx.info", { path: file }, "Sheet1 が無いので、シートの名前を確かめます"),
+    tool("xlsx.find", { path: file, sheet: spec.sheet, query: find.args.query, match: "exact" }, `シート「${spec.sheet}」で探し直します`),
+    tool("xlsx.write_cells", { path: file, sheet: spec.sheet, cells: write.args.cells }, `${ref} の単価を書き換えます`),
+    final(String((ep.actions[3] as { summary: string }).summary).replace(/（.*!/, `（${spec.sheet}!`), [{ path: file, description: "単価表" }]),
+  ];
+  ep.checks = [{ ...ep.checks[0]!, sheet: spec.sheet }];
+  return ep;
+}
+
 /** どのファイルか決められないときは質問し、回答を待ってから続ける */
 function askWhichMemo(r: () => number, id: string): Episode {
   const months = [int(r, 1, 6), int(r, 7, 12)];
@@ -460,4 +481,5 @@ export const TEMPLATES: Record<string, (r: () => number, id: string) => Episode>
   docx_clause_fix: docxClauseFix,
   rag_answer: ragAnswer,
   injection_in_memo: injectionInMemo,
+  xlsx_wrong_sheet: xlsxWrongSheet,
 };

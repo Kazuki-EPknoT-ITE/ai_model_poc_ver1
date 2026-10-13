@@ -18,6 +18,15 @@
 
 ---
 
+## 2026-10-13 15:25 — 学習データ: ツールのエラーからの回復の雛形（思い込みのシート名 → xlsx.info で確かめてやり直す）
+
+- **変更ファイル**（`projects/local-llm-agent/`）: `ml/datagen/src/templates.ts`（`xlsx_wrong_sheet`）、docs（design §8.3、impl_plan T-52 = 雛形12種）
+- **やったこと**: Excel の単価の修正で、まず `Sheet1` を探して office-tools のエラー（`INVALID_ARGS`「シート Sheet1 はありません。xlsx.info でシート名を確認してください」）を受け、`xlsx.info` でシート名を確かめ、正しいシートで探し直して書き換える手順例を追加した。
+- **理由/背景**: これまでの回復の例は「ファイルが無い」だけだった。system プロンプトの「エラーが返ってきたら、メッセージに従って方法を変え、同じ呼び出しを繰り返さない」の手本を増やすため。
+- **E2Eテスト**: **合格**（Runtime・アプリは変更なし。データ生成を本物の Runtime と office-tools で実行）。xlsx_wrong_sheet 3/3 件合格。1手目が本物のエラーを返し、その結果が入力に入っていることを学習データで確かめた。
+- **結果/確認**: datagen の単体試験 39件（新しい雛形の形式・決定性・計画・完了報告）。`pnpm check` が全体で成功（pytest 520件成功・55件スキップ）。
+- **次にやること / 申し送り**: `.coverage` を履歴から消すかどうかは、まだ利用者の判断待ち。
+
 ## 2026-10-13 15:10 — 学習データ: 請求書の転記で金額の確認を求める（needs_review）と、評価の確認 final_needs_review
 
 - **変更ファイル**（`projects/local-llm-agent/`）: `ml/datagen/src/templates.ts`（invoices_to_excel）、`eval/harness/lla_eval/scoring.py`（`final_needs_review`）、`eval/harness/tests/test_lla_eval.py`、docs（design §8.3、test_spec §3）
