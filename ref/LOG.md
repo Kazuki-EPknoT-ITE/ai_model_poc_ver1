@@ -18,6 +18,31 @@
 
 ---
 
+## 2026-10-13 01:00 — 手順例の雛形を追加（Word の条文修正・社内文書の検索で回答）と final_cites の確認
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `ml/datagen/src/templates.ts`
+    - `docx_clause_fix`: docx.read で段落の ID を確かめ、replace_in_block でその段落だけを直す。ほかの条文が変わっていないことも確認する。
+    - `rag_answer`: rag.search の結果で答える。見つかれば出典付き、見つからなければ（25%）推測せずにそう伝える。
+    - Episode に `docx`、`fixtures`、`features` を追加した。
+  - `ml/datagen/src/pipeline.ts`: Word の準備（python-docx）と、シナリオへの fixtures・features の受け渡し。
+  - `eval/harness/lla_eval/scoring.py`: 確認の種類 `final_cites` を追加した（完了報告の本文に必要な語があり、出典が過不足なく挙がっているか。出典なしも指定できる）。
+  - `eval/harness/tests/test_lla_eval.py`（試験を追加）
+  - docs: design §8.3、impl_plan T-52（雛形10種）
+- **やったこと / 理由**:
+  - 8.2-2・8.2-4（事実は RAG で引く）の学習データとして、段落の ID 指定の編集と、出典付きの回答・見つからないときの正直な回答を入れた。
+  - 変更履歴付きの編集は python-docx の paragraph.text に挿入が出ず確認できないため、この雛形では使っていない（必要なら、変更を受け入れた本文を読む確認を後で足す）。
+  - 生成データを確認し、次の点を確かめた。
+    - docx.read の結果の ID（p:2〜4）と、直した段落が一致している。
+    - 検索結果が0件のときは「見つかりませんでした」と答え、出典を付けていない。
+- **E2Eテスト**: **合格**（Runtime・アプリは変更なし。データ生成の流れを E2E として実施）。
+  - datagen の統合試験 2件。
+  - 10種×3件の生成: 30/30 件合格、132行。
+- **結果/確認**:
+  - `pnpm check` が全体で成功（pytest 508件成功・55件スキップ、datagen の単体試験 31件）。
+  - 1回目は ruff format で落ちたため整形し、全体をやり直した。
+- **次にやること / 申し送り**: QLoRA と大量生成は検証機で行う（接続情報待ち）。
+
 ## 2026-10-13 00:10 — 手順例の雛形を追加（Excel の単価修正・質問して回答を待つ）
 
 - **変更ファイル**（`projects/local-llm-agent/ml/datagen/`）:

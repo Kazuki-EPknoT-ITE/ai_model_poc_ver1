@@ -341,6 +341,18 @@ def run_check(check: dict[str, Any], out: dict[str, Any], set_dir: Path) -> tupl
                 if got_f == want_f
                 else f"failures が違います（不足 {sorted(want_f - got_f)}、余分 {sorted(got_f - want_f)}）",
             )
+        if kind == "final_cites":
+            # 完了報告の本文に必要な語があり、出典（ref）が過不足なく挙がっているか。refs が空なら出典なしを求める
+            fin = out.get("final") or {}
+            summary = norm_text(str(fin.get("summary", ""))) or ""
+            missing = [t for t in check.get("summary_contains", []) if (norm_text(t) or "") not in summary]
+            got_c = {str(c.get("ref", "")) for c in fin.get("citations") or []}
+            want_c = {str(x) for x in check["refs"]}
+            ok = not missing and got_c == want_c
+            return (
+                ok,
+                "" if ok else f"本文に無い語 {missing}、出典（期待 {sorted(want_c)}、実際 {sorted(got_c)}）",
+            )
         if kind == "max_steps":
             steps = int(out.get("steps", 0))
             return steps <= int(check["value"]), f"手順数 {steps}"

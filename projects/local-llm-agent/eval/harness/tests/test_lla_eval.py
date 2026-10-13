@@ -19,7 +19,7 @@ from lla_eval.report import (
     registry_rows,
     table,
 )
-from lla_eval.scoring import norm_amount, norm_date, score
+from lla_eval.scoring import norm_amount, norm_date, run_check, score
 from lla_eval.synth import invoice_model_output, invoice_truth
 
 SETS = Path(__file__).resolve().parents[2] / "sets"
@@ -176,3 +176,19 @@ def test_cli_finalize_writes_result_and_registry(tmp_path: Path, capsys: pytest.
     (set_dir / "manifest.yaml").write_text("name: x\n", encoding="utf-8")
     assert main(["load", str(set_dir), "--cache", str(tmp_path / "c")]) == 2
     assert "error" in json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+
+
+def test_final_cites_check(tmp_path: Path) -> None:
+    fin = {
+        "summary": "国内出張の日当は１日3,000円です。",
+        "citations": [{"kind": "rag", "ref": "規程/旅費規程.docx"}],
+    }
+    out = {"workspace": str(tmp_path), "final": fin}
+    ok = {"type": "final_cites", "summary_contains": ["日当は1日3,000円"], "refs": ["規程/旅費規程.docx"]}
+    assert run_check(ok, out, tmp_path)[0]
+    assert not run_check({**ok, "summary_contains": ["5,000円"]}, out, tmp_path)[0]
+    assert not run_check({**ok, "refs": []}, out, tmp_path)[0]
+    none = {"workspace": str(tmp_path), "final": {"summary": "見つかりませんでした。"}}
+    assert run_check(
+        {"type": "final_cites", "summary_contains": ["見つかりません"], "refs": []}, none, tmp_path
+    )[0]

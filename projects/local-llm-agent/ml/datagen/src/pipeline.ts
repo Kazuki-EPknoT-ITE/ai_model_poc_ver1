@@ -28,12 +28,21 @@ res = [run_check(c, a["out"], Path(a["set_dir"])) for c in a["checks"]]
 print(json.dumps([{"ok": ok, "detail": d} for ok, d in res], ensure_ascii=False))
 `;
 
-const XLSX_PY = `
+const OFFICE_PY = `
 import json, sys
 from pathlib import Path
+import docx
 from openpyxl import Workbook
 a = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
-for rel, f in a["files"].items():
+for rel, f in a["docx"].items():
+    d = docx.Document()
+    d.add_heading(f["heading"], level=1)
+    for t in f["paragraphs"]:
+        d.add_paragraph(t)
+    p = Path(a["ws"]) / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    d.save(p)
+for rel, f in a["xlsx"].items():
     wb = Workbook()
     ws = wb.active
     ws.title = f["sheet"]
@@ -55,11 +64,11 @@ export async function runEpisode(ep: Episode, work: string, samplesOut: string[]
     writeFileSync(join(ws, rel), text);
   }
   for (const [rel, text] of Object.entries(ep.expected)) writeFileSync(join(dir, rel), text);
-  if (ep.xlsx) {
-    const spec = join(dir, "xlsx.json");
-    writeFileSync(spec, JSON.stringify({ ws, files: ep.xlsx }));
-    const x = await uvPython(["-c", XLSX_PY, spec]);
-    if (x.code !== 0) return { id: ep.id, template: ep.template, ok: false, reason: `Excel を作れません: ${x.stderr.slice(-200)}`, samples: 0, steps: 0 };
+  if (ep.xlsx || ep.docx) {
+    const spec = join(dir, "office.json");
+    writeFileSync(spec, JSON.stringify({ ws, xlsx: ep.xlsx ?? {}, docx: ep.docx ?? {} }));
+    const x = await uvPython(["-c", OFFICE_PY, spec]);
+    if (x.code !== 0) return { id: ep.id, template: ep.template, ok: false, reason: `Excel・Word を作れません: ${x.stderr.slice(-200)}`, samples: 0, steps: 0 };
   }
 
   // モックのシナリオ: agent の n 番目の推論に n 番目の手を返す。請求書の抽出は決め打ちの正解
@@ -84,7 +93,7 @@ export async function runEpisode(ep: Episode, work: string, samplesOut: string[]
   const scenario = join(dir, "scenario.yaml");
   writeFileSync(
     scenario,
-    JSON.stringify({ name: `datagen-${ep.id}`, config: { context_budget: 32768, models: ["local-12b"] }, steps, fallback: { action: { type: "final", summary: "（想定外の手）", outputs: [], failures: [], needs_review: [] } } }),
+    JSON.stringify({ name: `datagen-${ep.id}`, config: { context_budget: 32768, models: ["local-12b"], ...(ep.features ? { features: ep.features } : {}) }, ...(ep.fixtures ? { fixtures: ep.fixtures } : {}), steps, fallback: { action: { type: "final", summary: "（想定外の手）", outputs: [], failures: [], needs_review: [] } } }),
   );
 
   const samplesFile = join(dir, "samples.jsonl");

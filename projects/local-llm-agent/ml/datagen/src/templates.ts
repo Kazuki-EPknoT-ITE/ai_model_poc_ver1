@@ -14,6 +14,11 @@ export interface Episode {
   answer?: string;
   /** 作業フォルダに置く Excel（相対パス → シートと行）。Python（openpyxl）で作る */
   xlsx?: Record<string, { sheet: string; rows: (string | number)[][] }>;
+  /** 作業フォルダに置く Word（相対パス → 見出しと段落）。Python（python-docx）で作る。ID は見出しが p:1、段落が p:2〜 */
+  docx?: Record<string, { heading: string; paragraphs: string[] }>;
+  /** モック Gateway のシナリオの fixtures（rag など）と features */
+  fixtures?: Record<string, unknown>;
+  features?: Record<string, boolean>;
   /** モデルが返すべき手（順番どおり） */
   actions: Record<string, unknown>[];
   /** 抽出推論の決め打ち（invoice.extract が使う。invoices があるとき gen-invoices が作る） */
@@ -305,6 +310,73 @@ function askWhichMemo(r: () => number, id: string): Episode {
   };
 }
 
+const CLAUSES = [
+  (d: number) => `支払期限は、請求書の受領後${d}日以内とする。`,
+  (d: number) => `検収は、納品後${d}日以内に行う。`,
+  (d: number) => `本契約の解約は、${d}日前までに書面で通知する。`,
+];
+
+/** Word の契約書の条文を1か所直す（読んで段落の ID を確かめ、その段落だけを置き換える） */
+function docxClauseFix(r: () => number, id: string): Episode {
+  const file = pick(r, ["業務委託契約書.docx", "契約書_案.docx"]);
+  const days = [int(r, 1, 6) * 10, int(r, 1, 6) * 10, int(r, 1, 6) * 10];
+  const paragraphs = CLAUSES.map((c, i) => `第${i + 1}条 ${c(days[i]!)}`);
+  const k = int(r, 0, 2);
+  const from = `${days[k]}日`;
+  const to = `${days[k]! + int(r, 1, 3) * 15}日`;
+  return {
+    id,
+    template: "docx_clause_fix",
+    request: pick(r, [`${file} の第${k + 1}条、${from}を${to}に直してください`, `契約書（${file}）の第${k + 1}条の日数を ${to} に変更して`]),
+    files: {},
+    docx: { [file]: { heading: "業務委託契約書", paragraphs } },
+    actions: [
+      plan([`第${k + 1}条の段落を確かめる`, "日数を書き換える", "完了報告"]),
+      tool("docx.read", { path: file }, "契約書を読み、第" + (k + 1) + "条の段落を確かめます"),
+      tool("docx.edit", { path: file, ops: [{ op: "replace_in_block", block_id: `p:${k + 2}`, find: from, replace: to }] }, `第${k + 1}条（p:${k + 2}）の${from}を${to}に置き換えます`),
+      final(`${file} の第${k + 1}条を「${from}」から「${to}」に直しました。`, [{ path: file, description: "修正した契約書" }]),
+    ],
+    checks: [
+      { type: "docx_contains", file, text: paragraphs[k]!.replace(from, to) },
+      ...paragraphs.filter((_, i) => i !== k).map((text) => ({ type: "docx_contains", file, text })),
+    ],
+    expected: {},
+  };
+}
+
+const RULES = [
+  { path: "規程/旅費規程.docx", location: "第3条", topic: "国内出張の日当", q: "出張 日当", fact: (n: number) => `1日${n.toLocaleString("en-US")}円` },
+  { path: "規程/慶弔規程.docx", location: "第5条", topic: "結婚祝い金", q: "結婚 祝い金", fact: (n: number) => `${n.toLocaleString("en-US")}円` },
+  { path: "規程/車両管理規程.docx", location: "第8条", topic: "社用車の私用での走行の上限", q: "社用車 私用", fact: (n: number) => `月${n}km` },
+];
+
+/** 社内文書の検索で答える。見つかれば出典を付け、見つからなければ推測で答えずにそう伝える */
+function ragAnswer(r: () => number, id: string): Episode {
+  const rule = pick(r, RULES);
+  const n = int(r, 2, 30) * 100;
+  const found = r() < 0.75;
+  const fact = rule.fact(n);
+  return {
+    id,
+    template: "rag_answer",
+    request: pick(r, [`${rule.topic}を規程で確認して教えて`, `社内規程で${rule.topic}を調べてください`]),
+    files: {},
+    features: { rag: true, ocr: false, web: false },
+    fixtures: {
+      rag: { hits: found ? [{ ref: "d1", path: rule.path, location: rule.location, score: 0.9, excerpt: `${rule.topic}は${fact}とする。` }] : [] },
+    },
+    actions: [
+      plan(["社内文書を検索する", "根拠を確かめる", "回答する"]),
+      tool("rag.search", { query: rule.q, top_k: 5 }, "社内規程を検索します"),
+      found
+        ? { ...final(`${rule.topic}は${fact}です（${rule.path} ${rule.location}）。`), citations: [{ kind: "rag", ref: rule.path, location: rule.location }] }
+        : final(`社内文書を検索しましたが、${rule.topic}の定めは見つかりませんでした。総務に確認してください。`),
+    ],
+    checks: [{ type: "final_cites", summary_contains: found ? [fact] : ["見つかりませんでした"], refs: found ? [rule.path] : [] }],
+    expected: {},
+  };
+}
+
 export const TEMPLATES: Record<string, (r: () => number, id: string) => Episode> = {
   memo_to_csv: memoToCsv,
   recover_missing_file: recoverFromMissing,
@@ -314,4 +386,6 @@ export const TEMPLATES: Record<string, (r: () => number, id: string) => Episode>
   copy_outside_approval: copyOutsideWithApproval,
   xlsx_price_update: xlsxPriceUpdate,
   ask_which_memo: askWhichMemo,
+  docx_clause_fix: docxClauseFix,
+  rag_answer: ragAnswer,
 };
