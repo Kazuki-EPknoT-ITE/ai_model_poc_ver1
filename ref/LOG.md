@@ -18,6 +18,18 @@
 
 ---
 
+## 2026-10-14 12:50 — 評価セットのファイルを改行の自動変換から外す（Windows の clone で data_hash が合わなくなる問題）
+
+- **変更ファイル**: `projects/local-llm-agent/eval/sets/.gitattributes`（新規、`* -text`）
+- **やったこと / 理由**:
+  - `core.autocrlf=true`（この PC の設定、Windows の既定）で clone し直すと、tool_tasks_synth のメモ（.txt）が CRLF に変わった。data_hash が合わず、評価が実行されなかった（「data_hash が一致しません」）。モデルが読む中身も変わってしまう。
+  - 評価セットのファイルは、バイト単位で固定することにした（改行を変換しない）。
+- **E2Eテスト**: **合格**（実行アプリの変更なし。評価セットの読み込みを、clone し直した状態で確認）。
+  - 修正前: autocrlf=true の clone で tool_tasks_synth の読み込みが data_hash の不一致で止まることを再現した。
+  - 修正後: 同じ clone で LF のまま取り出され、data_hash が一致した。ほかの5セット（doc_quality_sample・invoice_extraction_sample・resilience・security・tool_tasks_sample）も読み込めた。
+- **結果/確認**: コード・試験の変更なし（直前の `pnpm check` 成功のまま）。
+- **次にやること / 申し送り**: `.coverage` を履歴から消すかどうかは、まだ利用者の判断待ち。
+
 ## 2026-10-14 12:30 — ツール操作の評価セット tool_tasks_synth（55件）と、評価で承認・質問に応じる
 
 - **変更ファイル**（`projects/local-llm-agent/`）:
