@@ -221,6 +221,8 @@ def test_write_cells_errors(run: Runner, book: Path) -> None:
         },
     )
     assert err["code"] == "STALE_DOCUMENT"
+    # 写し間違いに気づけるよう、指定した値といまの file_hash の先頭を示す
+    assert "先頭 00000000" in err["message"] and "expect_hash を省いて" in err["message"]
     err = run.error(
         "xlsx.write_cells", {"path": "送金明細.xlsx", "sheet": "無い", "cells": [{"ref": "A1", "value": 1}]}
     )

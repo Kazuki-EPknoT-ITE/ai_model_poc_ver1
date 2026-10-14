@@ -61,10 +61,15 @@ def sha256_file(path: Path) -> str:
 def check_expect_hash(real: Path, expect_hash: str | None) -> None:
     if expect_hash is None:
         return
-    if sha256_file(real) != expect_hash:
+    current = sha256_file(real)
+    if current != expect_hash:
+        # 読んだあとに更新された場合のほか、モデルが file_hash を写し間違えた場合もここに来る。
+        # 違いが分かるよう先頭8桁を示す（expect_hash は省略できるので、示しても守りは弱くならない）
         raise ToolFailure(
             "STALE_DOCUMENT",
-            "ファイルが更新されています。読み直してから編集してください",
+            f"expect_hash（先頭 {expect_hash[:8]}）が、いまのファイルの file_hash（先頭 {current[:8]}）と違います。"
+            "ファイルが更新されていれば読み直してから編集してください。"
+            "読み直した直後なら、読み取り結果の file_hash を一字一句そのまま写すか、expect_hash を省いてください",
         )
 
 

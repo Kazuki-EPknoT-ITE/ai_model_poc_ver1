@@ -29,6 +29,23 @@ const PIPELINE_ARG: Record<string, (item: string, args: Record<string, unknown>)
   "convert.to_xlsx": (item, a) => ({ ...a, src: item }),
 };
 
+/** items（"glob:…" か "list:…"）を、作業フォルダからの相対パスの一覧にする。 */
+export async function expandBatchItems(items: string, workspace: string): Promise<string[]> {
+  if (items.startsWith("list:")) {
+    return items.slice(5).split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  }
+  let glob = items.replace(/^glob:/, "");
+  // 作業フォルダの中を絶対パスで指した glob（モデルはよく絶対パスで書く）は、作業フォルダからの相対にして照合する。
+  // 作業フォルダの外を指すものは、何も一致しない（外のファイルは一括処理の対象にしない）
+  if (isAbsolute(glob)) {
+    const rel = relative(workspace, glob);
+    if (rel.startsWith("..") || isAbsolute(rel)) return [];
+    glob = rel;
+  }
+  const files = await globFiles(workspace, glob);
+  return files.map((f) => relative(workspace, f.abs).split(sep).join("/"));
+}
+
 export class BatchRunner {
   constructor(
     private readonly store: RunStore,
@@ -39,8 +56,10 @@ export class BatchRunner {
   async run(spec: BatchSpec, ctx: ToolContext): Promise<ToolResult> {
     let batch = this.store.batchForStep(ctx.stepId);
     if (!batch) {
-      const items = await this.expand(spec.items, ctx.workspace);
-      if (items.length === 0) return errResult("NOT_FOUND", `対象のファイルがありません: ${spec.items}`);
+      const items = await expandBatchItems(spec.items, ctx.workspace);
+      if (items.length === 0) {
+        return errResult("NOT_FOUND", `対象のファイルがありません: ${spec.items}（glob は作業フォルダからの相対パスで書きます。例: glob:請求書/*.pdf）`);
+      }
       const id = ulid();
       this.store.tx(() => {
         this.store.addBatch({ id, run_id: ctx.runId, step_id: ctx.stepId, spec: JSON.stringify(spec), total: items.length, status: "running" });
@@ -100,14 +119,6 @@ export class BatchRunner {
       { batch_id: batch.id, total: items.length, succeeded: ok.length, failed, result_id: batch.id, ...(outputArtifact ? { output_artifact: outputArtifact } : {}) },
       { ...(outputArtifact ? { artifacts: [outputArtifact as never] } : {}), ...(warnings.length ? { warnings } : {}) },
     );
-  }
-
-  private async expand(items: string, workspace: string): Promise<string[]> {
-    if (items.startsWith("list:")) {
-      return items.slice(5).split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
-    }
-    const files = await globFiles(workspace, items.replace(/^glob:/, ""));
-    return files.map((f) => relative(workspace, f.abs).split(sep).join("/"));
   }
 
   private async writeOutput(

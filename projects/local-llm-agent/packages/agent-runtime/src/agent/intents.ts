@@ -115,7 +115,8 @@ export class WriteCoordinator {
     }
     if (!result.ok) {
       await this.abandon(staged.map((s) => s.intent));
-      return result;
+      // エラーのメッセージにも作業用コピーの名前が出るので、本物の名前に戻す（モデルが作業用の名前を使い始めないように）
+      return unstage(result, staged);
     }
     // ツールが書いている間に、出力先のフォルダが差し替えられていないか（PX-08）。変わっていたら置き換えない
     const changed = verifyUnchanged(
@@ -152,17 +153,7 @@ export class WriteCoordinator {
         ...(final !== s.intent.path ? { renamed_from: s.target.path } : {}),
       });
     }
-    // data の中に残るステージングパスを、利用者に見せるパスに書き戻す
-    let json = JSON.stringify({ ...result, artifacts: undefined, warnings: undefined });
-    for (const s of staged) {
-      const from = JSON.stringify(s.intent.staging_path!).slice(1, -1);
-      const to = JSON.stringify(s.target.path).slice(1, -1);
-      json = json.split(from).join(to);
-      // ツールが作業フォルダからの相対パスで返したとき（office-tools）。staging の名前は一意なので名前だけで置き換える
-      const fromName = JSON.stringify(basename(s.intent.staging_path!)).slice(1, -1);
-      json = json.split(fromName).join(JSON.stringify(basename(s.intent.path)).slice(1, -1));
-    }
-    const rewritten = JSON.parse(json) as ToolResult;
+    const rewritten = unstage({ ...result, artifacts: undefined, warnings: undefined }, staged);
     return { ...rewritten, artifacts, ...(warnings.length ? { warnings } : {}) };
   }
 
@@ -338,4 +329,16 @@ async function moveAcross(src: string, dst: string): Promise<void> {
     await copyFile(src, dst);
     await unlink(src);
   }
+}
+
+/** ツールの結果（data・エラーのメッセージ）に残る作業用コピー（staging）のパスと名前を、本物のパスと名前に書き戻す。 */
+function unstage(result: ToolResult, staged: { intent: IntentRow; target: ResolvedPath }[]): ToolResult {
+  let json = JSON.stringify(result);
+  for (const { intent: i, target } of staged) {
+    if (!i.staging_path) continue;
+    json = json.split(JSON.stringify(i.staging_path).slice(1, -1)).join(JSON.stringify(target.path).slice(1, -1));
+    // ツールが作業フォルダからの相対パスで返したとき（office-tools）。staging の名前は一意なので名前だけで置き換える
+    json = json.split(JSON.stringify(basename(i.staging_path)).slice(1, -1)).join(JSON.stringify(basename(i.path)).slice(1, -1));
+  }
+  return JSON.parse(json) as ToolResult;
 }

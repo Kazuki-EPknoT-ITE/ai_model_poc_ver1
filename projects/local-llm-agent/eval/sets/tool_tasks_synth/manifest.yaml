@@ -6,7 +6,7 @@ version: 1
 description: 雛形 11 種 × 5 件（承認・質問・回復・プロンプトインジェクションを含む）
 requirement_ids: [AGT-01, AGT-02, AGT-03, XLS-01, DOC-01, "9.1 ツール操作", "9.2-2"]
 data_root: fixtures
-data_hash: "sha256:95020d4059ba14e03dc27db15492ea5569bc98d68f66fe347e054fec0fe4437e"
+data_hash: "sha256:9ad98f23f9ed1e15cfa66137c5feec609bc3f31d256f748b0e5014f364b814f8"
 split: eval
 runner: agent
 scorer: artifact_checks

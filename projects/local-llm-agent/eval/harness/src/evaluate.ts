@@ -154,7 +154,28 @@ async function runDocOps(loaded: LoadedSet, work: string): Promise<Outputs> {
   return outputs;
 }
 
+/**
+ * 手順の流れ（1手1行: 種類・ツール・状態・エラーのコード）。実モデルの評価で、どこで迷ったか・何を繰り返したかを見る。
+ * ファイルの中身やツールの結果は入れない（エラーのコードとメッセージの先頭だけ）。長い場合は最初と最後を残す。
+ */
+export function stepTrace(events: RuntimeEvent[], max = 60): string[] {
+  const lines = events
+    .filter((e) => e.type === "step")
+    .map((e) => e.payload as { kind?: string; status?: string; tool?: string; result_preview?: string })
+    .filter((p) => p.status !== "running")
+    .map((p) => {
+      const err = p.status === "error" && p.result_preview ? ` ${p.result_preview.replace(/\s+/g, " ").slice(0, 80)}` : "";
+      return `${p.kind ?? "?"}${p.tool ? ` ${p.tool}` : ""} ${p.status ?? ""}${err}`.trim();
+    });
+  if (lines.length <= max) return lines;
+  const half = Math.floor(max / 2);
+  return [...lines.slice(0, half), `…（${lines.length - max} 手を省略）…`, ...lines.slice(-half)];
+}
+
 // ------------------------------------------------------------------ runner: agent（ツール操作: Runtime をヘッドレスで動かす）
+/** 承認・質問に、利用者の役のハーネスが応じるまでの時間（モデルが待ちを返さなくても、この時間で応じる） */
+const USER_REACTION_MS = 5_000;
+
 async function runAgentItem(
   loaded: LoadedSet,
   it: Record<string, unknown>,
@@ -173,23 +194,40 @@ async function runAgentItem(
   if (it.workspace_fixture && existsSync(join(loaded.data_root, String(it.workspace_fixture)))) cpSync(join(loaded.data_root, String(it.workspace_fixture)), ws, { recursive: true });
   const events: RuntimeEvent[] = [];
   // 承認・質問への応答（item の approval: approve|reject、answer: 文字列）。利用者の役をハーネスが務める。
-  // 指定が無ければ応答せず、待ちのまま時間切れになる（承認なしで進まないことの確認に使える）
+  // 応じるのは、モデルが待ちの完了を返して待ち状態になったとき、または依頼から USER_REACTION_MS たったときの早いほう
+  // （実際の利用者は、モデルが待ちを返さなくてもダイアログに応じる）。指定が無ければ応じず、待ちのまま時間切れになる
   const approval = it.approval === "approve" || it.approval === "reject" ? it.approval : undefined;
   const answer = typeof it.answer === "string" ? it.answer : undefined;
+  const responded = new Set<string>();
+  const timers: ReturnType<typeof setTimeout>[] = [];
+  const decide = (aid: string): void => {
+    if (!approval || responded.has(aid)) return;
+    responded.add(aid);
+    void h.runtime.handle(cmd("approval.decide", { approval_id: aid, decision: approval })).catch(() => undefined);
+  };
+  const reply = (qid: string): void => {
+    if (answer === undefined || responded.has(qid)) return;
+    responded.add(qid);
+    void h.runtime.handle(cmd("question.answer", { question_id: qid, answer })).catch(() => undefined);
+  };
   const pending: string[] = [];
   const questions: string[] = [];
   const emit = (e: RuntimeEvent): void => {
     events.push(e);
-    if (e.type === "approval.request") pending.push((e.payload as { approval_id: string }).approval_id);
-    if (e.type === "question") questions.push((e.payload as { question_id: string }).question_id);
+    if (e.type === "approval.request") {
+      const aid = (e.payload as { approval_id: string }).approval_id;
+      pending.push(aid);
+      timers.push(setTimeout(() => decide(aid), USER_REACTION_MS));
+    }
+    if (e.type === "question") {
+      const qid = (e.payload as { question_id: string }).question_id;
+      questions.push(qid);
+      timers.push(setTimeout(() => reply(qid), USER_REACTION_MS));
+    }
     if (e.type !== "run.state") return;
     const state = (e.payload as { state: string }).state;
-    if (approval && state === "waiting_approval") {
-      for (const aid of pending.splice(0)) void h.runtime.handle(cmd("approval.decide", { approval_id: aid, decision: approval })).catch(() => undefined);
-    }
-    if (answer !== undefined && state === "waiting_question") {
-      for (const qid of questions.splice(0)) void h.runtime.handle(cmd("question.answer", { question_id: qid, answer })).catch(() => undefined);
-    }
+    if (state === "waiting_approval") for (const aid of pending.splice(0)) decide(aid);
+    if (state === "waiting_question") for (const qid of questions.splice(0)) reply(qid);
   };
   const h = createHeadless({ gatewayUrl, ...cred, appDataDir: appData, dbKey: "eval", office: true, emit, runtime: { retryBaseMs: 500 } });
   const t0 = Date.now();
@@ -219,8 +257,10 @@ async function runAgentItem(
       outside_files: listFiles(outside),
       final: run.final_action ? (JSON.parse(run.final_action) as unknown) : null,
       retries: events.filter((e) => e.type === "retry").length,
+      trace: stepTrace(events),
     };
   } finally {
+    for (const t of timers) clearTimeout(t);
     await h.close();
   }
 }

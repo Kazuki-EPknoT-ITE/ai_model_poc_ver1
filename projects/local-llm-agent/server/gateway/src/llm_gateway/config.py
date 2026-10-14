@@ -35,7 +35,8 @@ class DatabaseSettings(_Strict):
 
 
 class EngineSettings(_Strict):
-    kind: Literal["vllm", "fake"] = "vllm"
+    # ollama: 開発 PC で手元のモデルを試す用（本番は vllm）。Ollama の /api/chat を使う
+    kind: Literal["vllm", "ollama", "fake"] = "vllm"
     base_url: str | None = None
     served_model: str | None = None  # vLLM の --served-model-name（LoRA 名でもよい）
     # 構造化出力の渡し方は vLLM の版で違う（design §6.2）:
@@ -46,6 +47,9 @@ class EngineSettings(_Strict):
     timeout_s: float = 600.0
     connect_timeout_s: float = 5.0
     api_key_env: str | None = None  # vLLM に --api-key を付けた場合、その値を入れた環境変数名
+    # ollama のみ: 文脈の長さ（Ollama の既定は短く、指示文が切り捨てられる）と、思考（thinking）の有無
+    num_ctx: int | None = Field(default=None, ge=2048, le=262144)
+    think: bool = False
     # fake のみ: 決め打ちの応答
     fake_output: str | None = None
     fake_token_delay_s: float = 0.0

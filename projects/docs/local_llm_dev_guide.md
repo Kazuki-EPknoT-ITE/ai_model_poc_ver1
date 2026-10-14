@@ -61,7 +61,7 @@ pnpm exec playwright install chromium
 
 | コマンド | 内容 |
 | --- | --- |
-| `pnpm dev` | Electron アプリを開発モードで起動する（接続先は `.env` の `LLM_GATEWAY_URL`） |
+| `pnpm --filter @lla/desktop dev` | Electron アプリを開発モードで起動する（接続先は環境変数 `LLM_GATEWAY_URL`、既定は `http://127.0.0.1:8787`＝`pnpm mock:gateway`）。Word・Excel・PDF の操作には office-tools の起動方法を環境変数 `LLA_OFFICE_COMMAND` に JSON で渡す（例: `{"command":"uv","args":["run","--project","<local-llm-agent の絶対パス>","office-tools"],"cwd":"<同じ>"}`。無いと文書の操作だけ使えない） |
 | `pnpm mock:gateway` | モック Gateway を起動する（シナリオは `eval/mock-gateway/scenarios/*.yaml`。`local_llm_test_spec.md`） |
 | `pnpm test` | TS の単体テスト（vitest） |
 | `uv run pytest` | Python の単体テスト |
@@ -79,7 +79,7 @@ pnpm exec playwright install chromium
 | `uv run --with pyinstaller python tools/office/packaging/build.py` | office-tools を exe にまとめ、MCP の tools/list で確認する（T-19） |
 | `pnpm --filter @lla/desktop package`（`package:dir`） | インストーラ（展開済みフォルダ）を作る。Node 22 LTS・Runtime・office-tools を resources に同梱（T-46） |
 | `docker compose --env-file <deploy.env> -f server/deploy/compose.yaml config` | サーバー構成の検査（`server/deploy`。値は deploy.env.example） |
-| `uv run python server/gateway/scripts/dev_server.py --port 8789` | 本物の Gateway を一時フォルダで起動（FakeEngine・SQLite・管理画面つき。利用者 dev / admin、パスワードは試験用の固定値） |
+| `uv run python server/gateway/scripts/dev_server.py --port 8789 [--ollama-model gemma4:e4b]` | 本物の Gateway を一時フォルダで起動（SQLite・管理画面 `/admin/` つき。利用者 dev / admin、パスワードは試験用の固定値 dev-password-1 / admin-password-1）。推論は既定で FakeEngine（決め打ちの応答）。`--ollama-model` を付けると、手元の Ollama（`--ollama-url`、既定 `http://127.0.0.1:11434`）のモデルで本物の推論をする（`--num-ctx` 既定 32768。エンジンの `kind: ollama`）。開発 PC で試すためのもので、本番は vLLM |
 | `ADMIN_E2E_REAL=1 pnpm --filter @lla/admin-web e2e` | 管理画面の E2E を本物の Gateway で回す（既定はモック） |
 | `pnpm exec vitest run --config server/gateway/tests/ts/vitest.config.ts` | Gateway と TS クライアント（agent-runtime）の互換性試験 |
 | `LLA_TEST_PG_URL=postgresql+asyncpg://... uv run pytest server/gateway` | Gateway の試験を PostgreSQL でも回す（**試験のたびに public スキーマを作り直す**ので専用の DB を使う） |

@@ -59,6 +59,10 @@ interface RunHandle {
 }
 
 const MODEL_FOR: Record<string, string> = { auto: "local-12b", fast: "local-12b", accurate: "local-26b" };
+/** 同じ引数なら必ず同じ結果になるエラー（繰り返しても通らない）。ファイルが無い・ロック中・時間切れは状況で変わるので含めない */
+const DETERMINISTIC_ERRORS = new Set(["INVALID_ARGS", "UNKNOWN_TOOL", "BLOCK_NOT_FOUND", "FORBIDDEN_PATH", "UNSUPPORTED_FORMAT", "RESULT_TOO_LARGE", "NET_DISABLED", "DLP_BLOCKED", "DOMAIN_BLOCKED"]);
+/** この回数だけ同じ失敗をした呼び出しは、次からは実行しない */
+const REPEAT_FAILURE_LIMIT = 2;
 
 export class AgentRuntime {
   private config: GatewayConfig | null = null;
@@ -556,6 +560,15 @@ export class AgentRuntime {
         this.emitStepDone(run, step, kind, "ok");
         return;
       case "ask_user": {
+        // 回答待ちの質問があるあいだは、新しい質問を出さない（同じ質問を繰り返すモデルがある。質問は一度に1つ）
+        const waiting = this.store.pendingQuestions(run.id)[0];
+        if (waiting) {
+          this.store.tx(() => {
+            this.finishStepMessage(run, step, "ask_user", errResult("APPROVAL_REQUIRED", `質問(${waiting.id})の回答待ちです。質問は繰り返しません。回答が不要な作業を先に進め、ほかに無ければ待ちの完了（final）を返してください`, { question_id: waiting.id }), "deferred");
+          });
+          this.emitStepDone(run, step, kind, "deferred");
+          return;
+        }
         const qid = this.store.nextShortId("questions", "q");
         const secret = /パスワード|password/i.test(action.question) ? 1 : 0;
         this.store.tx(() => {
@@ -658,12 +671,44 @@ export class AgentRuntime {
     }
     const args = this.normalizeArgs(action.tool, action.args);
     const d = decide(spec, args, this.policyContext(run, conv.workspace));
-    this.store.updateStep(step.id, { phase: "policy_checked", tool: spec.name, args_digest: sha256(spec.name + stableStringify(args)) });
+    const digest = sha256(spec.name + stableStringify(args));
+    this.store.updateStep(step.id, { phase: "policy_checked", tool: spec.name, args_digest: digest });
+    // 同じ引数で同じ失敗を繰り返している呼び出しは実行しない（小さいモデルが同じ誤りを繰り返して止まらなくなるのを防ぐ）
+    const repeated = this.repeatedFailure(run, step, digest);
+    if (repeated) {
+      this.finishTool(
+        run,
+        step,
+        action,
+        errResult(
+          repeated.code as never,
+          `この呼び出しは同じ引数で既に${repeated.count}回失敗しています（${repeated.code}）。同じ呼び出しは実行しません。エラーの内容に従って引数を直すか、別のツール・別の方法に変えてください`,
+        ),
+      );
+      return;
+    }
     if (d.kind === "deny") {
       this.finishTool(run, step, action, errResult(d.code, d.message));
       return;
     }
     if (d.kind === "approve") {
+      // 同じ操作がすでに承認待ちなら、新しい承認依頼を作らない（承認を待つあいだに同じ依頼を繰り返すモデルがある）
+      const same = this.store
+        .pendingApprovals(run.id)
+        .find((a) => {
+          const r = JSON.parse(a.request) as ApprovalRequest;
+          return r.tool === spec.name && stableStringify(r.args) === stableStringify(args);
+        });
+      if (same) {
+        this.finishTool(
+          run,
+          step,
+          action,
+          errResult("APPROVAL_REQUIRED", `この操作は既に承認待ち(${same.id})です。同じ依頼は繰り返しません。承認不要な作業を先に進め、ほかに無ければ待ちの完了（final）を返してください`, { approval_id: same.id }),
+          "deferred",
+        );
+        return;
+      }
       const id = this.store.nextShortId("approvals", "ap");
       const req: ApprovalRequest = {
         approval_id: id,
@@ -686,6 +731,18 @@ export class AgentRuntime {
     this.setState(run, "tool_running", { tool: spec.name });
     const result = await this.execute(spec, args, d.paths, ctx, run);
     this.finishTool(run, step, action, result);
+  }
+
+  /**
+   * 同じ (ツール, 引数) が、同じ引数なら必ず同じ結果になるエラーで2回以上失敗していれば、そのエラーと回数を返す。
+   * ファイルが無い・ロック中など、状況が変われば通りうるエラーは対象にしない。
+   */
+  private repeatedFailure(run: RunRow, step: StepRow, digest: string): { code: string; count: number } | null {
+    const fails = this.store
+      .recentSteps(run.id, 40)
+      .filter((s) => s.id !== step.id && s.args_digest === digest && s.error_code && DETERMINISTIC_ERRORS.has(s.error_code));
+    if (fails.length < REPEAT_FAILURE_LIMIT) return null;
+    return { code: fails[fails.length - 1]!.error_code!, count: fails.length };
   }
 
   /** ツールの実行（書き込みの調整・一時的な失敗の再試行込み）。 */

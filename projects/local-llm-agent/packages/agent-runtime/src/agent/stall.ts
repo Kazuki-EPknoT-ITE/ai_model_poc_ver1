@@ -25,8 +25,14 @@ interface StepFacts {
 /** 手順の記録から、進捗があったかを判定する材料を取り出す。 */
 export function factsOf(step: StepRow, seenResults: Set<string>): StepFacts {
   let progressed = false;
-  const action = safeParse(step.action) as { type?: string } | null;
-  if (action?.type === "plan_update" || action?.type === "ask_user" || action?.type === "final") progressed = true;
+  const action = safeParse(step.action) as { type?: string; plan?: unknown } | null;
+  if (action?.type === "ask_user" || action?.type === "final") progressed = true;
+  // 計画の更新は、中身（項目・状態）が前と変わったときだけ進捗とみなす（毎手同じ計画を出し直すモデルがある）
+  if (action?.type === "plan_update") {
+    const key = `plan:${JSON.stringify(action.plan ?? null)}`;
+    if (!seenResults.has(key)) progressed = true;
+    seenResults.add(key);
+  }
   const r = safeParse(step.result) as { ok?: boolean; artifacts?: unknown[] } | null;
   if (r) {
     if (r.artifacts && r.artifacts.length > 0) progressed = true;

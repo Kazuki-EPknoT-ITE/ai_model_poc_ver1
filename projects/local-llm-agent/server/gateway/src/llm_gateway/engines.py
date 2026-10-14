@@ -1,4 +1,4 @@
-"""推論エンジンの抽象（InferenceEngine）と実装（vLLM / 試験用の FakeEngine）。
+"""推論エンジンの抽象（InferenceEngine）と実装（vLLM / 開発 PC 用の Ollama / 試験用の FakeEngine）。
 
 エンジンが落ちた・接続できない場合は EngineUnavailable を投げる。スケジューラは
 running のジョブを queued に戻し、SSE に requeued を送る（local_llm_api.md §4）。
@@ -178,6 +178,147 @@ class VLLMEngine:
         await self.client.aclose()
 
 
+# ---- Ollama（/api/chat、開発 PC で手元のモデルを試す用） ----
+
+
+def _response_schema(rf: dict[str, Any] | None) -> dict[str, Any] | str | None:
+    if rf is None:
+        return None
+    schema = rf.get("schema") if rf.get("type") == "json_schema" else None
+    if schema is None and isinstance(rf.get("json_schema"), dict):
+        schema = rf["json_schema"].get("schema")
+    if isinstance(schema, dict):
+        return schema
+    return "json" if rf.get("type") == "json_object" else None
+
+
+# Ollama（llama.cpp）は JSON Schema を文法に変換する。配列の上限（maxItems）が大きいと、繰り返しを
+# 展開した文法が大きくなりすぎて「failed to parse grammar」（HTTP 400）になる（Action のスキーマには
+# 2000〜100000 の上限がある）。この値を超える上限だけを外す。外した上限は Runtime の形式の検証で確かめ、
+# 超えていれば出力の形式エラーとしてやり直す。
+OLLAMA_MAX_ITEMS = 100
+
+
+def _relax_for_llama(node: Any) -> Any:
+    if isinstance(node, dict):
+        return {
+            k: _relax_for_llama(v)
+            for k, v in node.items()
+            if not (k == "maxItems" and isinstance(v, int) and v > OLLAMA_MAX_ITEMS)
+        }
+    if isinstance(node, list):
+        return [_relax_for_llama(v) for v in node]
+    return node
+
+
+def _ollama_message(m: dict[str, Any]) -> dict[str, Any]:
+    """OpenAI 形式の1メッセージを Ollama の形にする（画像の部品は base64 の images に移す）。"""
+    content = m.get("content")
+    if not isinstance(content, list):
+        return {"role": m.get("role"), "content": content or ""}
+    texts: list[str] = []
+    images: list[str] = []
+    for p in content:
+        if not isinstance(p, dict):
+            continue
+        if p.get("type") == "text":
+            texts.append(str(p.get("text", "")))
+        elif p.get("type") == "image_url":
+            url = str((p.get("image_url") or {}).get("url", ""))
+            if url.startswith("data:") and "," in url:
+                images.append(url.split(",", 1)[1])
+    out: dict[str, Any] = {"role": m.get("role"), "content": "\n".join(texts)}
+    if images:
+        out["images"] = images
+    return out
+
+
+class OllamaEngine:
+    """Ollama の /api/chat（NDJSON のストリーム）。構造化出力は format に JSON Schema を渡す。
+
+    本番の推論は vLLM（設計書 §6.2）。これは GPU の検証機が無い開発 PC で、手元のモデルで
+    アプリを試すためのもの。LoRA の切り替えは扱わない。
+    """
+
+    def __init__(self, s: EngineSettings, *, transport: httpx.AsyncBaseTransport | None = None) -> None:
+        if not s.base_url or not s.served_model:
+            raise ValueError("ollama エンジンには base_url と served_model（Ollama のモデル名）が必要です")
+        self.s = s
+        self.client = httpx.AsyncClient(
+            base_url=s.base_url.rstrip("/"),
+            timeout=httpx.Timeout(s.timeout_s, connect=s.connect_timeout_s),
+            transport=transport,
+        )
+
+    def build_body(self, req: EngineRequest) -> dict[str, Any]:
+        options: dict[str, Any] = {"temperature": req.temperature, "num_predict": req.max_tokens}
+        if self.s.num_ctx:
+            options["num_ctx"] = self.s.num_ctx
+        body: dict[str, Any] = {
+            "model": self.s.served_model,
+            "messages": [_ollama_message(m) for m in req.messages],
+            "stream": True,
+            "think": self.s.think,
+            "options": options,
+        }
+        fmt = _response_schema(req.response_format)
+        if fmt is not None:
+            body["format"] = _relax_for_llama(fmt)
+        return body
+
+    async def activate_lora(self, name: str | None, path: str | None) -> None:
+        if name is not None:
+            raise EngineRequestError("ollama エンジンは LoRA の切り替えに対応していません")
+
+    async def stream(self, req: EngineRequest) -> AsyncIterator[Chunk]:
+        body = self.build_body(req)
+        parts: list[str] = []
+        last: dict[str, Any] = {}
+        try:
+            async with self.client.stream("POST", "/api/chat", json=body) as res:
+                if res.status_code >= 500 or res.status_code == 429:
+                    raise EngineUnavailable(f"Ollama HTTP {res.status_code}")
+                if res.status_code >= 400:
+                    # 404 はモデルが入っていない（ollama pull が要る）。再投入しても直らない
+                    raise EngineRequestError(f"Ollama HTTP {res.status_code}")
+                async for line in res.aiter_lines():
+                    if not line.strip():
+                        continue
+                    try:
+                        obj = json.loads(line)
+                    except ValueError:
+                        continue
+                    if obj.get("error"):
+                        raise EngineUnavailable("Ollama error")
+                    text = (obj.get("message") or {}).get("content")
+                    if text:
+                        parts.append(text)
+                        yield Delta(text)
+                    if obj.get("done"):
+                        last = obj
+                        break
+        except httpx.TransportError as e:
+            raise EngineUnavailable(type(e).__name__) from None
+        output = "".join(parts)
+        reason = str(last.get("done_reason") or "stop")
+        yield Final(
+            output=output,
+            input_tokens=int(last.get("prompt_eval_count") or 0),
+            output_tokens=int(last.get("eval_count") or max(1, len(output) // 3)),
+            finish_reason="length" if reason == "length" else "stop",
+        )
+
+    async def health(self) -> bool:
+        try:
+            res = await self.client.get("/api/version", timeout=3.0)
+        except httpx.HTTPError:
+            return False
+        return res.status_code == 200
+
+    async def aclose(self) -> None:
+        await self.client.aclose()
+
+
 # ---- 試験用 ----
 
 
@@ -269,4 +410,6 @@ class FakeEngine:
 def build_engine(s: EngineSettings) -> InferenceEngine:
     if s.kind == "fake":
         return FakeEngine.from_settings(s)
+    if s.kind == "ollama":
+        return OllamaEngine(s)
     return VLLMEngine(s)

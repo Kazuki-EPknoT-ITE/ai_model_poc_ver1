@@ -18,6 +18,36 @@
 
 ---
 
+## 2026-10-14 16:30 — この PC の Ollama（gemma4:e4b）で本物の推論ができるようにし、実モデルで見つかった不具合を直した
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - Gateway: `server/gateway/src/llm_gateway/engines.py`（`OllamaEngine`）、`config.py`（`kind: ollama`、`num_ctx`、`think`）、`scripts/dev_server.py`（`--ollama-model` など）、`tests/test_gw_ollama.py`（新規、5件）
+  - Runtime: `packages/agent-runtime/src/runtime.ts`（繰り返しへの守り）、`agent/stall.ts`（計画の出し直しの扱い）、`agent/batch.ts`（絶対パスの glob、`expandBatchItems`）、`agent/intents.ts`（エラーの中の作業用コピーの名前）、試験（`test/foundation.test.ts`、`test/integration/runtime.it.test.ts`、`eval/mock-gateway/scenarios/runtime/repeat-guard.yaml`）
+  - office-tools: `fsutil.py`（STALE_DOCUMENT のメッセージ）、`tests/test_xlsx.py`
+  - 評価: `eval/harness/src/evaluate.ts`（承認・質問への応じ方、手順の流れ trace）、`lla_eval/scoring.py`（final_cites で作業フォルダ内の絶対パスを相対として比べる）、`ml/datagen/src/export-eval.ts`（max_steps を 4倍＋10）、`eval/sets/tool_tasks_synth`（書き出し直し）
+  - docs: design §5.6・§6.2、dev_guide（起動コマンドの誤り `pnpm dev` も直した）、test_spec §3
+- **やったこと**:
+  - 利用者の求めで、この PC の Ollama（0.40.3）に入っている `gemma4:e4b` を Gateway から使えるようにした（`dev_server.py --ollama-model gemma4:e4b`）。
+    - Ollama の `/api/chat` を使う。構造化出力は `format` に JSON Schema、`num_ctx` 32768、thinking は切る。
+    - Action のスキーマをそのまま渡すと「failed to parse grammar」（HTTP 400）になった。原因を切り分けた結果、大きな maxItems（2000〜100000）だった。100 を超える maxItems だけを外して渡す。
+    - 速さ: 1手 2〜3秒（初回だけ読み込みに約1分）。
+  - 実モデルで評価（11件、`--per-template 1` の書き出し）し、手順の流れから見つけた **こちら側の問題** を直した:
+    1. `batch.run` の glob を絶対パスで書くと一致しなかった（モデルはよく絶対パスで書く）→ 作業フォルダ内なら相対にして照合。
+    2. 同じ失敗を何十回も繰り返して止まらなかった → 同じ引数で必ず同じ結果になるエラー（INVALID_ARGS 等）で2回失敗した呼び出しは、3回目から実行せずに知らせる。
+    3. 承認待ちのあいだに同じ操作の承認依頼が何件も作られた・同じ質問を何度も出した → 既存の承認待ち・回答待ちを返す。
+    4. 計画を毎手出し直すと「進捗あり」と数えられ、停滞に気づけなかった → 設計書（§5.6「計画の status 変化」）どおり、中身が変わったときだけ進捗。
+    5. Excel の書き込みで STALE_DOCUMENT を繰り返した（モデルが file_hash を写し間違える）→ メッセージに両方の先頭8桁と「省いてもよい」を示す。
+    6. 書き込みに失敗したときのエラーに、作業用コピーの名前（`.~lla-…`）が出ていた → 本物の名前に戻す。
+    7. 評価ハーネス: 承認・質問に、モデルが待ちを返したときだけ応じていた（実際の利用者は待たずに応じる）→ 待ち状態か依頼から5秒の早いほう。作業フォルダ内の絶対パスの出典を正しく比べる。item ごとに手順の流れ（trace）を残す。
+- **E2Eテスト**: **合格**。
+  - 実モデル（Ollama gemma4:e4b ＋ 本物の Gateway ＋ 本物の Runtime・office-tools）: メモ → CSV の作業が最後まで完了した（手順を1手ずつ表示して確認）。11件の評価は 1回目 0/11（時間切れ4件）→ 修正後 1/11（時間切れ3件、平均手順 46 → 28）。残りの不合格は主にモデルの誤り（列名の誤り・2つのメモを混ぜる・不要な質問など）。12B より小さいモデルなので、参考値。
+  - デスクトップ E2E（Playwright）13件、Runtime の結合試験 11件（繰り返しへの守りの試験を追加）、障害注入 FI 19/19、セキュリティ SX 7/7、モックでの評価 tool_tasks_synth 55/55。
+- **結果/確認**: `pnpm check` が全体で成功（pytest 536件成功・55件スキップ、Runtime の単体試験 35件）。
+- **次にやること / 申し送り**:
+  - アプリから試す手順: `uv run python server/gateway/scripts/dev_server.py --port 8790 --ollama-model gemma4:e4b`、アプリは `LLM_GATEWAY_URL=http://127.0.0.1:8790` で起動、`dev` / `dev-password-1`。
+  - 実モデルでの成功率を上げるには、`data.transform` の使い方の例を system プロンプトに足す、学習（QLoRA）を行う、などが考えられる。
+  - `.coverage` を履歴から消すかどうかは、まだ利用者の判断待ち。
+
 ## 2026-10-14 13:10 — 評価結果の比較（pnpm eval:compare）: ベースモデルと学習後の比較（POC 条件2）
 
 - **変更ファイル**（`projects/local-llm-agent/`）: `eval/harness/lla_eval/compare.py`（新規）、`eval/harness/lla_eval/__main__.py`（`compare`）、`eval/harness/src/compare.ts`（新規）、`eval/harness/package.json`・`package.json`（`eval:compare`）、`eval/harness/tests/test_compare.py`（新規、5件）、docs（test_spec §3、dev_guide）

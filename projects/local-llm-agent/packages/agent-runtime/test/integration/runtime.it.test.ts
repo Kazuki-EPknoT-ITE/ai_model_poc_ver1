@@ -96,6 +96,33 @@ describe("runtime integration", () => {
     expect(rig.store.getRun(run_id)!.replan_count).toBe(2);
   }, 90_000);
 
+  it("RUN-05: repeated identical failures are not re-run, and duplicate approvals / questions are not created", async () => {
+    rig = await makeRig("repeat-guard.yaml");
+    writeFileSync(join(rig.ws, "memo.txt"), "x");
+    const { run_id } = await start(rig);
+    await waitFor(() => states(rig!).includes("waiting_approval") || states(rig!).includes("waiting_question"), 30_000, "waiting");
+    const steps = rig.store.db.prepare("SELECT seq, error_code, result FROM steps WHERE run_id = ? ORDER BY seq").all(run_id) as {
+      seq: number;
+      error_code: string | null;
+      result: string | null;
+    }[];
+    const msg = (seq: number) => (JSON.parse(steps.find((s) => s.seq === seq)!.result!) as { error?: { message: string } }).error?.message ?? "";
+    // 1・2回目は実行して FORBIDDEN_PATH、3回目は実行せずに繰り返しを知らせる
+    expect(steps.filter((s) => s.seq >= 2 && s.seq <= 4).map((s) => s.error_code)).toEqual(["FORBIDDEN_PATH", "FORBIDDEN_PATH", "FORBIDDEN_PATH"]);
+    expect(msg(3)).not.toContain("既に");
+    expect(msg(4)).toContain("既に2回失敗しています");
+    // 同じコピーの承認依頼は1つだけ。2回目は既存の承認待ちを指す
+    expect(rig.events.filter((e) => e.type === "approval.request")).toHaveLength(1);
+    expect(msg(6)).toContain("既に承認待ち(ap-1)");
+    // 質問は一度に1つ
+    expect(rig.events.filter((e) => e.type === "question")).toHaveLength(1);
+    expect(msg(8)).toContain("質問(q-1)の回答待ち");
+    await rig.runtime.handle(cmd("approval.decide", { approval_id: "ap-1", decision: "reject" }));
+    await rig.runtime.handle(cmd("question.answer", { question_id: "q-1", answer: "memo.txt" }));
+    await waitFor(() => runEnded(rig!, run_id), 30_000, "run end");
+    expect(JSON.parse(rig.store.getRun(run_id)!.final_action!).summary).toBe("終了");
+  }, 90_000);
+
   it("I-09 / R10: after reading the web, outside writes require a tainted approval", async () => {
     rig = await makeRig("net-taint.yaml");
     writeFileSync(join(rig.ws, "a.txt"), "A");

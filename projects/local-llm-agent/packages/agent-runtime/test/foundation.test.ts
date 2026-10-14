@@ -10,10 +10,13 @@ import { RunStore } from "../src/store/store.js";
 import { decide, resolvePaths, type PolicyContext } from "../src/policy/policy.js";
 import { resolveRealPath } from "../src/policy/paths.js";
 import { WriteCoordinator } from "../src/agent/intents.js";
+import { expandBatchItems } from "../src/agent/batch.js";
+import { DEFAULT_STALL, detectStall } from "../src/agent/stall.js";
+import type { StepRow } from "../src/store/store.js";
 import { buildActionSchema } from "../src/agent/grammar.js";
 import { globToRegExp } from "../src/tools/glob.js";
 import { lineDiff } from "../src/agent/diff.js";
-import { okResult, type ToolContext } from "../src/tools/types.js";
+import { errResult, okResult, type ToolContext } from "../src/tools/types.js";
 import { fileHash } from "../src/util.js";
 
 let dir: string;
@@ -141,6 +144,36 @@ describe("policy", () => {
   });
 });
 
+describe("停滞の検知", () => {
+  it("同じ計画の出し直しは進捗とみなさない（中身が変わった計画だけが進捗）", () => {
+    const plan = (status: string) => JSON.stringify({ type: "plan_update", plan: [{ id: "t1", title: "読む", status }] });
+    const row = (seq: number, action: string, extra: Partial<StepRow> = {}) =>
+      ({ seq, action, tool: null, args_digest: null, error_code: null, result: null, result_digest: null, ...extra }) as StepRow;
+    const failing = (seq: number) =>
+      row(seq, JSON.stringify({ type: "tool_call" }), { tool: "data.transform", args_digest: `d${seq}`, error_code: "INVALID_ARGS", result: JSON.stringify({ ok: false }) });
+    // 最初に計画を出したあと、失敗と「同じ計画」を交互に8手 → 進捗なし
+    const same = [row(-1, plan("doing")), ...Array.from({ length: 8 }, (_, i) => (i % 2 ? failing(i) : row(i, plan("doing"))))];
+    expect(detectStall(same, { ...DEFAULT_STALL, repeatCount: 99, errorStreak: 99 })).toMatchObject({ stalled: true, signal: "no_progress" });
+    // 計画の状態が進んでいれば進捗あり
+    const moving = Array.from({ length: 8 }, (_, i) => (i % 2 ? failing(i) : row(i, plan(`s${i}`))));
+    expect(detectStall(moving, { ...DEFAULT_STALL, repeatCount: 99, errorStreak: 99 }).stalled).toBe(false);
+  });
+});
+
+describe("batch.run の対象の展開", () => {
+  it("作業フォルダの中を絶対パスで指した glob も一致する。外を指すものは何も一致しない", async () => {
+    mkdirSync(join(ws, "請求書"));
+    for (const f of ["INV-001.pdf", "INV-002.pdf", "メモ.txt"]) writeFileSync(join(ws, "請求書", f), "x");
+    const want = ["請求書/INV-001.pdf", "請求書/INV-002.pdf"];
+    expect(await expandBatchItems("glob:請求書/*.pdf", ws)).toEqual(want);
+    expect(await expandBatchItems(`glob:${join(ws, "請求書", "*.pdf")}`, ws)).toEqual(want);
+    // 大文字・小文字の違い（Windows の実際のパス）でも同じ
+    if (process.platform === "win32") expect(await expandBatchItems(`glob:${join(ws.toUpperCase(), "請求書", "*.pdf")}`, ws)).toEqual(want);
+    writeFileSync(join(dir, "outside.pdf"), "x");
+    expect(await expandBatchItems(`glob:${join(dir, "*.pdf")}`, ws)).toEqual([]);
+  });
+});
+
 describe("WriteCoordinator", () => {
   const tctx = (): ToolContext => {
     const c = store.getConversation("c1") ?? store.createConversation({ id: "c1", title: "t", workspace: ws });
@@ -183,6 +216,20 @@ describe("WriteCoordinator", () => {
     });
     expect(JSON.stringify(r)).not.toContain(".~lla-");
     expect((r.data as { artifact: { path: string } }).artifact.path).toBe("sub/一覧.csv");
+  });
+
+  it("rewrites staging names in error messages too (the model must not see .~lla- names)", async () => {
+    const c = tctx();
+    const wc = new WriteCoordinator(store, { appDataDir: appData });
+    const t = tool("csv.write");
+    const args = { path: "sub/一覧.csv", rows: [] };
+    mkdirSync(join(ws, "sub"), { recursive: true });
+    const r = await wc.execute(t, args, resolvePaths(t, args, ws), c, async (a) =>
+      errResult("INVALID_ARGS", `${relative(ws, String(a.path))} は既に存在します`),
+    );
+    expect(r.ok).toBe(false);
+    expect(JSON.stringify(r)).not.toContain(".~lla-");
+    expect(r.error?.message).toContain("一覧.csv は既に存在します");
   });
 
   it("undoes a run and refuses when the file was changed afterwards", async () => {

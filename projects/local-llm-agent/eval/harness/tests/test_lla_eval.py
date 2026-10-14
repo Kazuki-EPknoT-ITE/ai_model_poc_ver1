@@ -207,6 +207,15 @@ def test_final_cites_check(tmp_path: Path) -> None:
     assert run_check(ok, out, tmp_path)[0]
     assert not run_check({**ok, "summary_contains": ["5,000円"]}, out, tmp_path)[0]
     assert not run_check({**ok, "refs": []}, out, tmp_path)[0]
+    # 作業フォルダの中の絶対パスで挙げた出典も、相対パスの期待と一致する（外の絶対パスは一致しない）
+    (tmp_path / "経費.csv").write_text("x", encoding="utf-8")
+    abs_out = {
+        "workspace": str(tmp_path),
+        "final": {"summary": "s", "citations": [{"kind": "file", "ref": str(tmp_path / "経費.csv")}]},
+    }
+    assert run_check({"type": "final_cites", "refs": ["経費.csv"]}, abs_out, tmp_path)[0]
+    other = {**abs_out, "workspace": str(tmp_path / "sub")}
+    assert not run_check({"type": "final_cites", "refs": ["経費.csv"]}, other, tmp_path)[0]
     none = {"workspace": str(tmp_path), "final": {"summary": "見つかりませんでした。"}}
     assert run_check(
         {"type": "final_cites", "summary_contains": ["見つかりません"], "refs": []}, none, tmp_path

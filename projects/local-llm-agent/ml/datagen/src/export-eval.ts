@@ -79,8 +79,8 @@ async function main(): Promise<number> {
         mock: `mock/${id}/scenario.yaml`,
         ...(ep.approval ? { approval: ep.approval } : {}),
         ...(ep.answer !== undefined ? { answer: ep.answer } : {}),
-        // 手順数の上限は、正しい手順の倍＋計画・完了の分（遠回りしすぎたら不合格）
-        checks: [...checks, { type: "max_steps", value: toolCalls * 2 + 4 }],
+        // 手順数の上限は、正しい手順の4倍＋10（毎手のあとに計画を出し直すモデルでも通り、堂々巡りは不合格にする）
+        checks: [...checks, { type: "max_steps", value: toolCalls * 4 + 10 }],
       });
       process.stderr.write(`${id}\n`);
     }

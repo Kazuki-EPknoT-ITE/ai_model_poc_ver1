@@ -2,6 +2,7 @@
 
 使い方（projects/local-llm-agent で）:
     uv run python server/gateway/scripts/dev_server.py --port 8789 [--dir <作業フォルダ>]
+    手元の Ollama のモデルで試す: … --ollama-model gemma4:e4b [--ollama-url http://127.0.0.1:11434] [--num-ctx 32768]
 用意するもの: 鍵（Ed25519・暗号鍵）、利用者 dev（利用者）と admin（管理者）、設定ファイル、管理画面の配置。
 パスワードは試験用の固定値（dev-password-1 / admin-password-1）。本番では使わないこと。
 """
@@ -43,6 +44,15 @@ def main() -> None:
     # 障害注入試験（FI-07）用: 推論を遅くし、同時実行を絞って待ち行列を作る
     ap.add_argument("--fake-delay", type=float, default=0.01, help="FakeEngine の1チャンクあたりの待ち（秒）")
     ap.add_argument("--max-concurrent", type=int, default=None)
+    # 手元の Ollama のモデルで試す（指定しなければ決め打ちの応答を返す FakeEngine）
+    ap.add_argument("--ollama-model", default=None, help="Ollama のモデル名（例: gemma4:e4b）")
+    ap.add_argument("--ollama-url", default="http://127.0.0.1:11434")
+    ap.add_argument(
+        "--num-ctx",
+        type=int,
+        default=32768,
+        help="Ollama の文脈の長さ（Runtime の context_budget も同じにする）",
+    )
     a = ap.parse_args()
     work = a.dir or Path(tempfile.mkdtemp(prefix="llmgw-dev-"))
     work.mkdir(parents=True, exist_ok=True)
@@ -61,8 +71,17 @@ def main() -> None:
             {
                 "id": "local-12b",
                 "label": "高速",
-                "context_budget": 32768,
-                "engine": {"kind": "fake", "fake_token_delay_s": a.fake_delay, "fake_output": FAKE_OUTPUT},
+                "context_budget": a.num_ctx if a.ollama_model else 32768,
+                "engine": (
+                    {
+                        "kind": "ollama",
+                        "base_url": a.ollama_url,
+                        "served_model": a.ollama_model,
+                        "num_ctx": a.num_ctx,
+                    }
+                    if a.ollama_model
+                    else {"kind": "fake", "fake_token_delay_s": a.fake_delay, "fake_output": FAKE_OUTPUT}
+                ),
             }
         ],
         "upstreams": {},
@@ -81,7 +100,8 @@ def main() -> None:
                 {**env, "LLMGW_NEW_PASSWORD": pw},
             )
         marker.write_text("ok", encoding="utf-8")
-    print(f"gateway dev server: http://127.0.0.1:{a.port} (dir={work})", flush=True)
+    engine = f"Ollama {a.ollama_model}" if a.ollama_model else "FakeEngine（決め打ちの応答）"
+    print(f"gateway dev server: http://127.0.0.1:{a.port} (dir={work}, engine={engine})", flush=True)
     if os.name == "nt":
         run(["serve", "--config", str(cfg)], env)
     else:

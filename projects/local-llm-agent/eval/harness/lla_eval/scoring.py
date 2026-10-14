@@ -303,6 +303,17 @@ def _load_expected(path: Path) -> Any:
     return path
 
 
+def _ws_relative(ref: str, ws: Path) -> str:
+    """出典の ref が作業フォルダの中の絶対パスなら、作業フォルダからの相対パス（/ 区切り）にする。"""
+    p = Path(ref)
+    if p.is_absolute():
+        try:
+            return p.resolve().relative_to(ws.resolve()).as_posix()
+        except (ValueError, OSError):
+            return ref.replace("\\", "/")
+    return ref.replace("\\", "/")
+
+
 # ---------------------------------------------------------------- 判定ルール（checks）
 def run_check(check: dict[str, Any], out: dict[str, Any], set_dir: Path) -> tuple[bool, str]:
     kind = check.get("type")
@@ -355,8 +366,9 @@ def run_check(check: dict[str, Any], out: dict[str, Any], set_dir: Path) -> tupl
             fin = out.get("final") or {}
             summary = norm_text(str(fin.get("summary", ""))) or ""
             missing = [t for t in check.get("summary_contains", []) if (norm_text(t) or "") not in summary]
-            got_c = {str(c.get("ref", "")) for c in fin.get("citations") or []}
-            want_c = {str(x) for x in check["refs"]}
+            # 作業フォルダの中を絶対パスで挙げた出典は、作業フォルダからの相対パスとして比べる（区切りは / にそろえる）
+            got_c = {_ws_relative(str(c.get("ref", "")), ws) for c in fin.get("citations") or []}
+            want_c = {str(x).replace("\\", "/") for x in check["refs"]}
             ok = not missing and got_c == want_c
             return (
                 ok,
@@ -406,6 +418,8 @@ def score_artifacts(items: list[dict[str, Any]], outputs: dict[str, Any], set_di
                 "steps": out.get("steps"),
                 "duration_s": out.get("duration_s"),
                 "checks": results,
+                # 手順の流れ（実モデルの評価で、どこで迷ったかを見るため。ファイルの中身は入れない）
+                **({"trace": out["trace"]} if out.get("trace") else {}),
             }
         )
     sc.metrics["task_success_rate"] = _ratio(ok_n, len(items))
