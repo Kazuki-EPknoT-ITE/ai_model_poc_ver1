@@ -4,7 +4,8 @@ import { open } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, relative, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { getTool, validateDef, type ToolCatalogEntry } from "@lla/protocol";
+import { getTool, validateDef, validateToolArgs, type ToolCatalogEntry } from "@lla/protocol";
+import { SYSTEM_BASE } from "../src/prompt/templates.js";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { RunStore } from "../src/store/store.js";
 import { decide, resolvePaths, type PolicyContext } from "../src/policy/policy.js";
@@ -375,5 +376,19 @@ describe("lineDiff", () => {
       { kind: "insert", location: "4行目", before: null, after: "d" },
     ]);
     expect(lineDiff(["x"], ["x"]).changes).toEqual([]);
+  });
+});
+
+describe("system プロンプトの例", () => {
+  it("例に載せた手は、アクションの形式とツールの引数の形式に合う（モデルがそのまま真似しても通る）", () => {
+    const examples = SYSTEM_BASE.split("\n")
+      .map((l) => l.replace(/^\s*(\d+手目:\s*)?/, ""))
+      .filter((l) => l.startsWith('{"type"'));
+    expect(examples.length).toBeGreaterThanOrEqual(3);
+    for (const ex of examples) {
+      const a = JSON.parse(ex) as { type: string; tool?: string; args?: unknown };
+      expect(validateDef("Action", a).errors, ex).toEqual([]);
+      if (a.type === "tool_call") expect(validateToolArgs(a.tool!, a.args).errors, ex).toEqual([]);
+    }
   });
 });
