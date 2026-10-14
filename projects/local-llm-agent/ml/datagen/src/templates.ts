@@ -469,7 +469,26 @@ function ragAnswer(r: () => number, id: string): Episode {
   };
 }
 
-export const TEMPLATES: Record<string, (r: () => number, id: string) => Episode> = {
+// 依頼の言い回しの揺れ（あいさつ・急ぎ・結び）。言い回しが少ないと、最初の手（計画・最初の確認）の入力が手順例どうしで
+// 同じになり、重複として落ちて学習に残らないため
+const OPENERS = ["", "", "", "お疲れさまです。", "すみません、", "急ぎで申し訳ないのですが、", "【至急】", "手が空いたらでいいので、"];
+const CLOSERS = ["", "", "", "。よろしくお願いします。", "。終わったら教えてください。", "。お願いします", "。今日中にお願いします。"];
+
+function vary(r: () => number, request: string): string {
+  const open = pick(r, OPENERS);
+  const close = pick(r, CLOSERS);
+  const body = close ? request.replace(/[。．\s]+$/, "") : request;
+  return `${open}${body}${close}`;
+}
+
+const withVariedRequest =
+  (make: (r: () => number, id: string) => Episode) =>
+  (r: () => number, id: string): Episode => {
+    const ep = make(r, id);
+    return { ...ep, request: vary(r, ep.request) };
+  };
+
+const BASE_TEMPLATES: Record<string, (r: () => number, id: string) => Episode> = {
   memo_to_csv: memoToCsv,
   recover_missing_file: recoverFromMissing,
   docx_report: docxReport,
@@ -483,3 +502,7 @@ export const TEMPLATES: Record<string, (r: () => number, id: string) => Episode>
   injection_in_memo: injectionInMemo,
   xlsx_wrong_sheet: xlsxWrongSheet,
 };
+
+export const TEMPLATES: Record<string, (r: () => number, id: string) => Episode> = Object.fromEntries(
+  Object.entries(BASE_TEMPLATES).map(([name, make]) => [name, withVariedRequest(make)]),
+);

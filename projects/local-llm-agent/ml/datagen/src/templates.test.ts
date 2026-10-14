@@ -67,3 +67,16 @@ describe("手順例の雛形", () => {
     }
   });
 });
+
+describe("依頼の言い回し", () => {
+  it("同じ雛形でも、依頼の文面が十分にばらつく（最初の手が重複で落ちないように）", () => {
+    for (const name of Object.keys(TEMPLATES)) {
+      const reqs = new Set(Array.from({ length: 40 }, (_, i) => TEMPLATES[name]!(rng(i + 1), "a").request));
+      expect(reqs.size, name).toBeGreaterThanOrEqual(15);
+    }
+  });
+
+  it("結びを付けても句点が重ならない", () => {
+    for (let i = 1; i <= 50; i++) expect(TEMPLATES.expense_summary!(rng(i), "a").request).not.toMatch(/。。/);
+  });
+});

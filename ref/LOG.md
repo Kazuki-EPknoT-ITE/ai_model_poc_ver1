@@ -18,6 +18,22 @@
 
 ---
 
+## 2026-10-14 10:00 — datagen の並行実行（--jobs）と依頼の言い回しの揺れ（重複 64→8件）
+
+- **変更ファイル**（`projects/local-llm-agent/`）: `ml/datagen/src/gen.ts`（`--jobs`、manifest に `jobs`・`elapsed_s`）、`ml/datagen/src/templates.ts`（`vary`・`withVariedRequest`。雛形は `BASE_TEMPLATES` に移し、`TEMPLATES` は言い回しを揺らした版）、`ml/datagen/src/templates.test.ts`、docs（design §8.3、dev_guide）
+- **やったこと**:
+  - `--jobs N`（1〜32）で手順例を並行して実行する。出力は終わった順ではなく手順例の順に並べる（並行数を変えても並びと手は同じ）。
+  - 依頼の文面に、あいさつ・急ぎ・結びの揺れを加えた（句点は重ねない）。
+- **理由/背景**:
+  - 1件約5秒の逐次実行では、数千件の生成に4時間以上かかる。
+  - 120件の生成で、最初の手（計画・最初の確認）の入力が手順例どうしで同じになり、64件（12%）が重複として落ちていた。依頼の言い回しが少なく、件数を増やしても最初の手の型が増えないため。
+- **E2Eテスト**: **合格**（Runtime・アプリは変更なし。データ生成を本物の Runtime と office-tools で実行）。
+  - 逐次（24件 127秒）と 4並行（34秒）の出力で、手順例の並びと completion が一致した。
+  - 8並行で 120件: 120/120 件合格、111秒（1件約0.9秒）。利用者名・一時フォルダの漏れは0行。
+  - 言い回しの揺れのあと、同じ条件で重複は 64件 → 8件。`lla_train prepare` の学習＋検証は 476件 → 532件。
+- **結果/確認**: datagen の単体試験 41件、統合試験 4件。`pnpm check` が全体で成功（pytest 520件成功・55件スキップ）。
+- **次にやること / 申し送り**: `.coverage` を履歴から消すかどうかは、まだ利用者の判断待ち。
+
 ## 2026-10-13 15:25 — 学習データ: ツールのエラーからの回復の雛形（思い込みのシート名 → xlsx.info で確かめてやり直す）
 
 - **変更ファイル**（`projects/local-llm-agent/`）: `ml/datagen/src/templates.ts`（`xlsx_wrong_sheet`）、docs（design §8.3、impl_plan T-52 = 雛形12種）
