@@ -19,6 +19,7 @@
     "test:integration": "pnpm --filter @lla/agent-runtime test:integration",
     "test:e2e:desktop": "pnpm --filter @lla/desktop e2e",
     "eval": "pnpm --filter @lla/eval-harness eval",
+    "eval:compare": "pnpm --filter @lla/eval-harness compare",
     "fi": "pnpm --filter @lla/fault-injection fi"
   },
   "devDependencies": {

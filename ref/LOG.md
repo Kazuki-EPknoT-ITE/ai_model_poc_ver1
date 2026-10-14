@@ -18,6 +18,23 @@
 
 ---
 
+## 2026-10-14 13:10 — 評価結果の比較（pnpm eval:compare）: ベースモデルと学習後の比較（POC 条件2）
+
+- **変更ファイル**（`projects/local-llm-agent/`）: `eval/harness/lla_eval/compare.py`（新規）、`eval/harness/lla_eval/__main__.py`（`compare`）、`eval/harness/src/compare.ts`（新規）、`eval/harness/package.json`・`package.json`（`eval:compare`）、`eval/harness/tests/test_compare.py`（新規、5件）、docs（test_spec §3、dev_guide）
+- **やったこと**:
+  - 同じ評価セットの2回の結果を比べる `pnpm eval:compare <基準> <候補>` を作った。セットか data_hash が違う結果どうしは比べない。
+  - 出すもの: 成功数と成功率、良くなった／悪くなった item、雛形ごとの成功数、落ちた確認の種類。
+  - 入れ替わった item だけで符号検定（両側、正確な p 値）をする。判定は「上回る」と「有意」を分けて出す（55件程度では、差が小さいと偶然の範囲を出ないため）。
+  - test_spec の表の1行に、前回書いた `"approve"|"reject"` の `|` が入っていて、表が崩れていたのを直した。
+- **理由/背景**: POC 条件2（ツール操作でベースモデルを上回る）の判定材料を、検証機で評価を2回回したらすぐ出せるようにするため。
+- **E2Eテスト**: **合格**（評価ハーネスで本物の Runtime・office-tools を使い、2つの「モデル」の結果を比べた）。
+  - 何もせずに完了とだけ返す弱いモック（mock-gateway を Gateway として起動）で tool_tasks_synth を評価した: 0/55。
+  - 正しい手順のモックの結果（55/55）と `pnpm eval:compare` で比べた: 良くなった 55・悪くなった 0、11種すべて 0/5 → 5/5、判定は「有意に上回る」。
+- **結果/確認**: `pnpm check` が全体で成功（pytest 531件成功・55件スキップ、ruff・mypy・eslint も成功）。
+- **次にやること / 申し送り**:
+  - 検証機での手順: ベースモデルで `pnpm eval --set tool_tasks_synth --gateway … --model-id <ベース>` → 学習・`lla_train register` → 学習後で同じ評価 → `pnpm eval:compare`。
+  - `.coverage` を履歴から消すかどうかは、まだ利用者の判断待ち。
+
 ## 2026-10-14 12:50 — 評価セットのファイルを改行の自動変換から外す（Windows の clone で data_hash が合わなくなる問題）
 
 - **変更ファイル**: `projects/local-llm-agent/eval/sets/.gitattributes`（新規、`* -text`）

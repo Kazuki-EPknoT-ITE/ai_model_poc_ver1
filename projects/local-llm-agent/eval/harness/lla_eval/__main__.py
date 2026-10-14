@@ -7,6 +7,7 @@
     python -m lla_eval gen-invoices <out> --count N [--broken JSON] [--mock-fixtures <dir>]
     python -m lla_eval xlsx-rows <path> [--sheet NAME]         セル値を JSON で出す（試験の照合用）
     python -m lla_eval open-check <path>                       Office 文書が開けるか
+    python -m lla_eval compare <基準の結果.json> <候補の結果.json>  2回の結果を比べる（POC 条件2）
 
 PYTHONPATH に eval/harness を入れて実行する（ランナーが設定する）。
 """
@@ -20,6 +21,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
+from .compare import CompareError, compare, compare_table
 from .manifest import ManifestError, compute_data_hash, load_set, parse_manifest, resolve_data_root
 from .report import build_result, registry_rows, table
 from .scoring import open_check, read_xlsx_rows, score
@@ -94,6 +96,19 @@ def cmd_xlsx_rows(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_compare(a: argparse.Namespace) -> int:
+    base = json.loads(Path(a.base).read_text(encoding="utf-8"))
+    cand = json.loads(Path(a.cand).read_text(encoding="utf-8"))
+    try:
+        r = compare(base, cand, alpha=a.alpha)
+    except CompareError as e:
+        _print({"error": [str(e)]})
+        return 2
+    sys.stderr.write(compare_table(r) + "\n")
+    _print(r)
+    return 0
+
+
 def cmd_open_check(a: argparse.Namespace) -> int:
     reason = open_check(Path(a.path))
     _print({"ok": reason is None, "reason": reason})
@@ -135,6 +150,11 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("open-check")
     p.add_argument("path")
     p.set_defaults(fn=cmd_open_check)
+    p = sub.add_parser("compare")
+    p.add_argument("base")
+    p.add_argument("cand")
+    p.add_argument("--alpha", type=float, default=0.05)
+    p.set_defaults(fn=cmd_compare)
     a = ap.parse_args(argv)
     try:
         rc: int = a.fn(a)

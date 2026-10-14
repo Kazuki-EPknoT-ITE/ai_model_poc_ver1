@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "eval": "vite-node src/run.ts --",
+    "compare": "vite-node src/compare.ts --",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit -p ."
   },
