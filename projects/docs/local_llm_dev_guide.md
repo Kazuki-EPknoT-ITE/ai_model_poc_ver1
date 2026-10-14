@@ -80,6 +80,7 @@ pnpm exec playwright install chromium
 | `pnpm --filter @lla/desktop package`（`package:dir`） | インストーラ（展開済みフォルダ）を作る。Node 22 LTS・Runtime・office-tools を resources に同梱（T-46） |
 | `docker compose --env-file <deploy.env> -f server/deploy/compose.yaml config` | サーバー構成の検査（`server/deploy`。値は deploy.env.example） |
 | `uv run python server/gateway/scripts/dev_server.py --port 8789 [--ollama-model gemma4:e4b]` | 本物の Gateway を一時フォルダで起動（SQLite・管理画面 `/admin/` つき。利用者 dev / admin、パスワードは試験用の固定値 dev-password-1 / admin-password-1）。推論は既定で FakeEngine（決め打ちの応答）。`--ollama-model` を付けると、手元の Ollama（`--ollama-url`、既定 `http://127.0.0.1:11434`）のモデルで本物の推論をする（`--num-ctx` 既定 32768。エンジンの `kind: ollama`）。開発 PC で試すためのもので、本番は vLLM |
+| `pnpm --filter @lla/eval-harness try -- [--gateway URL] [--workspace <フォルダ>] [--max-steps 30] "依頼"` | 1件の依頼を Gateway 経由の実モデルで動かし、手順（種類・ツール・状態・エラー）と答えを表示する（既定は `http://127.0.0.1:8787`、`dev` / `dev-password-1`）。プロンプトや Runtime を変えたときの手早い確認に使う |
 | `ADMIN_E2E_REAL=1 pnpm --filter @lla/admin-web e2e` | 管理画面の E2E を本物の Gateway で回す（既定はモック） |
 | `pnpm exec vitest run --config server/gateway/tests/ts/vitest.config.ts` | Gateway と TS クライアント（agent-runtime）の互換性試験 |
 | `LLA_TEST_PG_URL=postgresql+asyncpg://... uv run pytest server/gateway` | Gateway の試験を PostgreSQL でも回す（**試験のたびに public スキーマを作り直す**ので専用の DB を使う） |

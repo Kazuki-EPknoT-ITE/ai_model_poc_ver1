@@ -18,6 +18,36 @@
 
 ---
 
+## 2026-10-14 23:10 — あいさつ・質問・簡単な計算に、ツールを使わずすぐ答える（プロンプト 1.1）／繰り返し失敗したツールを文法から外す
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `packages/agent-runtime/src/prompt/templates.ts`（PROMPT_VERSION 1.1）、`docs/local_llm_prompts.md`（同じ内容）
+  - `packages/agent-runtime/src/runtime.ts`（`RunHandle.banned`、`BAN_STEPS`）
+  - `eval/mock-gateway/src/mock_gateway/app.py`（samples に schema_tools）、`packages/agent-runtime/test/integration/harness.ts`・`runtime.it.test.ts`
+  - `eval/harness/src/try.ts`（新規。1件の依頼を実モデルで動かして手順と答えを表示）、`eval/harness/package.json`（`try`）
+  - docs: design §5.6、dev_guide
+- **やったこと / 理由**:
+  - 利用者がアプリ（Ollama gemma4:e4b）で「389×125は？」と聞くと、答えずに「集計・突合（data.transform）」の失敗と「計画を更新」を延々と繰り返した（画面のスクリーンショットで報告）。
+    - 原因: system プロンプトが「最初に必ず計画」「計算は data.transform で行い、自分で計算しない」と決めていた。ファイルを使わない依頼でも、ツールで計算しようとして失敗し続けた。
+  - プロンプト 1.1:
+    - ファイルを使わない依頼（あいさつ・一般的な質問・簡単な計算・文章の相談）には、計画もツールも使わず、最初の応答の final で答え、summary に答えそのものを省略せずに書く。
+    - 計算を data.transform に限るのは「ファイルの表」に絞った。
+    - 例に「1ダースは何個？」→ final を足した。
+    - 最初の言い回し（「summary に答えを書きます」）では、メールの文面の依頼に「提案します」とだけ答えたので、「答えそのもの（文面の案・説明・計算の結果）を省略せずに」と書き直した。
+  - Runtime: 繰り返しを止めたツール（同じ失敗の3回目）は、その後の6手のあいだ Action の文法から外す。前回の「実行しないで知らせる」だけでは、モデルが同じ呼び出しを出し続けた。
+- **E2Eテスト**: **合格**。
+  - 実モデル（Ollama gemma4:e4b ＋ 本物の Gateway〈8787〉＋ Runtime、`pnpm --filter @lla/eval-harness try`）:
+    - 修正前: 「389×125は？」で data.transform の失敗を繰り返し、12手で答えなし（利用者の画面と同じ症状を再現）。
+    - 修正後: こんにちは／389×125は？（48625、正解）／日本の首都は？（東京）／お礼メールの文面／気分転換を3つ が、すべて1手（3〜14秒）で答えた。
+  - ファイルの作業（tool_tasks_mini 11件、実モデル）: 合格 1/11 は変わらず。時間切れ 3 → 1、平均手順 28 → 10.6、平均時間 103 → 54秒。ファイルの作業は計画から始めており、早まった完了は無い。止めたあとは繰り返さずに報告して終わるようになった。残りの不合格はモデルの誤り。
+  - Runtime の結合試験 11件（止めたツールが次の推論の文法から外れたことを、モックの記録で確認）、デスクトップ E2E 13件。
+- **結果/確認**: `pnpm check` が全体で成功（pytest 536件、Runtime の単体試験 36件）。
+- **次にやること / 申し送り**:
+  - **アプリはソースから組み立てて起動しているので、利用者はアプリを起動し直す必要がある**（プロンプトと Runtime の変更を読み込むため）。
+  - 8787 番は、いま Ollama（gemma4:e4b）につないだ Gateway（`dev_server.py --ollama-model`）。試験用モックに戻すなら `pnpm mock:gateway`。
+  - 学習データ（ml/datagen）はプロンプト 1.1 で作り直すことになる（prompt_version が変わったため、1.0 のデータと混ぜると prepare が止める）。
+  - `.coverage` を履歴から消すかどうかは、まだ利用者の判断待ち。
+
 ## 2026-10-14 18:10 — system プロンプトに data.transform の使い方を足す試み → 実モデルで効果が無く、元に戻した
 
 - **変更ファイル**: `projects/local-llm-agent/packages/agent-runtime/test/foundation.test.ts`（system プロンプトに載せた手の例が、アクションとツールの引数の形式に合うかの試験を追加）。プロンプト（`prompt/templates.ts`・`local_llm_prompts.md`）は**元の 1.0 のまま**（試した変更は戻した）。

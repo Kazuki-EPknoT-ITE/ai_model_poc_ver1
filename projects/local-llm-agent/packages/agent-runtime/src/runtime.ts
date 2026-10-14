@@ -55,6 +55,8 @@ interface RunHandle {
   wakers: (() => void)[];
   replanSince: number; // この手順番号以降で停滞を判定する
   nextPrompt: string | undefined;
+  /** 繰り返し失敗したため、しばらく選べなくしたツール（ツール名 → この手順番号より前は使えない） */
+  banned: Map<string, number>;
   done: Promise<void>;
 }
 
@@ -63,6 +65,8 @@ const MODEL_FOR: Record<string, string> = { auto: "local-12b", fast: "local-12b"
 const DETERMINISTIC_ERRORS = new Set(["INVALID_ARGS", "UNKNOWN_TOOL", "BLOCK_NOT_FOUND", "FORBIDDEN_PATH", "UNSUPPORTED_FORMAT", "RESULT_TOO_LARGE", "NET_DISABLED", "DLP_BLOCKED", "DOMAIN_BLOCKED"]);
 /** この回数だけ同じ失敗をした呼び出しは、次からは実行しない */
 const REPEAT_FAILURE_LIMIT = 2;
+/** 繰り返しを止めたツールを、出力の文法（構造化出力）から外しておく手数。指示に従わないモデルでも、そのツールは呼べなくなる */
+const BAN_STEPS = 6;
 
 export class AgentRuntime {
   private config: GatewayConfig | null = null;
@@ -339,6 +343,7 @@ export class AgentRuntime {
       wakers: [],
       replanSince: run.next_step_seq,
       nextPrompt: undefined,
+      banned: new Map(),
       done: Promise.resolve(),
     };
     this.runs.set(run.id, h);
@@ -474,7 +479,7 @@ export class AgentRuntime {
             {
               model: fresh.model_current,
               messages,
-              response_format: { type: "json_schema", schema: buildActionSchema(tools) },
+              response_format: { type: "json_schema", schema: buildActionSchema(tools.filter((t) => (h.banned.get(t.name) ?? 0) <= step.seq)) },
               max_tokens: 2048,
               temperature: 0.2,
               priority_hint: fresh.low_priority ? "low" : isFirst ? "interactive" : "normal",
@@ -676,13 +681,14 @@ export class AgentRuntime {
     // 同じ引数で同じ失敗を繰り返している呼び出しは実行しない（小さいモデルが同じ誤りを繰り返して止まらなくなるのを防ぐ）
     const repeated = this.repeatedFailure(run, step, digest);
     if (repeated) {
+      h.banned.set(spec.name, step.seq + BAN_STEPS);
       this.finishTool(
         run,
         step,
         action,
         errResult(
           repeated.code as never,
-          `この呼び出しは同じ引数で既に${repeated.count}回失敗しています（${repeated.code}）。同じ呼び出しは実行しません。エラーの内容に従って引数を直すか、別のツール・別の方法に変えてください`,
+          `この呼び出しは同じ引数で既に${repeated.count}回失敗しています（${repeated.code}）。同じ呼び出しは実行しません。${spec.name} は次の${BAN_STEPS}手のあいだ使えません。別のツール・別の方法で進めるか、ここまでに分かったことを final で報告してください`,
         ),
       );
       return;

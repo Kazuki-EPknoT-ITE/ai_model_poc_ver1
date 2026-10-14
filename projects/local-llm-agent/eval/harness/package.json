@@ -6,6 +6,7 @@
   "scripts": {
     "eval": "vite-node src/run.ts --",
     "compare": "vite-node src/compare.ts --",
+    "try": "vite-node src/try.ts --",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit -p ."
   },

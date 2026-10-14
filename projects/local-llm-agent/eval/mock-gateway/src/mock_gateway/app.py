@@ -53,6 +53,18 @@ class Recorder:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def _schema_tools(schema: Any) -> list[str]:
+    """Action のスキーマ（oneOf）で tool に const が付いた変種のツール名。"""
+    if not isinstance(schema, dict):
+        return []
+    names = []
+    for v in schema.get("oneOf") or []:
+        tool = ((v or {}).get("properties") or {}).get("tool") or {}
+        if isinstance(tool, dict) and isinstance(tool.get("const"), str):
+            names.append(tool["const"])
+    return sorted(names)
+
+
 def create_app(
     scenario: Scenario,
     *,
@@ -202,6 +214,8 @@ def create_app(
                     "model": job.model,
                     "messages": body.get("messages"),
                     "constrained": bool((body.get("response_format") or {}).get("schema")),
+                    # 文法で選べるツール（Runtime が繰り返し失敗したツールを外したかの確認用）
+                    "schema_tools": _schema_tools((body.get("response_format") or {}).get("schema")),
                     "output": job.output,
                 }
             )

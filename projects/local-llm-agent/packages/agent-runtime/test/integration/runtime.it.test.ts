@@ -111,6 +111,16 @@ describe("runtime integration", () => {
     expect(steps.filter((s) => s.seq >= 2 && s.seq <= 4).map((s) => s.error_code)).toEqual(["FORBIDDEN_PATH", "FORBIDDEN_PATH", "FORBIDDEN_PATH"]);
     expect(msg(3)).not.toContain("既に");
     expect(msg(4)).toContain("既に2回失敗しています");
+    // 止めたツールは、しばらく出力の文法から外れる（指示に従わないモデルでも呼べない）
+    expect(msg(4)).toContain("fs.read_text は次の6手のあいだ使えません");
+    const samples = readFileSync(rig.mock.samples, "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((l) => JSON.parse(l) as { purpose: string; index: number; schema_tools: string[] });
+    const agent = samples.filter((x) => x.purpose === "agent");
+    expect(agent[3]!.schema_tools).toContain("fs.read_text"); // 3回目の呼び出しの前（まだ止めていない）
+    expect(agent[4]!.schema_tools).not.toContain("fs.read_text"); // 止めた直後の推論
+    expect(agent[4]!.schema_tools).toContain("fs.copy");
     // 同じコピーの承認依頼は1つだけ。2回目は既存の承認待ちを指す
     expect(rig.events.filter((e) => e.type === "approval.request")).toHaveLength(1);
     expect(msg(6)).toContain("既に承認待ち(ap-1)");

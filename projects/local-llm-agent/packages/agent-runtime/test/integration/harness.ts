@@ -29,15 +29,18 @@ export interface MockGateway {
   url: string;
   proc: ChildProcess;
   record: string;
+  /** 推論の入力と出力の組（schema_tools: 文法で選べたツール） */
+  samples: string;
   stop(): Promise<void>;
 }
 
 export async function startMock(scenario: string, dir: string): Promise<MockGateway> {
   const port = await freePort();
   const record = join(dir, "requests.jsonl");
+  const samples = join(dir, "samples.jsonl");
   const proc = spawn(
     "uv",
-    ["run", "--project", PROJECT, "mock-gateway", "--scenario", join(SCENARIOS, scenario), "--port", String(port), "--ping-interval", "0.2", "--record", record],
+    ["run", "--project", PROJECT, "mock-gateway", "--scenario", join(SCENARIOS, scenario), "--port", String(port), "--ping-interval", "0.2", "--record", record, "--record-samples", samples],
     { cwd: PROJECT, stdio: "ignore", windowsHide: true },
   );
   const url = `http://127.0.0.1:${port}`;
@@ -55,6 +58,7 @@ export async function startMock(scenario: string, dir: string): Promise<MockGate
     url,
     proc,
     record,
+    samples,
     stop: async () => {
       proc.kill();
       await new Promise((r) => setTimeout(r, 200));
