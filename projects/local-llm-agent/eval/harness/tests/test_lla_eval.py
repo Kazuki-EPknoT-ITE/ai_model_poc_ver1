@@ -86,6 +86,25 @@ def test_train_overlap_refuses_to_run(tmp_path: Path) -> None:
     assert "学習データと重複" in e.value.problems[0]
 
 
+def test_empty_files_are_not_overlap_evidence(tmp_path: Path) -> None:
+    from lla_eval.manifest import file_sha256, overlap_files
+
+    (tmp_path / "a.pdf").write_bytes(b"")
+    (tmp_path / "b.pdf").write_bytes(b"%PDF-1.4")
+    # 空のファイル（壊れたファイルの例）はどこでも同じハッシュになるため、照合の対象にしない
+    assert [p.name for p in overlap_files(tmp_path)] == ["b.pdf"]
+    set_dir = _copy_set(tmp_path / "s", "invoice_extraction_sample")
+    loaded = load_set(set_dir, tmp_path / "cache")
+    (loaded.data_root / "empty.pdf").write_bytes(b"")
+    index = tmp_path / "s" / "_train" / "train_hashes.sample.txt"
+    index.write_text(
+        index.read_text(encoding="utf-8") + file_sha256(tmp_path / "a.pdf") + "\n", encoding="utf-8"
+    )
+    from lla_eval.manifest import split_check
+
+    assert split_check(loaded.manifest, set_dir, loaded.data_root)["status"] == "ok"
+
+
 def _invoice_outputs(n_items: int, *, wrong: dict[int, dict[str, Any]]) -> dict[str, Any]:
     outputs: dict[str, Any] = {}
     for n in range(1, n_items + 1):

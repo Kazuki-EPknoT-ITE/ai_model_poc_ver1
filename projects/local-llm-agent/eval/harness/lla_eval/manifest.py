@@ -263,6 +263,12 @@ def data_files(root: Path) -> list[Path]:
     return sorted(p for p in root.rglob("*") if p.is_file() and not p.name.startswith("."))
 
 
+def overlap_files(root: Path) -> list[Path]:
+    """学習データとの重複照合の対象。空のファイルは中身が無く、どこでも同じハッシュになるため除く
+    （壊れたファイルの例として置く空の PDF など。照合しても重複の証拠にならない）。"""
+    return [p for p in data_files(root) if p.stat().st_size > 0]
+
+
 def compute_data_hash(root: Path, items_path: Path) -> str:
     """items.jsonl の中身と、参照データ全体（相対パス＋各ファイルのハッシュ）から求める。"""
     h = hashlib.sha256()
@@ -324,7 +330,7 @@ def split_check(m: Manifest, set_dir: Path, root: Path) -> dict[str, Any]:
     if not spec:
         return {"status": "not_configured", "overlap": [], "checked_files": 0}
     train = _read_hash_index(spec, set_dir)
-    files = data_files(root)
+    files = overlap_files(root)
     overlap = [p.relative_to(root).as_posix() for p in files if file_sha256(p) in train]
     if overlap:
         raise ManifestError(

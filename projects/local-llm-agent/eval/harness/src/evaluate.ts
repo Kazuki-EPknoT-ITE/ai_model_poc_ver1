@@ -169,9 +169,29 @@ async function runAgentItem(
   const outside = join(dir, "outside");
   const appData = join(dir, "appdata");
   for (const d of [ws, outside, appData]) mkdirSync(d, { recursive: true });
-  if (it.workspace_fixture) cpSync(join(loaded.data_root, String(it.workspace_fixture)), ws, { recursive: true });
+  // 空の作業フォルダは git に残らないため、無ければ空のまま始める
+  if (it.workspace_fixture && existsSync(join(loaded.data_root, String(it.workspace_fixture)))) cpSync(join(loaded.data_root, String(it.workspace_fixture)), ws, { recursive: true });
   const events: RuntimeEvent[] = [];
-  const h = createHeadless({ gatewayUrl, ...cred, appDataDir: appData, dbKey: "eval", office: true, emit: (e) => events.push(e), runtime: { retryBaseMs: 500 } });
+  // 承認・質問への応答（item の approval: approve|reject、answer: 文字列）。利用者の役をハーネスが務める。
+  // 指定が無ければ応答せず、待ちのまま時間切れになる（承認なしで進まないことの確認に使える）
+  const approval = it.approval === "approve" || it.approval === "reject" ? it.approval : undefined;
+  const answer = typeof it.answer === "string" ? it.answer : undefined;
+  const pending: string[] = [];
+  const questions: string[] = [];
+  const emit = (e: RuntimeEvent): void => {
+    events.push(e);
+    if (e.type === "approval.request") pending.push((e.payload as { approval_id: string }).approval_id);
+    if (e.type === "question") questions.push((e.payload as { question_id: string }).question_id);
+    if (e.type !== "run.state") return;
+    const state = (e.payload as { state: string }).state;
+    if (approval && state === "waiting_approval") {
+      for (const aid of pending.splice(0)) void h.runtime.handle(cmd("approval.decide", { approval_id: aid, decision: approval })).catch(() => undefined);
+    }
+    if (answer !== undefined && state === "waiting_question") {
+      for (const qid of questions.splice(0)) void h.runtime.handle(cmd("question.answer", { question_id: qid, answer })).catch(() => undefined);
+    }
+  };
+  const h = createHeadless({ gatewayUrl, ...cred, appDataDir: appData, dbKey: "eval", office: true, emit, runtime: { retryBaseMs: 500 } });
   const t0 = Date.now();
   try {
     await h.runtime.start();

@@ -9,7 +9,7 @@ const OVERLAP_PY = `
 import json, sys
 from pathlib import Path
 import yaml
-from lla_eval.manifest import data_files, file_sha256, parse_manifest, resolve_data_root
+from lla_eval.manifest import file_sha256, overlap_files, parse_manifest, resolve_data_root
 train = set(Path(sys.argv[1]).read_text(encoding="utf-8").split())
 res = {"overlap": [], "checked": [], "skipped": []}
 for sd in sorted(Path(sys.argv[2]).iterdir()):
@@ -19,7 +19,7 @@ for sd in sorted(Path(sys.argv[2]).iterdir()):
     try:
         m = parse_manifest(yaml.safe_load(mf.read_text(encoding="utf-8")))
         root = resolve_data_root(m, sd, Path(sys.argv[3]))
-        files = data_files(root)
+        files = overlap_files(root)
     except Exception as e:  # noqa: BLE001
         res["skipped"].append(f"{sd.name}: {type(e).__name__}")
         continue

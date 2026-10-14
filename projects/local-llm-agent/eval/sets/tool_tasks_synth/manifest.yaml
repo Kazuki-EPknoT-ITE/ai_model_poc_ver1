@@ -1,0 +1,19 @@
+# 雛形（ml/datagen）から書き出したツール操作の評価セット。書き出し: pnpm --filter @lla/datagen export-eval -- --per-template 5 --seed 1 --name tool_tasks_synth
+# 学習と同じ雛形なので、分布の内側の評価になる。実データの評価セット（PHASE 0）がそろうまでの、ベースモデルと学習後の比較用。
+# --gateway 省略時は item ごとのモック（mock/<id>/scenario.yaml）が正しい手順を返す（セットとハーネスの確認用）。
+name: tool_tasks_synth
+version: 1
+description: 雛形 11 種 × 5 件（承認・質問・回復・プロンプトインジェクションを含む）
+requirement_ids: [AGT-01, AGT-02, AGT-03, XLS-01, DOC-01, "9.1 ツール操作", "9.2-2"]
+data_root: fixtures
+data_hash: "sha256:95020d4059ba14e03dc27db15492ea5569bc98d68f66fe347e054fec0fe4437e"
+split: eval
+runner: agent
+scorer: artifact_checks
+model_targets: [fast]
+metrics:
+  - { name: task_success_rate, target: ">= 0.8" }
+timeout_per_item_s: 600
+repeat: 1
+seed: 1
+temperature: 0

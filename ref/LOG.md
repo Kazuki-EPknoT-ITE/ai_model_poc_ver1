@@ -18,6 +18,32 @@
 
 ---
 
+## 2026-10-14 12:30 — ツール操作の評価セット tool_tasks_synth（55件）と、評価で承認・質問に応じる
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - `ml/datagen/src/export-eval.ts`（新規）、`ml/datagen/package.json`（`export-eval`）
+  - `ml/datagen/src/pipeline.ts`: 入力の用意を `materialize()` に切り出した（学習の生成と評価の書き出しで共用）。空のファイルを照合用のハッシュから除いた。
+  - `eval/sets/tool_tasks_synth/`（新規。55件、約780KB。合成データのみ）
+  - `eval/harness/src/evaluate.ts`: items の `approval`・`answer` で承認・質問に応じる。空の作業フォルダ（git に残らない）に対応した。
+  - `eval/harness/lla_eval/manifest.py`: `overlap_files`（重複照合から空のファイルを除く）
+  - `ml/datagen/src/overlap.ts`、`eval/harness/tests/test_lla_eval.py`（試験1件）
+  - docs: test_spec §3（tool_tasks）、dev_guide、impl_plan T-50
+- **やったこと**:
+  - 雛形からツール操作の評価セットを書き出す `export-eval` を作り、`tool_tasks_synth`（11種×5件、RAG は除く）を書き出した。
+    - 種は学習の生成と重ならない範囲を使う。請求書の通し番号は 100000〜（学習は 10000〜99999）。
+    - 手順数の上限は、正しい手順の倍＋4。
+  - **見つけた不足**: 評価の runner（agent）は承認・質問に応じられなかった。実モデルで評価すると、承認・質問のある作業は待ったまま時間切れ（600秒）になる。items の `approval`・`answer` でハーネスが利用者の役をするようにした。
+  - **見つけた問題**: 学習の生成が、新しい評価セットとの重複で止まった（終了コード 3）。重複していたのは、すべて「壊れたファイル」の例の 0 バイトの PDF だった。空のファイルはどこでも同じハッシュになり、重複の証拠にならないため、照合の対象から除いた（学習側・評価側の両方）。
+- **理由/背景**: 実データの評価セット（PHASE 0）がそろうまで、検証機でベースモデルと学習後のモデルを比べる物差しが無かった（POC 条件2）。学習と同じ雛形なので、分布の内側の評価であることは manifest と test_spec に書いた。
+- **E2Eテスト**: **合格**（評価ハーネスで、本物の Runtime（ヘッドレス）・office-tools・item ごとのモックを使って評価セットを実行）。
+  - `pnpm eval --set tool_tasks_synth`: 55/55 件合格（task_success_rate 1、平均 4.64 手、2.33 秒）。承認・質問のある 10 件も時間切れにならずに完了した。
+  - 学習の生成 90件（請求書・メモ・Excel）: 90/90 件合格、評価セットとの重複 0 件。そのハッシュ一覧を `LLA_EVAL_TRAIN_HASHES` に指定した評価でも、照合は ok。
+  - 評価セットに PC のパス・利用者名が無いことを grep で確かめた。
+- **結果/確認**: `pnpm check` が全体で成功（pytest 526件成功・55件スキップ）。datagen の統合試験 4件。
+- **次にやること / 申し送り**:
+  - 検証機で `pnpm eval --set tool_tasks_synth --gateway <URL> --model-id <台帳の ID>` を、ベースモデルと学習後で実行して比べる。
+  - `.coverage` を履歴から消すかどうかは、まだ利用者の判断待ち。
+
 ## 2026-10-14 11:00 — 学習の結果をモデル台帳に登録する（lla_train register）
 
 - **変更ファイル**（`projects/local-llm-agent/`）: `ml/training/src/lla_train/registry.py`（新規）、`ml/training/src/lla_train/__main__.py`（`register`）、`ml/training/tests/test_registry.py`（新規、5件）、`ml/datagen/src/gen.ts`（コメント）、docs（design §8.3、dev_guide）

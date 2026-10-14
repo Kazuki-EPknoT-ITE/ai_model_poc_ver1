@@ -1,6 +1,6 @@
 // 手順例1件の実行と検証（gen.ts と試験から使う）
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { RuntimeEvent } from "@lla/protocol";
 import { sleep, uvPython } from "../../../eval/harness/src/env.js";
@@ -56,22 +56,24 @@ for rel, f in a["xlsx"].items():
     wb.save(p)
 `;
 
-export async function runEpisode(ep: Episode, work: string, samplesOut: string[]): Promise<Result> {
-  const dir = join(work, ep.id);
-  const ws = join(dir, "作業");
-  const outside = join(dir, "outside");
-  const appData = join(dir, "appdata");
-  for (const d of [ws, outside, appData]) mkdirSync(d, { recursive: true });
+/**
+ * 手順例の入力を用意する: 作業フォルダ（ws）のファイル・Excel・Word・請求書、期待値（expectedDir）、
+ * モックのシナリオ（mockDir/scenario.yaml と、請求書の抽出の正解 mockDir/fixtures/invoice）。
+ * 評価セットの書き出し（export-eval.ts）でも使う。
+ */
+export async function materialize(ep: Episode, ws: string, expectedDir: string, mockDir: string): Promise<{ scenario: string } | { error: string }> {
+  for (const d of [ws, expectedDir, mockDir]) mkdirSync(d, { recursive: true });
   for (const [rel, text] of Object.entries(ep.files)) {
     mkdirSync(dirname(join(ws, rel)), { recursive: true });
     writeFileSync(join(ws, rel), text);
   }
-  for (const [rel, text] of Object.entries(ep.expected)) writeFileSync(join(dir, rel), text);
+  for (const [rel, text] of Object.entries(ep.expected)) writeFileSync(join(expectedDir, rel), text);
   if (ep.xlsx || ep.docx) {
-    const spec = join(dir, "office.json");
+    const spec = join(mockDir, "office.json");
     writeFileSync(spec, JSON.stringify({ ws, xlsx: ep.xlsx ?? {}, docx: ep.docx ?? {} }));
     const x = await uvPython(["-c", OFFICE_PY, spec]);
-    if (x.code !== 0) return { id: ep.id, template: ep.template, ok: false, reason: `Excel・Word を作れません: ${x.stderr.slice(-200)}`, samples: 0, steps: 0 };
+    rmSync(spec, { force: true });
+    if (x.code !== 0) return { error: `Excel・Word を作れません: ${x.stderr.slice(-200)}` };
   }
 
   // モックのシナリオ: agent の n 番目の推論に n 番目の手を返す。請求書の抽出は決め打ちの正解
@@ -89,18 +91,34 @@ export async function runEpisode(ep: Episode, work: string, samplesOut: string[]
       String(ep.invoices.start),
       "--no-expected",
       "--mock-fixtures",
-      join(dir, "fixtures", "invoice"),
+      join(mockDir, "fixtures", "invoice"),
       ...(broken ? ["--broken", broken] : []),
     ]);
-    if (gen.code !== 0) return { id: ep.id, template: ep.template, ok: false, reason: `請求書を作れません: ${gen.stderr.slice(-200)}`, samples: 0, steps: 0 };
+    if (gen.code !== 0) return { error: `請求書を作れません: ${gen.stderr.slice(-200)}` };
     steps.push({ match: { purpose: "invoice_extract" }, repeat: true, latency_ms: 0, action_from_fixture: "fixtures/invoice/{item_basename}.json" });
   }
-  const inputHashes = listFiles(ws).map((f) => createHash("sha256").update(readFileSync(f)).digest("hex"));
-  const scenario = join(dir, "scenario.yaml");
+  const scenario = join(mockDir, "scenario.yaml");
   writeFileSync(
     scenario,
     JSON.stringify({ name: `datagen-${ep.id}`, config: { context_budget: 32768, models: ["local-12b"], ...(ep.features ? { features: ep.features } : {}) }, ...(ep.fixtures ? { fixtures: ep.fixtures } : {}), steps, fallback: { action: { type: "final", summary: "（想定外の手）", outputs: [], failures: [], needs_review: [] } } }),
   );
+  return { scenario };
+}
+
+export async function runEpisode(ep: Episode, work: string, samplesOut: string[]): Promise<Result> {
+  const dir = join(work, ep.id);
+  const ws = join(dir, "作業");
+  const outside = join(dir, "outside");
+  const appData = join(dir, "appdata");
+  for (const d of [ws, outside, appData]) mkdirSync(d, { recursive: true });
+  const m = await materialize(ep, ws, dir, dir);
+  if ("error" in m) return { id: ep.id, template: ep.template, ok: false, reason: m.error, samples: 0, steps: 0 };
+  const scenario = m.scenario;
+  // 空のファイル（壊れたファイルの例）は中身が無く、どこでも同じハッシュになるため照合に入れない（lla_eval の overlap_files と同じ）
+  const inputHashes = listFiles(ws)
+    .map((f) => readFileSync(f))
+    .filter((b) => b.length > 0)
+    .map((b) => createHash("sha256").update(b).digest("hex"));
 
   const samplesFile = join(dir, "samples.jsonl");
   const mock = new MockGatewayProc(scenario, join(dir, "mock"), { pingIntervalS: 0.3, samples: samplesFile });

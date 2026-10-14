@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "gen": "vite-node src/gen.ts --",
+    "export-eval": "vite-node src/export-eval.ts --",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts"
