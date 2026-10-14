@@ -76,7 +76,7 @@ async function main(): Promise<number> {
     samples: samples.length,
     by_template: Object.fromEntries(names.map((n) => [n, { passed: results.filter((r) => r.template === n && r.ok).length, total: results.filter((r) => r.template === n).length }])),
     failures: results.filter((r) => !r.ok).map((r) => ({ id: r.id, reason: r.reason })),
-    // モデル台帳の train_data_hash に登録する値
+    // 出所の照合用（lla_train prepare が確かめ、stats.json の sources に残す。台帳の train_data_hash は prepare の data_hash）
     sha256: createHash("sha256").update(body).digest("hex"),
   };
   // 学習に使った入力ファイルのハッシュ一覧。評価セットの manifest の train_hash_index（または LLA_EVAL_TRAIN_HASHES）に指定すると、

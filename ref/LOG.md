@@ -18,6 +18,21 @@
 
 ---
 
+## 2026-10-14 11:00 — 学習の結果をモデル台帳に登録する（lla_train register）
+
+- **変更ファイル**（`projects/local-llm-agent/`）: `ml/training/src/lla_train/registry.py`（新規）、`ml/training/src/lla_train/__main__.py`（`register`）、`ml/training/tests/test_registry.py`（新規、5件）、`ml/datagen/src/gen.ts`（コメント）、docs（design §8.3、dev_guide）
+- **やったこと**:
+  - `lla_train register --run <学習の出力> --slot --quant [--id] [--lora-path] [--gateway]` を追加した。`train_meta.json` からモデル台帳の1行（`POST /admin/v1/models` の本文）を作り、`--gateway` を付けると管理者でログインして登録する（candidate）。
+  - 学習が終わっていない（train_meta.json が無い）、アダプタが無い、ID に使えない文字、http(s) 以外の URL は断る。
+  - 台帳の `train_data_hash` を、prepare の `data_hash`（実際に学習に使ったデータのハッシュ）に揃えた。これまで datagen の `manifest.json` の sha256 とも書いていて食い違っていた。datagen の sha256 は出所の照合用とした。
+  - design §8.3 で、前回の追記の位置がずれて文がつながっていなかったのを直した。
+- **理由/背景**: 学習 → 台帳に登録 → 評価（`pnpm eval --register`）→ 本番化の流れのうち、学習から台帳への登録だけが手作業だった。検証機で学習したらすぐ評価に回せるようにするため。
+- **E2Eテスト**: **合格**（本物の Gateway〈`server/gateway/scripts/dev_server.py`、SQLite〉を起動し、CLI から登録した）。
+  - 登録すると candidate の版ができ、train_data_hash・base_model・lora が入る。
+  - 同じ ID の再登録は 409、存在しない枠は 400、パスワード違いは 401 で、いずれも終了コード 2 と理由を表示した。
+- **結果/確認**: lla_train の試験 15件。`pnpm check` が全体で成功（pytest 525件成功・55件スキップ、ruff・mypy も成功）。
+- **次にやること / 申し送り**: `.coverage` を履歴から消すかどうかは、まだ利用者の判断待ち。
+
 ## 2026-10-14 10:00 — datagen の並行実行（--jobs）と依頼の言い回しの揺れ（重複 64→8件）
 
 - **変更ファイル**（`projects/local-llm-agent/`）: `ml/datagen/src/gen.ts`（`--jobs`、manifest に `jobs`・`elapsed_s`）、`ml/datagen/src/templates.ts`（`vary`・`withVariedRequest`。雛形は `BASE_TEMPLATES` に移し、`TEMPLATES` は言い回しを揺らした版）、`ml/datagen/src/templates.test.ts`、docs（design §8.3、dev_guide）
