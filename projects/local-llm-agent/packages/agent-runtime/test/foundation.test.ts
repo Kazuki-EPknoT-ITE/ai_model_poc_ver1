@@ -12,7 +12,7 @@ import { RunStore } from "../src/store/store.js";
 import { decide, resolvePaths, type PolicyContext } from "../src/policy/policy.js";
 import { resolveRealPath } from "../src/policy/paths.js";
 import { WriteCoordinator } from "../src/agent/intents.js";
-import { expandBatchItems } from "../src/agent/batch.js";
+import { expandBatchItems, suggestGlobs } from "../src/agent/batch.js";
 import { DEFAULT_STALL, detectStall } from "../src/agent/stall.js";
 import type { StepRow } from "../src/store/store.js";
 import { buildActionSchema } from "../src/agent/grammar.js";
@@ -184,6 +184,9 @@ describe("batch.run の対象の展開", () => {
     if (process.platform === "win32") expect(await expandBatchItems(`glob:${join(ws.toUpperCase(), "請求書", "*.pdf")}`, ws)).toEqual(want);
     writeFileSync(join(dir, "outside.pdf"), "x");
     expect(await expandBatchItems(`glob:${join(dir, "*.pdf")}`, ws)).toEqual([]);
+    // 一致しないとき、同じ種類のファイルがあるフォルダを示す（一つ上のフォルダを指したときなど）
+    expect(await suggestGlobs(`glob:${join(ws, "*.pdf")}`, ws)).toEqual(["glob:請求書/*.pdf"]);
+    expect(await suggestGlobs("glob:*.xlsx", ws)).toEqual([]);
   });
 });
 

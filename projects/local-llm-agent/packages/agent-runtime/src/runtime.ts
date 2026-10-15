@@ -65,6 +65,10 @@ const MODEL_FOR: Record<string, string> = { auto: "local-12b", fast: "local-12b"
 const DETERMINISTIC_ERRORS = new Set(["INVALID_ARGS", "UNKNOWN_TOOL", "BLOCK_NOT_FOUND", "FORBIDDEN_PATH", "UNSUPPORTED_FORMAT", "RESULT_TOO_LARGE", "NET_DISABLED", "DLP_BLOCKED", "DOMAIN_BLOCKED"]);
 /** この回数だけ同じ失敗をした呼び出しは、次からは実行しない */
 const REPEAT_FAILURE_LIMIT = 2;
+/** 同じツールがこの回数続けて失敗したら（引数が違っても）、次からはしばらく実行しない */
+const FAILURE_STREAK_LIMIT = 3;
+/** memory.note をこの回数続けて使ったら、しばらく使わせない */
+const NOTE_STREAK_LIMIT = 3;
 /** 同じ内容の書き込みがこの回数成功していたら、次からは実行しない */
 const REPEAT_SUCCESS_LIMIT = 2;
 /** 繰り返しを止めたツールを、出力の文法（構造化出力）から外しておく手数。指示に従わないモデルでも、そのツールは呼べなくなる */
@@ -707,8 +711,52 @@ export class AgentRuntime {
       );
       return;
     }
+    // 同じツールが（引数を変えても）続けて失敗していれば、しばらく使わせない（引数を少しずつ変えて失敗を繰り返すモデルがある）
+    const streak = this.failureStreak(run, step, spec.name);
+    if (streak >= FAILURE_STREAK_LIMIT) {
+      h.banned.set(spec.name, step.seq + BAN_STEPS);
+      this.finishTool(
+        run,
+        step,
+        action,
+        errResult(
+          "INVALID_ARGS",
+          `${spec.name} は直近${streak}回続けて失敗しているため、実行しませんでした。${spec.name} は次の${BAN_STEPS}手のあいだ使えません。別のツール・別の方法で進めるか、ここまでに分かったことを final で報告してください`,
+        ),
+      );
+      return;
+    }
+    // 記録（memory.note）は作業そのものではない。続けて何度も出すのは進んでいない印なので、しばらく使わせない
+    if (spec.name === "memory.note" && this.consecutiveCalls(run, step, spec.name) >= NOTE_STREAK_LIMIT) {
+      h.banned.set(spec.name, step.seq + BAN_STEPS);
+      this.finishTool(
+        run,
+        step,
+        action,
+        okResult({
+          skipped: true,
+          message: `memory.note を続けて${NOTE_STREAK_LIMIT}回使ったため、記録しませんでした。記録は済んでいます。依頼の作業を進めるか、終わっていれば final で報告してください`,
+        }),
+      );
+      return;
+    }
     // 同じ引数の書き込みが既に成功していれば、繰り返さない（同じ段落を何度も差し込むなど、成功の繰り返しで止まらなくなるのを防ぐ）
     const done = spec.effect === "write" ? this.repeatedSuccess(run, step, digest) : 0;
+    // 同じ読み取りを、同じ結果（ファイルが変わっていない）のまま繰り返していれば、もう読まない
+    const reread = spec.effect === "read" ? this.repeatedRead(run, step, digest) : 0;
+    if (reread >= REPEAT_SUCCESS_LIMIT) {
+      h.banned.set(spec.name, step.seq + BAN_STEPS);
+      this.finishTool(
+        run,
+        step,
+        action,
+        okResult({
+          skipped: true,
+          message: `この読み取りは同じ引数で既に${reread}回行い、結果も同じでした。もう一度読んでも変わらないので、実行しませんでした。${spec.name} は次の${BAN_STEPS}手のあいだ使えません。読んだ内容で進めるか、分からなければ分かったことを final で報告してください`,
+        }),
+      );
+      return;
+    }
     if (done >= REPEAT_SUCCESS_LIMIT) {
       h.banned.set(spec.name, step.seq + BAN_STEPS);
       this.finishTool(
@@ -778,6 +826,31 @@ export class AgentRuntime {
       .filter((s) => s.id !== step.id && s.args_digest === digest && s.error_code && DETERMINISTIC_ERRORS.has(s.error_code));
     if (fails.length < REPEAT_FAILURE_LIMIT) return null;
     return { code: fails[fails.length - 1]!.error_code!, count: fails.length };
+  }
+
+  /** 計画の更新を除いて、直前まで何回続けてこのツールを呼んでいるか。 */
+  private consecutiveCalls(run: RunRow, step: StepRow, tool: string): number {
+    const tools = this.store.recentSteps(run.id, 40).filter((s) => s.id !== step.id && s.tool);
+    let n = 0;
+    for (let i = tools.length - 1; i >= 0 && tools[i]!.tool === tool; i--) n++;
+    return n;
+  }
+
+  /** このツールの直近の呼び出しが、何回続けて失敗しているか（承認待ち・却下は数えない。成功があればそこで切れる）。 */
+  private failureStreak(run: RunRow, step: StepRow, tool: string): number {
+    const mine = this.store.recentSteps(run.id, 40).filter((s) => s.id !== step.id && s.tool === tool && s.error_code !== "APPROVAL_REQUIRED" && s.error_code !== "APPROVAL_REJECTED");
+    let n = 0;
+    for (let i = mine.length - 1; i >= 0 && mine[i]!.error_code; i--) n++;
+    return n;
+  }
+
+  /** 同じ (ツール, 引数) の読み取りが、直近の結果と同じ内容で何回成功したか（ファイルが変われば結果が変わるので数え直す）。 */
+  private repeatedRead(run: RunRow, step: StepRow, digest: string): number {
+    const same = this.store
+      .recentSteps(run.id, 40)
+      .filter((s) => s.id !== step.id && s.args_digest === digest && !s.error_code && s.result_digest && !(safeJson(s.result) as { data?: { skipped?: boolean } } | null)?.data?.skipped);
+    const last = same[same.length - 1]?.result_digest;
+    return last ? same.filter((s) => s.result_digest === last).length : 0;
   }
 
   /** 同じ (ツール, 引数) の書き込みが、この Run で何回成功したか（直近40手）。 */

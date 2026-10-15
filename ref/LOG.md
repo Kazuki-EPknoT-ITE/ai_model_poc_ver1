@@ -18,6 +18,35 @@
 
 ---
 
+## 2026-10-16 09:30 — PDF の読み込みと多言語を実モデルで検証して修正（パスワード参照・ページ番号・繰り返しの守り）
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - office-tools: `registry.py`（入力されていない password_ref は無視）、`pdflib.py`（ページ番号の範囲外のメッセージ）、`tests/test_pdf.py`
+  - Runtime: `src/runtime.ts`（同じツールの連続失敗・同じ結果の読み取りの繰り返し・memory.note の連続を止める）、`src/agent/batch.ts`（一致しない glob に、ファイルのあるフォルダの glob を示す `suggestGlobs`）、試験（`test/foundation.test.ts`、`test/integration/runtime.it.test.ts`、`eval/mock-gateway/scenarios/runtime/failure-streak.yaml`・`note-streak.yaml`）
+  - docs: design §5.6、traceability PDF-05
+- **やったこと**: 利用者の質問「PDF の読み込みや多言語の対応なども終わりましたか？」を受けて、この PC の Ollama（gemma4:e4b）で8件を試した。PDF は表 → Excel・英文傭船契約の日本語要約・Clause 3 の和訳・請求書3枚 → Excel・スキャン PDF、言語は英語で答える・英訳・中国語訳。
+  - **見つけた問題と修正**:
+    1. **PDF が4件とも止まった（重大）**: モデルが要らない password_ref（"pw-1"）を毎回作り、ツールが「参照が見つからない」と断り、利用者にパスワードを尋ねて止まっていた → 入力されていない参照は無視して開く（本当にパスワード付きなら開くときに PASSWORD_REQUIRED になる）。
+    2. 「Clause 3」をページ3と取り違えた → 範囲外のエラーに「pages はページ番号（1〜N）。条項の番号ではない」と示す。示したあとは1ページ目を読んで、正しく和訳した。
+    3. 引数を変えながら同じツールの失敗を繰り返した → 3回続けて失敗したら止める。
+    4. スキャン PDF で、同じページを同じ結果のまま読み続けた → 同じ結果の読み取りは3回目から止める。
+    5. memory.note を何十回も続けた → 3回続いたら止める。
+    6. 請求書フォルダの一つ上を glob で指した → エラーに「同じ種類のファイルは glob:請求書/*.pdf にあります」と示す（モデルはまだ従わないことがある）。
+- **E2Eテスト**: **合格**（実モデル〈Ollama gemma4:e4b ＋ 本物の Gateway・Runtime・office-tools〉、`try` で8件を5回）。
+  - 修正後の最後の回は **8件とも完了報告まで止まらずに終わった**（3〜38秒）。修正前は PDF 4件が質問待ちで止まり、40手の打ち切りもあった。
+  - 正しくできたこと: 表 → Excel（中身が一致）、英文契約の日本語要約（5条すべて正確、金額と期間を needs_review に）、Clause 3 の和訳、英語での回答、中国語訳。
+  - スキャン PDF は、この PC で OCR が無効のため「読めない」と報告して終わる（想定どおり）。
+  - モデルの誤りで残ったもの:
+    - 英訳: 日本語をそのまま返す（2回とも）。
+    - 請求書: 一つ上のフォルダを探し、「PDF が無い」と報告する。
+    - 表の数値が文字列のまま Excel に入る。
+  - `pnpm check` 成功（pytest 536件）、Runtime の結合試験 15件・単体 38件、デスクトップ E2E 13件、障害注入 FI 19/19、セキュリティ SX 7/7。
+  - 試験のあとに残るモック Gateway は 0 個。
+- **次にやること / 申し送り**:
+  - OCR（スキャン PDF）は検証機の OCR サービス（PaddleOCR／VLM）が要る（PDF-03 のエンジン比較も検証機で）。
+  - アプリの UI の英語切替は要件どおり「将来」（APP-11、日本語 UI）。
+  - `.coverage` を履歴から消すかどうかは、まだ利用者の判断待ち。
+
 ## 2026-10-15 18:30 — この PC の実モデルで Office の自律編集を検証して修正／会話画面を Claude Desktop 風に作り直し
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

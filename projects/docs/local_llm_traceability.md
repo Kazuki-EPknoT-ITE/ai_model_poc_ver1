@@ -240,7 +240,7 @@
 | PDF-02 | 検証済み | pdf.extract_tables と write_table / test_extract_tables、T-35 | なし |
 | PDF-03 | 実装中 | pdf.ocr、server/ocr（PaddleOCR・VLM） / test_ocr、test_ocr_uses_sampling、SX-07 | エンジンの比較・採用判断と実 OCR 精度（要検証機） |
 | PDF-04 | 検証済み | invoice.extract / test_invoice、IT「I-01」、FI-18、T-35 | 実モデルでの精度は要検証機 |
-| PDF-05 | 実装済み | 汎用ツールとモデルで対応（専用ツールなし） | 英文契約書の評価セットなし。要検証機 |
+| PDF-05 | 実装済み | 汎用ツールとモデルで対応（専用ツールなし）。開発 PC の Gemma 4 E4B で、2ページの英文傭船契約の日本語要約（5条すべて正確）と Clause 3 の和訳ができることを確認（2026-10-16） | 英文契約書の評価セットなし。12B での精度は要検証機 |
 | PDF-06 | 検証済み | 秘密入力の質問と _meta で渡すパスワード / test_password_protected | なし |
 | PDF-07 | 検証済み | 抽出結果のページ番号、出典のファイルを開く（PDF は #page で該当ページ）、実行ファイル等は開かない / desktop E2E「AGT-07/NET-05」、open-policy.test | PDF ビューアーがページ指定に対応しない場合は先頭が開く |
 | PRF-01 | 実装中 | 全体の同時実行上限の設定 / test_per_user_and_global_limits | 5件同時の性能測定（要検証機） |

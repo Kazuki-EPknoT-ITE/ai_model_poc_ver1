@@ -56,14 +56,11 @@ class ToolContext:
         return await self.sampler(request)
 
     def password(self, ref: str | None) -> str | None:
-        if ref is None:
+        # 利用者が入力していない参照（モデルが要らないのに付けた・作った参照）は、パスワードなしとして扱う。
+        # 本当にパスワード付きなら、開くときに PASSWORD_REQUIRED になる（pdflib）。パスワードの無い PDF で、
+        # 作り話の参照のために利用者へパスワードを尋ねて止まらないようにする
+        if ref is None or ref not in self.passwords:
             return None
-        if ref not in self.passwords:
-            raise ToolFailure(
-                "PASSWORD_REQUIRED",
-                f"パスワード参照 {ref} が見つかりません。利用者にパスワードを確認してください",
-                detail={"password_ref": ref},
-            )
         return self.passwords[ref]
 
 

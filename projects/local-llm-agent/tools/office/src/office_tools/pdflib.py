@@ -80,7 +80,10 @@ def parse_pages(spec: str | None, total: int) -> list[int]:
         if lo < 1 or hi < lo:
             raise invalid(f"pages の {part} が不正です。1-5,8 の形式で指定してください")
         if hi > total:
-            raise invalid(f"pages の {part} がページ数（{total}）を超えています")
+            raise invalid(
+                f"pages の {part} がページ数（{total}）を超えています。pages はページ番号（1〜{total}）です。"
+                f"条項（Clause）や章の番号ではありません。全ページを読むなら pages に 1-{total} を指定します"
+            )
         out.extend(p for p in range(lo, hi + 1) if p not in out)
     return out
 

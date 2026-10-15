@@ -1,0 +1,18 @@
+# 引数を変えながら同じツールが続けて失敗する: 3回続けて失敗したら4回目は実行せず、しばらく文法から外す
+name: rt-failure-streak
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action: { type: plan_update, plan: [{ id: t1, title: 読む, status: doing }] }
+  - match: { step_index: 1 }
+    action: { type: tool_call, tool: fs.read_text, args: { path: "無い1.txt" } }
+  - match: { step_index: 2 }
+    action: { type: tool_call, tool: fs.read_text, args: { path: "無い2.txt" } }
+  - match: { step_index: 3 }
+    action: { type: tool_call, tool: fs.read_text, args: { path: "無い3.txt" } }
+  - match: { step_index: 4 }
+    action: { type: tool_call, tool: fs.read_text, args: { path: "memo.txt" } }
+  - match: { step_index: 5 }
+    action: { type: final, summary: "読めませんでした。", outputs: [], failures: [], needs_review: [] }
+fallback:
+  action: { type: final, summary: "終了", outputs: [], failures: [], needs_review: [] }

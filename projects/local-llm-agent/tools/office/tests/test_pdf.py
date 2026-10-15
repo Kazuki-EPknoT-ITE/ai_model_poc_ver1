@@ -68,6 +68,9 @@ def test_password_protected(run: Runner, ws: Path) -> None:
     assert err["code"] == "PASSWORD_REQUIRED" and err["kind"] == "deferred"
     err = run.error("pdf.info", {"path": "鍵.pdf", "password_ref": "pw-1"})
     assert err["code"] == "PASSWORD_REQUIRED"  # 参照が Runtime から渡されていない
+    # パスワードの無い PDF なら、作り話の参照が付いていても普通に開く（利用者に尋ねて止まらない）
+    make_pdf(ws / "普通.pdf")
+    assert run("pdf.info", {"path": "普通.pdf", "password_ref": "pw-9"})["data"]["pages"] >= 1
     run.passwords = {"pw-1": "wrong"}
     assert run.error("pdf.info", {"path": "鍵.pdf", "password_ref": "pw-1"})["code"] == "PASSWORD_REQUIRED"
     run.passwords = {"pw-1": "secret"}

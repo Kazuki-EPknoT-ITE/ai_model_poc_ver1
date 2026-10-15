@@ -46,6 +46,16 @@ export async function expandBatchItems(items: string, workspace: string): Promis
   return files.map((f) => relative(workspace, f.abs).split(sep).join("/"));
 }
 
+/** 一致しなかった glob の最後の部分（*.pdf など）で作業フォルダ全体を探し、ファイルのあるフォルダの glob を最大3つ挙げる。 */
+export async function suggestGlobs(items: string, workspace: string): Promise<string[]> {
+  if (!items.startsWith("glob:")) return [];
+  const last = items.slice(5).split(/[\\/]/).pop() ?? "";
+  if (!last) return [];
+  const found = await globFiles(workspace, `**/${last}`);
+  const dirs = [...new Set(found.map((f) => f.rel.split("/").slice(0, -1).join("/")))];
+  return dirs.slice(0, 3).map((d) => `glob:${d ? `${d}/` : ""}${last}`);
+}
+
 export class BatchRunner {
   constructor(
     private readonly store: RunStore,
@@ -58,7 +68,11 @@ export class BatchRunner {
     if (!batch) {
       const items = await expandBatchItems(spec.items, ctx.workspace);
       if (items.length === 0) {
-        return errResult("NOT_FOUND", `対象のファイルがありません: ${spec.items}（glob は作業フォルダからの相対パスで書きます。例: glob:請求書/*.pdf）`);
+        const hint = await suggestGlobs(spec.items, ctx.workspace);
+        return errResult(
+          "NOT_FOUND",
+          `対象のファイルがありません: ${spec.items}（glob は作業フォルダからの相対パスで書きます。例: glob:請求書/*.pdf）${hint.length ? `。同じ種類のファイルは次の場所にあります: ${hint.join("、")}` : ""}`,
+        );
       }
       const id = ulid();
       this.store.tx(() => {

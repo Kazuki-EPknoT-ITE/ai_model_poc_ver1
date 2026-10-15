@@ -1,0 +1,20 @@
+# 記録（memory.note）を続けて出し続ける: 3回続いたら4回目は記録せず、しばらく文法から外す
+name: rt-note-streak
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action: { type: plan_update, plan: [{ id: t1, title: 訳す, status: doing }] }
+  - match: { step_index: 1 }
+    action: { type: tool_call, tool: memory.note, args: { key: "訳1", value: "a" } }
+  - match: { step_index: 2 }
+    action: { type: tool_call, tool: memory.note, args: { key: "訳2", value: "b" } }
+  - match: { step_index: 3 }
+    action: { type: plan_update, plan: [{ id: t1, title: 訳す, status: doing }] }
+  - match: { step_index: 4 }
+    action: { type: tool_call, tool: memory.note, args: { key: "訳3", value: "c" } }
+  - match: { step_index: 5 }
+    action: { type: tool_call, tool: memory.note, args: { key: "訳4", value: "d" } }
+  - match: { step_index: 6 }
+    action: { type: final, summary: "訳しました。", outputs: [], failures: [], needs_review: [] }
+fallback:
+  action: { type: final, summary: "終了", outputs: [], failures: [], needs_review: [] }

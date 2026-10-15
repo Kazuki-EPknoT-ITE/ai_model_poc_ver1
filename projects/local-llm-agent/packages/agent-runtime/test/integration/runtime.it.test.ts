@@ -94,6 +94,10 @@ describe("runtime integration", () => {
     expect(rig.events.some((e) => e.type === "notify" && (e.payload as { kind: string }).kind === "stalled")).toBe(true);
     // 立て直しの指示がプロンプトに入った（モックが受け取った依頼の中身は記録しないので、Run Store 側で確認）
     expect(rig.store.getRun(run_id)!.replan_count).toBe(2);
+    // 同じ結果の読み取りは3回目から実行しない（skipped）
+    const stats = rig.store.db.prepare("SELECT result FROM steps WHERE run_id = ? AND tool = 'fs.stat' ORDER BY seq").all(run_id) as { result: string }[];
+    const skipped = stats.map((r) => Boolean((JSON.parse(r.result) as { data?: { skipped?: boolean } }).data?.skipped));
+    expect(skipped.slice(0, 3)).toEqual([false, false, true]);
   }, 90_000);
 
   it("RUN-05: repeated identical failures are not re-run, and duplicate approvals / questions are not created", async () => {
@@ -147,6 +151,29 @@ describe("runtime integration", () => {
     // 成功の繰り返しは「失敗したままの操作」には数えない
     const done = rig.events.find((e) => e.type === "run.state" && (e.payload as { state: string }).state === "done")!;
     expect((done.payload as { detail: { unresolved?: unknown[] } }).detail.unresolved).toBeUndefined();
+  }, 60_000);
+
+  it("a tool that failed three times in a row (with different args) is not run a fourth time and leaves the grammar", async () => {
+    rig = await makeRig("failure-streak.yaml");
+    writeFileSync(join(rig.ws, "memo.txt"), "x");
+    const { run_id } = await start(rig);
+    await waitFor(() => runEnded(rig!, run_id), 30_000, "run end");
+    const rows = rig.store.db.prepare("SELECT error_code, result FROM steps WHERE run_id = ? AND tool = 'fs.read_text' ORDER BY seq").all(run_id) as { error_code: string | null; result: string }[];
+    expect(rows.map((r) => r.error_code)).toEqual(["NOT_FOUND", "NOT_FOUND", "NOT_FOUND", "INVALID_ARGS"]);
+    expect(rows[3]!.result).toContain("直近3回続けて失敗");
+    const agent = readFileSync(rig.mock.samples, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { purpose: string; schema_tools: string[] }).filter((x) => x.purpose === "agent");
+    expect(agent[4]!.schema_tools).toContain("fs.read_text"); // 4回目の前（まだ止めていない）
+    expect(agent[5]!.schema_tools).not.toContain("fs.read_text");
+  }, 60_000);
+
+  it("memory.note used three times in a row (plan updates in between do not count) is skipped the fourth time", async () => {
+    rig = await makeRig("note-streak.yaml");
+    const { run_id } = await start(rig);
+    await waitFor(() => runEnded(rig!, run_id), 30_000, "run end");
+    const rows = rig.store.db.prepare("SELECT result FROM steps WHERE run_id = ? AND tool = 'memory.note' ORDER BY seq").all(run_id) as { result: string }[];
+    expect(rows.map((r) => Boolean((JSON.parse(r.result) as { data?: { skipped?: boolean } }).data?.skipped))).toEqual([false, false, false, true]);
+    const agent = readFileSync(rig.mock.samples, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { purpose: string; schema_tools: string[] }).filter((x) => x.purpose === "agent");
+    expect(agent[6]!.schema_tools).not.toContain("memory.note");
   }, 60_000);
 
   it("done carries write operations that failed and never succeeded (reads are not listed)", async () => {
