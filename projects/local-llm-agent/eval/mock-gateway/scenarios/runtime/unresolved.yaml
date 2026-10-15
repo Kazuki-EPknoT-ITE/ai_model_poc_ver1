@@ -1,0 +1,16 @@
+# 失敗したまま終わった書き込みを、完了の状態に添える（完了報告が「できました」と言っていても画面で注意できるように）
+name: rt-unresolved
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action: { type: plan_update, plan: [{ id: t1, title: コピー, status: doing }] }
+  - match: { step_index: 1 }
+    action: { type: tool_call, tool: fs.copy, args: { src: "無い.txt", dst: "b.txt" } }
+  - match: { step_index: 2 }
+    action: { type: tool_call, tool: fs.mkdir, args: { path: "out" } }
+  - match: { step_index: 3 }
+    action: { type: tool_call, tool: fs.read_text, args: { path: "無い.txt" } }
+  - match: { step_index: 4 }
+    action: { type: final, summary: "コピーしました。", outputs: [], failures: [{ item: "無い.txt", reason: "見つかりません" }], needs_review: [{ path: "out", reason: "中身を確認してください" }] }
+fallback:
+  action: { type: final, summary: "終了", outputs: [], failures: [], needs_review: [] }

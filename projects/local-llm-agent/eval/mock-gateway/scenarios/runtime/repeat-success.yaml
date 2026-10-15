@@ -1,0 +1,16 @@
+# 同じ内容の書き込みの繰り返し: 2回成功したら3回目は実行せず、しばらく文法から外す
+name: rt-repeat-success
+config: { context_budget: 32768, models: [local-12b] }
+steps:
+  - match: { step_index: 0 }
+    action: { type: plan_update, plan: [{ id: t1, title: フォルダを作る, status: doing }] }
+  - match: { step_index: 1 }
+    action: { type: tool_call, tool: fs.mkdir, args: { path: "out" } }
+  - match: { step_index: 2 }
+    action: { type: tool_call, tool: fs.mkdir, args: { path: "out" } }
+  - match: { step_index: 3 }
+    action: { type: tool_call, tool: fs.mkdir, args: { path: "out" } }
+  - match: { step_index: 4 }
+    action: { type: final, summary: "作りました。", outputs: [], failures: [], needs_review: [] }
+fallback:
+  action: { type: final, summary: "終了", outputs: [], failures: [], needs_review: [] }

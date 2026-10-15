@@ -332,6 +332,7 @@ def xlsx_find(ctx: ToolContext, args: dict[str, Any]) -> Outcome:
 def xlsx_write_cells(ctx: ToolContext, args: dict[str, Any]) -> Outcome:
     path, real, wb = _load_for_write(args)
     ws = sheet(wb, args["sheet"])
+    as_text: list[str] = []  # value に "=" で始まる文字列が来たセル（数式にせず文字列で書く）
     for cw in args["cells"]:
         ref_sheet, body = split_sheet(cw["ref"])
         if ref_sheet is not None and ref_sheet != ws.title:
@@ -348,10 +349,18 @@ def xlsx_write_cells(ctx: ToolContext, args: dict[str, Any]) -> Outcome:
                 cell.number_format = cw["number_format"]
         elif "value" in cw:
             _write_value(ws, col, row, cw["value"], cw.get("number_format"))
+            if isinstance(cw["value"], str) and cw["value"].startswith("="):
+                as_text.append(cw["ref"])
         elif cw.get("number_format"):
             cell = ws.cell(row=row, column=col)
             cell.number_format = cw["number_format"]
     artifact, recalc, warnings = _save(path, real, wb, bool(args.get("recalc", True)))
+    if as_text:
+        # 写した値が勝手に数式として動かないよう、value は常に文字列で書く。数式にしたかった場合に気づけるよう知らせる
+        warnings.append(
+            f"{', '.join(as_text[:5])} の値は「=」で始まるため、数式ではなく文字列として書きました。"
+            "数式にするなら value ではなく formula に指定してください"
+        )
     return Outcome(
         data=_write_result(artifact, recalc, written=len(args["cells"])),
         artifacts=[artifact],

@@ -2,7 +2,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import { pathToFileURL } from "node:url";
-import { BrowserWindow, Menu, Notification, Tray, app, dialog, ipcMain, nativeImage, powerSaveBlocker, shell } from "electron";
+import { BrowserWindow, Menu, Notification, Tray, app, dialog, ipcMain, nativeImage, nativeTheme, powerSaveBlocker, shell } from "electron";
 import type { RuntimeCommand, RuntimeEvent } from "@lla/protocol";
 import { RuntimeHost } from "./runtime-host.js";
 import { SecureStore } from "./secure-store.js";
@@ -214,12 +214,14 @@ function createWindow(): void {
   win = new BrowserWindow({
     width: 1360,
     height: 860,
-    minWidth: 960,
+    // 会話の列は狭い窓でも読めるようにしてある（サイドバーは畳める）
+    minWidth: 720,
     minHeight: 600,
     title: "ローカルAIアシスタント",
     icon: join(ASSETS, "icon.png"),
     show: false,
-    backgroundColor: "#f6f7f9",
+    // 読み込み中のちらつきを抑える（DESIGN.md の --bg と同じ色）
+    backgroundColor: nativeTheme.shouldUseDarkColors ? "#262421" : "#f7f5f0",
     webPreferences: {
       preload: join(DIST, "preload", "preload.cjs"),
       contextIsolation: true,

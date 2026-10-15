@@ -1,4 +1,5 @@
 import { useEffect, useRef, type ReactNode } from "react";
+import { Icon } from "./Icon.js";
 
 /** 画面中央のダイアログ。Esc で閉じ、開いている間はフォーカスを中に閉じ込める（UI 仕様 §6）。 */
 export function Dialog({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
@@ -33,8 +34,8 @@ export function Dialog({ title, onClose, children, wide }: { title: string; onCl
       <div ref={ref} className={`dialog ${wide ? "wide" : ""}`} role="dialog" aria-modal="true" aria-label={title}>
         <header className="dialog-head">
           <h2>{title}</h2>
-          <button className="link" onClick={onClose} aria-label="閉じる">
-            ✕
+          <button className="icon-btn" onClick={onClose} aria-label="閉じる">
+            <Icon name="x" size={16} />
           </button>
         </header>
         <div className="dialog-body">{children}</div>

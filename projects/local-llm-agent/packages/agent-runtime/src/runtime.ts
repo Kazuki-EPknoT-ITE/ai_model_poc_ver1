@@ -22,7 +22,7 @@ import { buildMessages, compactionCandidates, mechanicalSummary, messagesTokens,
 import { compactPrompt, replanBlock } from "./prompt/templates.js";
 import type { MessageRow, RunRow, RunStore, StepRow } from "./store/store.js";
 import type { ToolRouter } from "./tools/router.js";
-import { errResult, type ToolContext } from "./tools/types.js";
+import { errResult, okResult, type ToolContext } from "./tools/types.js";
 import { nowIso, sha256, stableStringify, ulid } from "./util.js";
 import { testNow } from "./testhooks.js";
 
@@ -65,6 +65,8 @@ const MODEL_FOR: Record<string, string> = { auto: "local-12b", fast: "local-12b"
 const DETERMINISTIC_ERRORS = new Set(["INVALID_ARGS", "UNKNOWN_TOOL", "BLOCK_NOT_FOUND", "FORBIDDEN_PATH", "UNSUPPORTED_FORMAT", "RESULT_TOO_LARGE", "NET_DISABLED", "DLP_BLOCKED", "DOMAIN_BLOCKED"]);
 /** この回数だけ同じ失敗をした呼び出しは、次からは実行しない */
 const REPEAT_FAILURE_LIMIT = 2;
+/** 同じ内容の書き込みがこの回数成功していたら、次からは実行しない */
+const REPEAT_SUCCESS_LIMIT = 2;
 /** 繰り返しを止めたツールを、出力の文法（構造化出力）から外しておく手数。指示に従わないモデルでも、そのツールは呼べなくなる */
 const BAN_STEPS = 6;
 
@@ -617,7 +619,17 @@ export class AgentRuntime {
         });
         this.emitStepDone(run, step, kind, "ok");
         const citations = this.checkCitations(run, (action as { citations?: Citation[] }).citations ?? []);
-        this.setState(run, "done", { summary: action.summary, ...(citations.length ? { citations } : {}) });
+        // 失敗したまま終わった書き込み（あとで同じツールが成功していないもの）。完了報告が「できました」と言っていても、画面で注意を出せるようにする
+        const unresolved = this.unresolvedWrites(run);
+        // 画面に出す完了報告の項目（作ったファイル・失敗した件・人の確認が要る箇所）も添える
+        this.setState(run, "done", {
+          summary: action.summary,
+          ...(action.outputs.length ? { outputs: action.outputs } : {}),
+          ...(action.failures.length ? { failures: action.failures } : {}),
+          ...(action.needs_review.length ? { needs_review: action.needs_review } : {}),
+          ...(citations.length ? { citations } : {}),
+          ...(unresolved.length ? { unresolved } : {}),
+        });
         this.emit(run.conversation_id, "notify", { kind: "done", title: "作業が完了しました", body: action.summary.slice(0, 300) });
         return;
       }
@@ -656,6 +668,8 @@ export class AgentRuntime {
       a.dst = src.slice(0, src.length - extname(src).length) + ext[tool];
     }
     if (tool === "data.transform") return substituteResultOf(this.store, a);
+    // Excel の数式は "=" で始める決まり（スキーマの pattern）。モデルがよく省く（SUM(B2:B4) など）ので補う
+    if ((tool === "xlsx.write_cells" || tool === "xlsx.create") && JSON.stringify(a).includes('"formula"')) return withFormulaPrefix(a);
     return a;
   }
 
@@ -690,6 +704,21 @@ export class AgentRuntime {
           repeated.code as never,
           `この呼び出しは同じ引数で既に${repeated.count}回失敗しています（${repeated.code}）。同じ呼び出しは実行しません。${spec.name} は次の${BAN_STEPS}手のあいだ使えません。別のツール・別の方法で進めるか、ここまでに分かったことを final で報告してください`,
         ),
+      );
+      return;
+    }
+    // 同じ引数の書き込みが既に成功していれば、繰り返さない（同じ段落を何度も差し込むなど、成功の繰り返しで止まらなくなるのを防ぐ）
+    const done = spec.effect === "write" ? this.repeatedSuccess(run, step, digest) : 0;
+    if (done >= REPEAT_SUCCESS_LIMIT) {
+      h.banned.set(spec.name, step.seq + BAN_STEPS);
+      this.finishTool(
+        run,
+        step,
+        action,
+        okResult({
+          skipped: true,
+          message: `この書き込みは同じ内容で既に${done}回成功しているため、実行しませんでした。${spec.name} は次の${BAN_STEPS}手のあいだ使えません。作業が終わっていれば final で報告してください`,
+        }),
       );
       return;
     }
@@ -749,6 +778,28 @@ export class AgentRuntime {
       .filter((s) => s.id !== step.id && s.args_digest === digest && s.error_code && DETERMINISTIC_ERRORS.has(s.error_code));
     if (fails.length < REPEAT_FAILURE_LIMIT) return null;
     return { code: fails[fails.length - 1]!.error_code!, count: fails.length };
+  }
+
+  /** 同じ (ツール, 引数) の書き込みが、この Run で何回成功したか（直近40手）。 */
+  private repeatedSuccess(run: RunRow, step: StepRow, digest: string): number {
+    return this.store
+      .recentSteps(run.id, 40)
+      .filter((s) => s.id !== step.id && s.args_digest === digest && !s.error_code && s.phase === "committed" && !(safeJson(s.result) as { data?: { skipped?: boolean } } | null)?.data?.skipped).length;
+  }
+
+  /** この Run で失敗し、その後に同じツールが一度も成功していない書き込みの操作（承認待ち・却下は除く）。 */
+  private unresolvedWrites(run: RunRow): { tool: string; error_code: string; message: string }[] {
+    const steps = this.store.recentSteps(run.id, 500);
+    const out: { tool: string; error_code: string; message: string }[] = [];
+    steps.forEach((s, i) => {
+      if (!s.tool || !s.error_code || s.error_code === "APPROVAL_REQUIRED" || s.error_code === "APPROVAL_REJECTED") return;
+      if (this.opts.router.spec(s.tool)?.effect !== "write") return;
+      if (steps.slice(i + 1).some((t) => t.tool === s.tool && !t.error_code && t.phase === "committed")) return;
+      if (out.some((o) => o.tool === s.tool && o.error_code === s.error_code)) return;
+      const r = safeJson(s.result) as { error?: { message?: string } } | null;
+      out.push({ tool: s.tool, error_code: s.error_code, message: String(r?.error?.message ?? "").slice(0, 200) });
+    });
+    return out.slice(0, 10);
   }
 
   /** ツールの実行（書き込みの調整・一時的な失敗の再試行込み）。 */
@@ -998,3 +1049,30 @@ export class AgentRuntime {
   }
 }
 
+
+/** 引数の中の formula（Excel の数式）で "=" が抜けているものに "=" を補う。それ以外は変えない */
+export function withFormulaPrefix<T>(value: T): T {
+  const walk = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(walk);
+    if (v === null || typeof v !== "object") return v;
+    return Object.fromEntries(
+      Object.entries(v).map(([k, x]) => {
+        if (k === "formula" && typeof x === "string") {
+          const f = x.trim();
+          return [k, f === "" || f.startsWith("=") ? f : `=${f}`];
+        }
+        return [k, walk(x)];
+      }),
+    );
+  };
+  return walk(value) as T;
+}
+
+function safeJson(s: string | null): unknown {
+  if (!s) return null;
+  try {
+    return JSON.parse(s) as unknown;
+  } catch {
+    return null;
+  }
+}

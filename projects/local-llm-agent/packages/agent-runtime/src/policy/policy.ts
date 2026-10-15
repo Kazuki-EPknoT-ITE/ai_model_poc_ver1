@@ -121,6 +121,13 @@ export function decide(tool: ToolCatalogEntry, args: unknown, ctx: PolicyContext
     }
   }
   const isPlugin = tool.name.startsWith("plugin.");
+  // 自分自身への移動・コピーは何も変えない。承認を求めずに断る（モデルが「保存し直す」つもりで出すことがある）
+  if ((tool.name === "fs.move" || tool.name === "fs.copy") && paths.length === 2) {
+    const same = (a: string, b: string) => (process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b);
+    if (same(paths[0]!.real_path, paths[1]!.real_path)) {
+      return { kind: "deny", code: "INVALID_ARGS", message: "移動元（コピー元）と移動先（コピー先）が同じファイルです。保存は書き込みのツールで済んでいるので、移動やコピーは要りません" };
+    }
+  }
   if (tool.name === "fs.delete") return { kind: "approve", reason: "delete", paths };
   if (tool.name === "fs.move") return { kind: "approve", reason: "move", paths };
   if (isPlugin && tool.effect !== "read" && tool.effect !== "none") {

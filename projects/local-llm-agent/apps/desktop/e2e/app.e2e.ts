@@ -2,8 +2,16 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { ARTIFACTS, PROJECT, launch, login, type Ctx } from "./fixtures.js";
+
+/** 作業の経過は1行にまとめて畳んである。手順の一覧を見るときは開く */
+async function openSteps(page: Page): Promise<void> {
+  const toggle = page.getByTestId("run-state").getByTestId("steps-toggle");
+  await expect(toggle).toBeEnabled({ timeout: 30_000 });
+  if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+}
 
 let ctx: Ctx | null = null;
 test.afterEach(async () => {
@@ -17,21 +25,31 @@ test("E-01/E-02: login, pick folder, request, step cards, final summary", async 
   const { page } = ctx;
   await expect(page.getByRole("form", { name: "ログイン" })).toBeVisible();
   await login(page);
+  // 空の会話の例: 作業フォルダが未選択でも入力欄に入り、フォルダを選べば送れることを示す
+  await page.getByRole("button", { name: "389×125は？" }).click();
+  await expect(page.getByLabel("依頼")).toHaveValue("389×125は？");
+  await expect(page.getByTestId("need-folder")).toHaveText("作業フォルダを選ぶと送信できます");
   await page.getByRole("button", { name: /作業フォルダを選ぶ/ }).click();
+  await expect(page.getByTestId("need-folder")).toHaveCount(0);
   await expect(page.getByRole("region", { name: "作業フォルダのファイル" })).toContainText("memo.txt");
   await page.getByLabel("依頼").fill("フォルダを確認して");
   await page.keyboard.press("Control+Enter");
   await expect(page.getByTestId("final-summary")).toHaveText("memo.txt を確認しました。", { timeout: 30_000 });
   await expect(page.getByTestId("run-state")).toHaveAttribute("data-state", "done");
+  // 手順は1行にまとまっていて、開くと一覧（計画と手順）が出る。計画の更新・完了報告は一覧に出さない
   const cards = page.getByTestId("step-card");
+  await expect(page.getByTestId("steps-toggle")).toContainText("3件の手順を実行しました");
+  await expect(cards).toHaveCount(0);
+  await openSteps(page);
+  await expect(cards).toHaveCount(3);
   await expect(cards.filter({ hasText: "フォルダの一覧" })).toHaveCount(1);
   await expect(cards.filter({ hasText: "テキストを読む" })).toHaveCount(1);
-  await expect(page.getByRole("complementary", { name: "計画と承認" })).toContainText("中身を確認");
+  await expect(page.getByRole("region", { name: "手順" })).toContainText("中身を確認");
   await expect(page.getByRole("navigation", { name: "会話の履歴" })).toContainText("フォルダを確認して");
   await page.screenshot({ path: join(ARTIFACTS, "e02-final.png") });
   // ADM-06: 評価を送る（同意したのでやり取りも送られる）
   const fb = page.getByRole("region", { name: "この作業の評価" });
-  await fb.getByRole("button", { name: "👍 良い" }).click();
+  await fb.getByRole("button", { name: "良い" }).click();
   await fb.getByLabel("ひとこと（任意）").fill("速くて助かった");
   await fb.getByRole("checkbox").check();
   await fb.getByRole("button", { name: "送る" }).click();
@@ -110,6 +128,7 @@ test("AGT-09: an admin-installed plugin can read freely, and its writes need app
   const card = page.getByTestId("approval");
   await expect(card).toContainText("プラグインによる書き込み", { timeout: 60_000 });
   // 読み取り（承認なし）は先に終わっている。結果は外部由来のテキストとして扱われる
+  await openSteps(page);
   await expect(page.getByTestId("step-card").filter({ hasText: "plugin.sample.word_count" })).toHaveCount(1);
   expect(existsSync(join(ctx.ws, "stamped.txt"))).toBe(false);
   await card.getByRole("button", { name: "承認" }).click();
@@ -197,6 +216,7 @@ test("T-35: invoices to Excel from the UI (office-tools + mock inference), then 
   await page.getByLabel("依頼").fill("請求書フォルダのPDFを読んで、送金明細をExcelにまとめて");
   await page.getByRole("button", { name: "送信" }).click();
   await expect(page.getByTestId("final-summary")).toContainText("3件", { timeout: 90_000 });
+  await openSteps(page);
   await expect(page.getByTestId("step-card").filter({ hasText: "一括処理" })).toHaveCount(1);
   await expect(page.getByTestId("artifact")).toContainText("送金明細.xlsx");
   await expect(page.getByRole("region", { name: "作業フォルダのファイル" })).toContainText("送金明細.xlsx");

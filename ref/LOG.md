@@ -18,6 +18,42 @@
 
 ---
 
+## 2026-10-15 18:30 — この PC の実モデルで Office の自律編集を検証して修正／会話画面を Claude Desktop 風に作り直し
+
+- **変更ファイル**（`projects/local-llm-agent/`）:
+  - 画面（desktop-app-engineer のサブエージェントが担当。git・LOG には触れていない）:
+    - 新規: `apps/desktop/DESIGN.md`（トークンと部品の決まり）、`src/renderer/markdown.ts`・`components/Markdown.tsx`・`Icon.tsx`・`RunActivity.tsx`、`test/turns.test.ts`
+    - 変更: `App.tsx`・`state.ts`・`components/Composer.tsx`・`Dialog.tsx`・`styles/app.css`、`src/main/main.ts`（最小幅 720・起動時の背景色）、`e2e/app.e2e.ts`
+  - Runtime: `src/runtime.ts`（数式の "=" の補い、同じ内容の書き込みの繰り返しを止める、done に outputs・failures・needs_review・unresolved）、`src/policy/policy.ts`（自分自身への移動・コピーを断る）、試験（`test/foundation.test.ts`、`test/integration/runtime.it.test.ts`・`harness.ts`、`eval/mock-gateway/scenarios/runtime/repeat-success.yaml`・`unresolved.yaml`）
+  - office-tools: `tools/xlsx.py`（value に "=" で始まる文字列が来たら、文字列で書いたことと formula の使い方を知らせる）、`tests/test_xlsx.py`
+  - `eval/harness/src/try.ts`（`--args`、承認・質問の待ちと5分での打ち切り）
+  - docs: ui_spec §2.2（改訂の要点）、design §5.6
+- **やったこと**:
+  1. **Office の自律編集の検証**（この PC の Ollama gemma4:e4b、`pnpm --filter @lla/eval-harness try`）: Excel の合計行（数式）・税込列（数式）、Word の日付の修正・段落の追加・新規作成、CSV → Excel の6件を作り、成果物をスクリプトで確かめた。
+     - 見つけて直した問題:
+       - 数式の "=" 抜けで書けなかったのに「入力しました」と報告した → Runtime で "=" を補う。value に "=…" を入れた場合は、文字列で書いたことを結果で知らせる（写した値が勝手に数式にならない守りは残した）。
+       - 同じ段落の差し込みなど、成功する同じ書き込みを繰り返して 40 手で打ち切られた → 同じ引数の書き込みが2回成功したら3回目は実行せず（skipped）、6手のあいだ文法から外す。
+       - 「在庫.xlsx を在庫.xlsx へ移動」（自分自身への移動）で承認待ちになり、作業が止まった → 承認を求めずに断る。
+       - 失敗したまま「できました」と報告しても画面で分からなかった → done の detail に unresolved（失敗したまま終わった書き込み）と、完了報告の failures・needs_review・outputs を添える。
+     - 確認スクリプトが Word の変更履歴付きの本文を読めず、正しい修正を NG にしていた（評価の決まりどおり、承諾した状態の本文で判定するよう直した）。
+  2. **試験のプロセスの漏れ**: Runtime の結合試験の harness が `proc.kill()` で uv だけを止め、Python のモック Gateway が残っていた（今日だけで 226 個たまっていた）→ `taskkill /T` で子まで止める。残っていたものは止めた。
+  3. **画面の作り直し**（利用者の求め: Claude Desktop のような見た目。作業の報告が多すぎて見えにくい）:
+     - 左のサイドバーと、中央の会話の列（最大 760px）。
+     - 1回の依頼の手順は1行にまとめ、開くと計画と1手1行の一覧が出る。
+     - 答えは枠なしの本文を Markdown で（React の要素だけで描画。dangerouslySetInnerHTML は使わない）。
+     - 承認・質問・変更したファイル・できなかったこと・確認してください・失敗したままの操作は、折りたたまずに出す。
+     - 入力欄は下端の角丸カード。空の会話に例の依頼を4つ。生成りと暖かい濃い灰色、アクセントは深い青緑1色。SVG アイコン。ライト／ダーク。他社のロゴや名前は使っていない。
+- **E2Eテスト**: **合格**。
+  - 実モデルで Office の6件を2回ずつ（計12回）: **12回とも完了報告まで止まらずに終わった**（19〜82秒）。成果物の正しさは 2/6 と 3/6（ファイル名の取り違え・見出しの書き忘れなど、モデルの誤り）。修正前は 40手の打ち切りや承認待ちでの停止があった。
+  - デスクトップ E2E（Playwright・Electron）13件。サブエージェントが幅 1280/800・ライト/ダークで画面を撮って確かめた（scratchpad の shots/）。私も完了・展開・空の会話・完了報告のカードの画像を見て確認した。
+  - Runtime の結合試験 13件（成功の繰り返し・失敗したままの操作・完了報告の項目を追加）、単体 38件、デスクトップの単体 19件。
+  - 試験のあとに残るモック Gateway が 0 個であることを確かめた。
+- **結果/確認**: `pnpm check` が全体で成功（pytest 536件）。
+- **次にやること / 申し送り**:
+  - 利用者はアプリを起動し直す必要がある（画面と Runtime の変更を読み込むため）。8787 番は Ollama（gemma4:e4b）につないだ Gateway。
+  - 正しさはモデルの規模の限界（12B・学習で上げる。検証機待ち）。
+  - `.coverage` を履歴から消すかどうかは、まだ利用者の判断待ち。
+
 ## 2026-10-14 23:10 — あいさつ・質問・簡単な計算に、ツールを使わずすぐ答える（プロンプト 1.1）／繰り返し失敗したツールを文法から外す
 
 - **変更ファイル**（`projects/local-llm-agent/`）:

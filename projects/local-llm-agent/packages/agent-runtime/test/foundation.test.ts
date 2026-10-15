@@ -6,6 +6,7 @@ import { join, relative, sep } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { getTool, validateDef, validateToolArgs, type ToolCatalogEntry } from "@lla/protocol";
 import { SYSTEM_BASE } from "../src/prompt/templates.js";
+import { withFormulaPrefix } from "../src/runtime.js";
 import { Ajv2020 } from "ajv/dist/2020.js";
 import { RunStore } from "../src/store/store.js";
 import { decide, resolvePaths, type PolicyContext } from "../src/policy/policy.js";
@@ -81,6 +82,17 @@ describe("policy", () => {
   it("allows reads and writes inside the workspace", () => {
     expect(decide(tool("fs.list"), { path: "." }, ctx()).kind).toBe("allow");
     expect(decide(tool("xlsx.write_cells"), { path: "a.xlsx", sheet: "S", cells: [{ ref: "A1", value: 1 }] }, ctx()).kind).toBe("allow");
+  });
+
+  it("refuses a move or copy onto the same file without asking for approval", () => {
+    writeFileSync(join(ws, "在庫.xlsx"), "x");
+    for (const name of ["fs.move", "fs.copy"]) {
+      const d = decide(tool(name), { src: "在庫.xlsx", dst: "在庫.xlsx" }, ctx());
+      expect(d, name).toMatchObject({ kind: "deny", code: "INVALID_ARGS" });
+      // 大文字・小文字や書き方が違っても同じファイルなら断る
+      if (process.platform === "win32") expect(decide(tool(name), { src: "在庫.xlsx", dst: join(ws, "在庫.XLSX") }, ctx()).kind, name).toBe("deny");
+    }
+    expect(decide(tool("fs.copy"), { src: "在庫.xlsx", dst: "在庫_写し.xlsx" }, ctx()).kind).toBe("allow");
   });
 
   it("requires approval outside the workspace, for delete and move, and when tainted", () => {
@@ -390,5 +402,14 @@ describe("system プロンプトの例", () => {
       expect(validateDef("Action", a).errors, ex).toEqual([]);
       if (a.type === "tool_call") expect(validateToolArgs(a.tool!, a.args).errors, ex).toEqual([]);
     }
+  });
+});
+
+describe("Excel の数式の正規化", () => {
+  it("\"=\" が抜けた数式に \"=\" を補い、ほかの値は変えない", () => {
+    const args = { path: "a.xlsx", sheet: "S", cells: [{ ref: "B5", formula: "SUM(B2:B4)" }, { ref: "B6", formula: "=B5*1.1" }, { ref: "A5", value: "合計" }] };
+    expect(withFormulaPrefix(args)).toEqual({ ...args, cells: [{ ref: "B5", formula: "=SUM(B2:B4)" }, { ref: "B6", formula: "=B5*1.1" }, { ref: "A5", value: "合計" }] });
+    const create = { path: "b.xlsx", sheets: [{ name: "S", rows: [[1]], formulas: [{ ref: "A2", formula: " A1*2 " }] }] };
+    expect(withFormulaPrefix(create).sheets[0]!.formulas[0]!.formula).toBe("=A1*2");
   });
 });

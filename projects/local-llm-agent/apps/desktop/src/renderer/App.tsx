@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RuntimeCommand, RuntimeEvent } from "@lla/protocol";
-import { citationPath, pageOf } from "../shared/open-policy.js";
-import { applyEvent, emptyConversation, readableFromPartial, REASON_LABEL, STATE_LABEL, TOOL_LABEL, type ConversationView } from "./state.js";
+import { canOpen, citationPath, pageOf } from "../shared/open-policy.js";
+import { applyEvent, emptyConversation, groupTurns, readableFromPartial, REASON_LABEL, STATE_LABEL, TOOL_LABEL, type ConversationView, type RunView, type Turn, type UnresolvedView } from "./state.js";
 import { Composer, type Macro } from "./components/Composer.js";
 import { DiffDialog, type ArtifactDiff } from "./components/DiffDialog.js";
 import { SettingsDialog } from "./components/SettingsDialog.js";
+import { RunActivity } from "./components/RunActivity.js";
+import { Markdown } from "./components/Markdown.js";
+import { Icon, Spinner } from "./components/Icon.js";
 
 const api = window.app;
 let cmdSeq = 0;
@@ -22,6 +25,11 @@ interface MessageRow {
   content: string;
   run_id: string | null;
 }
+
+/** 空の会話に出す例の依頼（押すと入力欄に入る） */
+const EXAMPLES = ["メモをCSVにまとめる", "Excelの単価を直す", "Wordの文書を作る", "389×125は？"];
+
+const isEnded = (state: string | null | undefined) => state === "done" || state === "stopped";
 
 export function App() {
   const [status, setStatus] = useState<{ loggedIn: boolean; user?: { display_name: string }; serverUrl: string } | null>(null);
@@ -52,13 +60,16 @@ function Login({ serverUrl, onDone }: { serverUrl: string; onDone: () => void })
   return (
     <div className="login">
       <form className="login-card" onSubmit={submit} aria-label="ログイン">
+        <span className="brand-mark large" aria-hidden="true">
+          <Icon name="mark" size={22} />
+        </span>
         <h1>ローカルAIアシスタント</h1>
-        <p className="muted">社内サーバー: {serverUrl}</p>
-        <label>
+        <p className="muted small login-server">社内サーバー: {serverUrl}</p>
+        <label className="field">
           ログインID
           <input autoFocus value={login} onChange={(e) => setLogin(e.target.value)} name="login" autoComplete="username" />
         </label>
-        <label>
+        <label className="field">
           パスワード
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} name="password" autoComplete="current-password" />
         </label>
@@ -71,7 +82,7 @@ function Login({ serverUrl, onDone }: { serverUrl: string; onDone: () => void })
             {error}
           </p>
         )}
-        <button type="submit" className="primary" disabled={busy || !login || !password}>
+        <button type="submit" className="primary wide" disabled={busy || !login || !password}>
           {busy ? "ログイン中…" : "ログイン"}
         </button>
       </form>
@@ -87,6 +98,9 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [hostState, setHostState] = useState<string>("starting");
   const [spareActive, setSpareActive] = useState<string | null>(null);
+  // 窓が狭いときはサイドバーを畳んだ状態で始める
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 900);
+  const [seed, setSeed] = useState<{ text: string; n: number } | null>(null);
   // 自動更新（ADM-05）
   const [update, setUpdate] = useState<{ version: string; notes: string } | null>(null);
   const [updateError, setUpdateError] = useState<string | null>(null);
@@ -176,7 +190,8 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
   }, [loadConvs, loadConversation, loadConfig]);
 
   const view = current ? (views[current] ?? emptyConversation()) : emptyConversation();
-  const running = view.state !== null && !["done", "stopped"].includes(view.state);
+  const running = view.state !== null && !isEnded(view.state);
+  const title = (current && convs.find((c) => c.id === current)?.title) || "新しい会話";
 
   const newConversation = () => {
     setCurrent(null);
@@ -204,80 +219,96 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
     void loadConvs();
   };
 
-  return (
-    <div className="shell">
-      <aside className="sidebar" aria-label="会話とファイル">
-        <div className="brand">
-          <span className="dot" aria-hidden />
-          ローカルAIアシスタント
-        </div>
-        <button className="primary block" onClick={newConversation}>
-          ＋ 新しい会話
-        </button>
-        <input
-          type="search"
-          className="conv-search"
-          placeholder="会話を検索"
-          aria-label="会話を検索"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-        <nav className="conv-list" aria-label="会話の履歴">
-          {shown.map((c) => (
-            <button key={c.id} className={`conv ${c.id === current ? "active" : ""}`} onClick={() => openConversation(c.id)} title={c.workspace}>
-              <span className="conv-title">{c.title}</span>
-              {views[c.id]?.state && !["done", "stopped"].includes(views[c.id]!.state!) && <span className="badge run">実行中</span>}
-            </button>
-          ))}
-          {found !== null && found.length === 0 && <p className="muted small">見つかりませんでした</p>}
-          {found === null && convs.length === 0 && <p className="muted small">まだ会話はありません</p>}
-        </nav>
-        {workspace && <FileTree root={workspace} refreshKey={view.artifacts.length} />}
-        <div className="user-row">
-          <span>{userName}</span>
-          <button className="link" onClick={() => setShowSettings(true)}>
-            設定
-          </button>
-          <button
-            className="link"
-            onClick={async () => {
-              if (running && !confirm("実行中の作業があります。ログアウトすると作業は止まります。よろしいですか？")) return;
-              await api.auth.logout();
-              onLogout();
-            }}
-          >
-            ログアウト
-          </button>
-        </div>
-      </aside>
+  const serverLabel = hostState === "ready" ? "サーバー接続" : hostState === "restarting" ? "再起動中" : hostState === "stopped" ? "停止" : "起動中";
 
-      <main className="center">
-        <header className="topbar">
-          <button className="folder" onClick={pickFolder} disabled={Boolean(current && messages.length)} title="作業フォルダ">
-            📁 {workspace || "作業フォルダを選ぶ"}
+  return (
+    <div className={`shell ${sidebarOpen ? "" : "sidebar-closed"}`}>
+      {sidebarOpen && (
+        <aside className="sidebar" aria-label="会話とファイル">
+          <div className="sidebar-head">
+            <span className="brand">
+              <span className="brand-mark" aria-hidden="true">
+                <Icon name="mark" size={16} />
+              </span>
+              ローカルAIアシスタント
+            </span>
+            <button className="icon-btn" onClick={() => setSidebarOpen(false)} aria-label="サイドバーを閉じる" title="サイドバーを閉じる">
+              <Icon name="sidebar" size={18} />
+            </button>
+          </div>
+          <button className="new-conv" onClick={newConversation}>
+            <Icon name="plus" size={16} />
+            新しい会話
           </button>
-          <div className="spacer" />
-          <label className="inline">
-            モデル
-            <select value={model} onChange={(e) => setModel(e.target.value as typeof model)} aria-label="モデル">
-              <option value="auto">自動</option>
-              <option value="fast">高速</option>
-              <option value="accurate">高精度</option>
-            </select>
-          </label>
-          <label className="inline">
-            ネット
-            <select value={netLevel} onChange={(e) => void changeNet(e.target.value as typeof netLevel)} aria-label="ネットアクセス">
-              <option value="off">オフ</option>
-              <option value="search">検索のみ</option>
-              <option value="browse">検索＋閲覧</option>
-            </select>
-          </label>
+          <div className="search-box">
+            <Icon name="search" size={15} />
+            <input type="search" className="conv-search" placeholder="会話を検索" aria-label="会話を検索" value={query} onChange={(e) => setQuery(e.target.value)} />
+          </div>
+          <nav className="conv-list" aria-label="会話の履歴">
+            <h2 className="side-heading">最近の会話</h2>
+            {shown.map((c) => {
+              const st = views[c.id]?.state;
+              return (
+                <button key={c.id} className={`conv ${c.id === current ? "active" : ""}`} onClick={() => openConversation(c.id)} title={c.workspace} aria-current={c.id === current ? "true" : undefined}>
+                  <span className="conv-title">{c.title}</span>
+                  {st && !isEnded(st) && (
+                    <span className="badge run">
+                      <Spinner size={11} />
+                      実行中
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {found !== null && found.length === 0 && <p className="muted small side-note">見つかりませんでした</p>}
+            {found === null && convs.length === 0 && <p className="muted small side-note">まだ会話はありません</p>}
+          </nav>
+          {workspace && <FileTree root={workspace} refreshKey={view.artifacts.length} />}
+          <div className="user-row">
+            <span className="avatar" aria-hidden="true">
+              {userName.slice(0, 1)}
+            </span>
+            <span className="user-name">{userName}</span>
+            <button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="設定" title="設定">
+              <Icon name="settings" size={17} />
+            </button>
+            <button
+              className="icon-btn"
+              aria-label="ログアウト"
+              title="ログアウト"
+              onClick={async () => {
+                if (running && !confirm("実行中の作業があります。ログアウトすると作業は止まります。よろしいですか？")) return;
+                await api.auth.logout();
+                onLogout();
+              }}
+            >
+              <Icon name="logout" size={17} />
+            </button>
+          </div>
+        </aside>
+      )}
+
+      <main className="main">
+        <header className="topbar">
+          {!sidebarOpen && (
+            <>
+              <button className="icon-btn" onClick={() => setSidebarOpen(true)} aria-label="サイドバーを開く" title="サイドバーを開く">
+                <Icon name="sidebar" size={18} />
+              </button>
+              <button className="icon-btn" onClick={newConversation} aria-label="新しい会話" title="新しい会話">
+                <Icon name="plus" size={18} />
+              </button>
+            </>
+          )}
+          <span className="topbar-title">{title}</span>
+          <span className="spacer" />
           <span className={`net-badge ${netLevel}`} data-testid="net-badge">
+            <Icon name="globe" size={13} />
             {netLevel === "off" ? "ネット: オフ" : "ネット接続中"}
           </span>
           <span className={`server ${hostState}`} data-testid="server-status">
-            {hostState === "ready" ? "サーバー接続" : hostState === "restarting" ? "再起動中" : hostState === "stopped" ? "停止" : "起動中"}
+            <span className="server-dot" aria-hidden="true" />
+            {serverLabel}
           </span>
           {spareActive && (
             <span className="server spare" data-testid="spare-status" title={spareActive}>
@@ -286,10 +317,12 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
           )}
         </header>
         {update && (
-          <div className="update-bar" role="status" data-testid="update-bar">
-            新しい版 {update.version} があります{update.notes ? `（${update.notes}）` : ""}。
+          <div className="banner info" role="status" data-testid="update-bar">
+            <span className="banner-text">
+              新しい版 {update.version} があります{update.notes ? `（${update.notes}）` : ""}。
+            </span>
             <button
-              className="primary"
+              className="primary small-btn"
               onClick={async () => {
                 const r = await api.update.install();
                 setUpdateError(r.ok ? null : (r.error ?? "更新できませんでした"));
@@ -301,25 +334,50 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
           </div>
         )}
         {warnings.length > 0 && (
-          <div className="warn-bar" role="status">
-            {warnings.join(" / ")}
+          <div className="banner warn" role="status">
+            <Icon name="alert" size={15} />
+            <span className="banner-text">{warnings.join(" / ")}</span>
             <button className="link" onClick={() => setWarnings([])}>
               閉じる
             </button>
           </div>
         )}
-        <Timeline view={view} messages={messages} workspace={workspace} />
-        {view.state === "done" && view.runId && <FeedbackBar key={view.runId} runId={view.runId} />}
-        <Composer
-          macros={macros}
-          disabled={!workspace || hostState !== "ready"}
-          placeholder={workspace ? "依頼を入力（Ctrl+Enter で送信）" : "先に作業フォルダを選んでください"}
-          running={running}
-          paused={view.state === "paused"}
-          onSend={send}
-          onPause={() => view.runId && void api.runtime.send(cmd(view.state === "paused" ? "run.resume" : "run.pause", { run_id: view.runId }))}
-          onStop={() => view.runId && void api.runtime.send(cmd("run.stop", { run_id: view.runId }))}
+        {(hostState === "restarting" || hostState === "stopped") && (
+          <div className="banner err" role="status">
+            <Icon name="alert" size={15} />
+            <span className="banner-text">{hostState === "restarting" ? "作業の実行部を再起動しています。終わると自動で続きを表示します。" : "作業の実行部が止まっています。アプリを開き直してください。"}</span>
+          </div>
+        )}
+        <Timeline
+          view={view}
+          messages={messages}
+          workspace={workspace}
+          userName={userName}
+          onExample={(text) => setSeed((s) => ({ text, n: (s?.n ?? 0) + 1 }))}
         />
+        <div className="composer-wrap">
+          <div className="col">
+            <Composer
+              macros={macros}
+              disabled={!workspace || hostState !== "ready"}
+              placeholder={workspace ? "依頼を入力してください" : "先に作業フォルダを選んでください"}
+              running={running}
+              paused={view.state === "paused"}
+              workspace={workspace}
+              folderLocked={Boolean(current && messages.length)}
+              model={model}
+              netLevel={netLevel}
+              seed={seed}
+              onPickFolder={() => void pickFolder()}
+              onModel={setModel}
+              onNet={(n) => void changeNet(n)}
+              onSend={send}
+              onPause={() => view.runId && void api.runtime.send(cmd(view.state === "paused" ? "run.resume" : "run.pause", { run_id: view.runId }))}
+              onStop={() => view.runId && void api.runtime.send(cmd("run.stop", { run_id: view.runId }))}
+            />
+            <p className="composer-hint">Ctrl+Enter で送信 ・ / で定型作業 ・ ファイルはドラッグして添付できます</p>
+          </div>
+        </div>
       </main>
 
       {showSettings && (
@@ -333,13 +391,6 @@ function Main({ userName, onLogout }: { userName: string; onLogout: () => void }
           onClose={() => setShowSettings(false)}
         />
       )}
-      <aside className="panel" aria-label="計画と承認">
-        <StatusCard view={view} />
-        <Plan view={view} />
-        <Approvals view={view} />
-        <Questions view={view} />
-        <Changes view={view} />
-      </aside>
     </div>
   );
 }
@@ -351,12 +402,15 @@ function FileTree({ root, refreshKey }: { root: string; refreshKey: number }) {
   }, [root, refreshKey]);
   return (
     <section className="tree" aria-label="作業フォルダのファイル">
-      <h2>ファイル</h2>
+      <h2 className="side-heading" title={root}>
+        ファイル
+      </h2>
       <ul>
         {entries.map((e) => (
           <li key={e.path}>
-            <button className="link file" onDoubleClick={() => !e.dir && void api.shell.openPath(e.path)} title="ダブルクリックで開く">
-              {e.dir ? "📁" : "📄"} {e.name}
+            <button className="file-item" onDoubleClick={() => !e.dir && void api.shell.openPath(e.path)} title="ダブルクリックで開く">
+              <Icon name={e.dir ? "folder" : "file"} size={14} />
+              <span className="file-name">{e.name}</span>
             </button>
           </li>
         ))}
@@ -365,54 +419,199 @@ function FileTree({ root, refreshKey }: { root: string; refreshKey: number }) {
   );
 }
 
-function Timeline({ view, messages, workspace }: { view: ConversationView; messages: MessageRow[]; workspace: string | null }) {
+function Timeline({ view, messages, workspace, userName, onExample }: { view: ConversationView; messages: MessageRow[]; workspace: string | null; userName: string; onExample: (text: string) => void }) {
   const end = useRef<HTMLDivElement>(null);
+  const turns = useMemo(() => groupTurns(messages, view), [messages, view]);
   // 新しい Chromium では scrollIntoView が Promise を返すので、戻り値を effect の後片付けとして返さない
   useEffect(() => {
     void end.current?.scrollIntoView({ block: "end" });
-  }, [view.steps.length, messages.length, view.finalSummary, view.live?.raw.length]);
-  const items = useMemo(() => view.steps.filter((s) => s.kind !== "system" || s.status === "error"), [view.steps]);
+  }, [view.steps.length, messages.length, view.finalSummary, view.live?.raw.length, view.approvals.length, view.questions.length]);
+  const lastRunTurn = [...turns].reverse().find((t) => t.runId)?.runId ?? null;
   return (
-    <section className="timeline" aria-live="polite" aria-label="会話">
-      {messages.length === 0 && items.length === 0 && (
-        <div className="empty">
-          <h2>何をしましょうか？</h2>
-          <p className="muted">例: 「請求書フォルダのPDFを読んで、送金明細をExcelにまとめて」</p>
-        </div>
-      )}
-      {messages.map((m) => (
+    <section className="timeline" aria-label="会話">
+      <div className="col">
+        {turns.length === 0 && (
+          <div className="empty">
+            <h1 className="greeting">{userName ? `${userName}さん、` : ""}何をお手伝いしましょうか？</h1>
+            <p className="muted">作業フォルダを選んで、してほしいことを書いてください。ファイルの読み書きは、選んだフォルダの中で行います。</p>
+            <ul className="examples" aria-label="使い方の例">
+              {EXAMPLES.map((x) => (
+                <li key={x}>
+                  <button className="example" onClick={() => onExample(x)}>
+                    {x}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {turns.map((t) => (
+          <TurnView key={t.key} turn={t} view={view} workspace={workspace} latest={t.runId !== null && t.runId === lastRunTurn} />
+        ))}
+        {view.state === "done" && view.runId && <FeedbackBar key={view.runId} runId={view.runId} />}
+        <p className="sr-only" role="status" aria-live="polite">
+          {view.state ? (STATE_LABEL[view.state] ?? "") : ""}
+        </p>
+        <div ref={end} />
+      </div>
+    </section>
+  );
+}
+
+/** 1回分のやり取り: 依頼 → 作業の経過（1行） → 承認・質問 → 答え → 変更したファイル・出典 */
+function TurnView({ turn, view, workspace, latest }: { turn: Turn; view: ConversationView; workspace: string | null; latest: boolean }) {
+  const run: RunView | undefined = turn.runId ? view.runs.find((r) => r.runId === turn.runId) : undefined;
+  const steps = useMemo(() => view.steps.filter((s) => (s.runId ? s.runId === turn.runId : latest)), [view.steps, turn.runId, latest]);
+  const net = view.net.filter((n) => (n.runId ? n.runId === turn.runId : latest));
+  const artifacts = view.artifacts.filter((a) => a.run_id === turn.runId);
+  const live = latest && view.live ? readableFromPartial(view.live.raw) : "";
+  return (
+    <article className="turn">
+      {turn.messages.map((m) => (
         <div key={m.id} className="bubble user">
           {m.content}
         </div>
       ))}
-      {items.map((s) => (
-        <details key={`${s.stepId}:${s.kind}`} className={`step ${s.status}`} data-testid="step-card">
-          <summary>
-            <span className={`st ${s.status}`} aria-label={s.status} />
-            {s.kind === "tool" ? (TOOL_LABEL[s.tool ?? ""] ?? s.tool) : s.kind === "plan" ? "計画を更新" : s.kind === "ask" ? "質問" : s.kind === "final" ? "完了報告" : "出力の形式エラー（自動でやり直します）"}
-            {s.status === "deferred" && <span className="badge warn">保留中</span>}
-          </summary>
-          {s.argsPreview && <pre className="pre">{s.argsPreview}</pre>}
-          {s.resultPreview && <pre className="pre result">{s.resultPreview}</pre>}
-        </details>
-      ))}
-      {view.net.map((n, i) => (
-        <div key={`net${i}`} className="net-line" data-testid="net-activity">
-          🌐 {n.kind === "search" ? `検索: ${n.query}` : `閲覧: ${n.url}`} {n.blocked && <span className="badge err">送信しませんでした</span>}
-        </div>
-      ))}
-      {view.live && readableFromPartial(view.live.raw) && (
-        <div className="bubble ai live" data-testid="live-output" aria-live="polite">
-          {readableFromPartial(view.live.raw)}
+      {run && <RunActivity state={run.state} steps={steps} plan={latest ? view.plan : []} latest={latest} queue={view.queue} retry={view.retry} batch={view.batch} />}
+      {net.length > 0 && (
+        <ul className="net-lines" aria-label="ネットの利用">
+          {net.map((n, i) => (
+            <li key={`net${i}`} className="net-line" data-testid="net-activity">
+              <Icon name="globe" size={13} />
+              <span className="net-text">{n.kind === "search" ? `検索: ${n.query}` : `閲覧: ${n.url}`}</span>
+              {n.blocked && <span className="badge err">送信しませんでした</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+      {latest && <Approvals view={view} />}
+      {latest && <Questions view={view} />}
+      {live && (
+        <div className="answer live" data-testid="live-output" aria-live="polite">
+          {live}
         </div>
       )}
-      {view.finalSummary !== null && (
-        <div className="bubble ai" data-testid="final-summary">
-          {view.finalSummary}
+      {run?.finalSummary != null && (
+        <div className="answer" {...(latest ? { "data-testid": "final-summary" } : {})}>
+          <Markdown text={run.finalSummary} />
         </div>
       )}
-      {view.finalSummary !== null && view.citations.length > 0 && <Citations items={view.citations} workspace={workspace} />}
-      <div ref={end} />
+      {run && run.unresolved.length > 0 && <Unresolved items={run.unresolved} />}
+      {run && run.failures.length > 0 && <Failures items={run.failures} />}
+      {run && run.needsReview.length > 0 && <NeedsReview items={run.needsReview} workspace={workspace} />}
+      {run && run.outputs.length > 0 && <Outputs items={run.outputs} artifacts={artifacts} workspace={workspace} />}
+      {artifacts.length > 0 && turn.runId && <Changes artifacts={artifacts} runId={turn.runId} canUndo={latest} />}
+      {run?.finalSummary != null && run.citations.length > 0 && <Citations items={run.citations} workspace={workspace} />}
+    </article>
+  );
+}
+
+/** 失敗したまま終わった書き込み。答えの文が「できました」でも、手順を開かずに分かるように答えの下に出す */
+function Unresolved({ items }: { items: UnresolvedView[] }) {
+  return (
+    <section className="notice-card unresolved" aria-label="失敗したままの操作" data-testid="unresolved">
+      <h3 className="notice-title">
+        <Icon name="alert" size={15} />
+        注意: 次の操作は失敗したままです
+      </h3>
+      <ul className="unresolved-list">
+        {items.map((u, i) => (
+          <li key={i} title={`${u.error_code}: ${u.message}`}>
+            <strong>{TOOL_LABEL[u.tool] ?? u.tool}</strong>
+            <span className="unresolved-msg">{u.message}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** 完了報告の「できなかったこと」（final の failures） */
+function Failures({ items }: { items: RunView["failures"] }) {
+  return (
+    <section className="notice-card report failures" aria-label="できなかったこと" data-testid="failures">
+      <h3 className="notice-title">
+        <Icon name="alert" size={15} />
+        できなかったこと（{items.length}件）
+      </h3>
+      <ul className="report-list">
+        {items.map((f, i) => (
+          <li key={i}>
+            <strong className="report-item">{f.item}</strong>
+            <span className="report-reason">{f.reason}</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** 開いてよいファイルなら、開くための絶対パスを返す（open-policy の決まりに従う） */
+function openablePath(path: string, workspace: string | null): string | null {
+  const abs = citationPath(path, workspace);
+  return abs && canOpen(abs) ? abs : null;
+}
+
+/** 完了報告の「確認してください」（final の needs_review）。該当のファイルを開ける */
+function NeedsReview({ items, workspace }: { items: RunView["needsReview"]; workspace: string | null }) {
+  return (
+    <section className="notice-card report review" aria-label="確認してください" data-testid="needs-review">
+      <h3 className="notice-title">
+        <Icon name="clock" size={15} />
+        確認してください（{items.length}件）
+      </h3>
+      <ul className="report-list">
+        {items.map((r, i) => {
+          const abs = openablePath(r.path, workspace);
+          return (
+            <li key={i} data-testid="review-item">
+              <span className="report-path">
+                <span className="mono">{r.path}</span>
+                {r.location && <span className="muted small">（{r.location}）</span>}
+                {abs && (
+                  <button className="ghost-btn small-btn" onClick={() => void api.shell.openPath(abs, pageOf(r.location) ? { page: pageOf(r.location)! } : undefined)} aria-label={`${r.path} を開く`}>
+                    <Icon name="open" size={13} />
+                    開く
+                  </button>
+                )}
+              </span>
+              <span className="report-reason">{r.reason}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+const pathKey = (p: string, workspace: string | null) => (citationPath(p, workspace) ?? p).replace(/\//g, "\\").toLowerCase();
+
+/** 完了報告の成果物（final の outputs）。変更したファイルの一覧に既に出ているものは出さない */
+function Outputs({ items, artifacts, workspace }: { items: RunView["outputs"]; artifacts: ConversationView["artifacts"]; workspace: string | null }) {
+  const shown = new Set(artifacts.map((a) => pathKey(a.path, workspace)));
+  const rest = items.filter((o) => !shown.has(pathKey(o.path, workspace)));
+  if (rest.length === 0) return null;
+  return (
+    <section className="files" aria-label="作ったもの" data-testid="outputs">
+      <h3 className="sub-heading">作ったもの（{rest.length}）</h3>
+      <ul className="changes">
+        {rest.map((o, i) => {
+          const abs = openablePath(o.path, workspace);
+          return (
+            <li key={i} className="file-chip">
+              <Icon name="file" size={16} />
+              {abs ? (
+                <button className="link file" onClick={() => void api.shell.openPath(abs)} title={abs}>
+                  {o.path.split(/[\\/]/).pop()}
+                </button>
+              ) : (
+                <span className="file mono">{o.path}</span>
+              )}
+              {o.description && <span className="muted small">{o.description}</span>}
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
@@ -442,21 +641,23 @@ function FeedbackBar({ runId }: { runId: string }) {
   };
   return (
     <section className="feedback" aria-label="この作業の評価">
-      <span className="small">この作業はいかがでしたか？</span>
-      <button className={rating === "good" ? "active" : ""} aria-pressed={rating === "good"} onClick={() => setRating("good")}>
-        👍 良い
+      <span className="small muted">この作業はいかがでしたか？</span>
+      <button className={`ghost-btn ${rating === "good" ? "active" : ""}`} aria-pressed={rating === "good"} onClick={() => setRating("good")}>
+        <Icon name="thumbUp" size={14} />
+        良い
       </button>
-      <button className={rating === "bad" ? "active" : ""} aria-pressed={rating === "bad"} onClick={() => setRating("bad")}>
-        👎 悪い
+      <button className={`ghost-btn ${rating === "bad" ? "active" : ""}`} aria-pressed={rating === "bad"} onClick={() => setRating("bad")}>
+        <Icon name="thumbDown" size={14} />
+        悪い
       </button>
       {rating && (
-        <>
+        <div className="feedback-more">
           <input aria-label="ひとこと（任意）" placeholder="ひとこと（任意）" value={comment} maxLength={2000} onChange={(e) => setComment(e.target.value)} />
-          <label className="small">
+          <label className="check small">
             <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />
             このやり取りを AI の改善に提供する（管理者が確認し、社名・金額などを伏せてから使います）
           </label>
-          <button className="primary" disabled={state === "sending"} onClick={() => void submit()}>
+          <button className="primary small-btn" disabled={state === "sending"} onClick={() => void submit()}>
             送る
           </button>
           {state === "error" && (
@@ -464,7 +665,7 @@ function FeedbackBar({ runId }: { runId: string }) {
               送れませんでした。時間をおいてもう一度お試しください
             </span>
           )}
-        </>
+        </div>
       )}
     </section>
   );
@@ -476,7 +677,7 @@ const CITE_KIND: Record<string, string> = { file: "ファイル", rag: "社内�
 function Citations({ items, workspace }: { items: ConversationView["citations"]; workspace: string | null }) {
   return (
     <section className="citations" aria-label="出典" data-testid="citations">
-      <h3 className="small">出典</h3>
+      <h3 className="sub-heading">出典</h3>
       <ul>
         {items.map((c, i) => (
           <li key={`${c.ref}-${i}`} className={c.verified ? "" : "unverified"} data-testid="citation">
@@ -494,47 +695,15 @@ function Citations({ items, workspace }: { items: ConversationView["citations"];
               <span className="mono">{c.ref}</span>
             )}
             {c.location && <span className="muted small">（{c.location}）</span>}
-            {!c.verified && <span className="badge warn">確認できない出典</span>}
+            {!c.verified && (
+              <span className="badge warn">
+                <Icon name="alert" size={12} />
+                確認できない出典
+              </span>
+            )}
           </li>
         ))}
       </ul>
-    </section>
-  );
-}
-
-function StatusCard({ view }: { view: ConversationView }) {
-  if (!view.state) return null;
-  return (
-    <section className={`card status ${view.state}`} data-testid="run-state" data-state={view.state}>
-      <strong>{STATE_LABEL[view.state] ?? view.state}</strong>
-      {view.queue && view.queue.position > 0 && (
-        <p className="small">
-          順番待ち {view.queue.position} 番目（約 {view.queue.eta_seconds} 秒）
-        </p>
-      )}
-      {view.retry && <p className="small">再接続中（{view.retry.attempt} 回目）</p>}
-      {view.batch && (
-        <p className="small">
-          一括処理 {view.batch.done} / {view.batch.total}
-          {view.batch.failed > 0 && `（失敗 ${view.batch.failed}）`}
-        </p>
-      )}
-    </section>
-  );
-}
-
-function Plan({ view }: { view: ConversationView }) {
-  if (view.plan.length === 0) return null;
-  return (
-    <section className="card">
-      <h2>計画</h2>
-      <ol className="plan">
-        {view.plan.map((p) => (
-          <li key={p.id} className={p.status}>
-            {p.title}
-          </li>
-        ))}
-      </ol>
     </section>
   );
 }
@@ -549,12 +718,16 @@ function Approvals({ view }: { view: ConversationView }) {
     await api.runtime.send(cmd("approval.decide", { approval_id: id, decision, ...(rem ? { remember: "this_run" } : {}) }));
   };
   return (
-    <section className="card approvals" aria-label="承認待ち">
-      <h2>承認待ち（{pending.length}）</h2>
+    <section className="notice-card approvals" aria-label="承認待ち">
+      <h3 className="notice-title">
+        <Icon name="alert" size={15} />
+        承認が必要です（{pending.length}件）
+      </h3>
       {pending.map((a) => (
         <div key={a.approval_id} className="approval" data-testid="approval" role="group" aria-label={`承認 ${a.approval_id}`}>
-          <p>
-            <strong>{TOOL_LABEL[a.tool] ?? a.tool}</strong>（{REASON_LABEL[a.reason] ?? a.reason}）
+          <p className="approval-what">
+            <strong>{TOOL_LABEL[a.tool] ?? a.tool}</strong>
+            <span className="muted">（{REASON_LABEL[a.reason] ?? a.reason}）</span>
           </p>
           <ul className="paths">
             {a.paths.map((p) => (
@@ -564,7 +737,12 @@ function Approvals({ view }: { view: ConversationView }) {
               </li>
             ))}
           </ul>
-          {a.tainted && <p className="warn small">Web の情報を読んだ後の操作です。内容をよく確認してください。</p>}
+          {a.tainted && (
+            <p className="tainted small">
+              <Icon name="alert" size={13} />
+              Web の情報を読んだ後の操作です。内容をよく確認してください。
+            </p>
+          )}
           {!a.tainted && a.reason !== "delete" && a.reason !== "move" && (
             <label className="check small">
               <input type="checkbox" checked={Boolean(remember[a.approval_id])} onChange={(e) => setRemember((r) => ({ ...r, [a.approval_id]: e.target.checked }))} />
@@ -596,8 +774,8 @@ function Questions({ view }: { view: ConversationView }) {
     await api.runtime.send(cmd("question.answer", { question_id: id, answer: text, ...(secret ? { secret: true } : {}) }));
   };
   return (
-    <section className="card" aria-label="質問">
-      <h2>AIからの質問</h2>
+    <section className="notice-card" aria-label="質問">
+      <h3 className="notice-title">AIからの質問</h3>
       {open.map((q) => (
         <div key={q.question_id} className="question" data-testid="question">
           <p>{q.question}</p>
@@ -612,6 +790,7 @@ function Questions({ view }: { view: ConversationView }) {
           ) : (
             <div className="row">
               <input
+                className="grow"
                 type={q.secret ? "password" : "text"}
                 value={answers[q.question_id] ?? ""}
                 onChange={(e) => setAnswers((a) => ({ ...a, [q.question_id]: e.target.value }))}
@@ -628,40 +807,54 @@ function Questions({ view }: { view: ConversationView }) {
   );
 }
 
-function Changes({ view }: { view: ConversationView }) {
+const OP_LABEL: Record<string, string> = { create: "新規", delete: "削除", copy: "コピー" };
+
+/** この作業で変更したファイル。開く・差分・元に戻す（AGT-03, RUN-07） */
+function Changes({ artifacts, runId, canUndo }: { artifacts: ConversationView["artifacts"]; runId: string; canUndo: boolean }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [diffOf, setDiffOf] = useState<{ run_id: string; path: string } | null>(null);
   const loadDiff = useCallback(
     () => api.runtime.send(cmd("artifact.diff", { run_id: diffOf!.run_id, path: diffOf!.path })) as Promise<ArtifactDiff>,
     [diffOf],
   );
-  if (view.artifacts.length === 0) return null;
   const undo = async () => {
-    if (!view.runId || !confirm("この作業で変更したファイルを、変更前の状態に戻します。よろしいですか？")) return;
-    const r = (await api.runtime.send(cmd("undo.run", { run_id: view.runId }))) as { restored: string[]; warnings: string[] };
+    if (!confirm("この作業で変更したファイルを、変更前の状態に戻します。よろしいですか？")) return;
+    const r = (await api.runtime.send(cmd("undo.run", { run_id: runId }))) as { restored: string[]; warnings: string[] };
     setMsg(`${r.restored.length} 件を元に戻しました${r.warnings.length ? `（${r.warnings.join(" / ")}）` : ""}`);
   };
   return (
-    <section className="card" aria-label="変更したファイル">
-      <h2>変更したファイル（{view.artifacts.length}）</h2>
+    <section className="files" aria-label="変更したファイル">
+      <h3 className="sub-heading">変更したファイル（{artifacts.length}）</h3>
       <ul className="changes">
-        {view.artifacts.map((a) => (
-          <li key={a.path} data-testid="artifact">
-            <span className={`op ${a.op}`}>{a.op === "create" ? "新規" : a.op === "delete" ? "削除" : a.op === "copy" ? "コピー" : "変更"}</span>
-            <button className="link file" onClick={() => void api.shell.openPath(a.path)}>
+        {artifacts.map((a) => (
+          <li key={a.path} data-testid="artifact" className="file-chip">
+            <Icon name="file" size={16} />
+            <button className="link file" onClick={() => void api.shell.openPath(a.path)} title={a.path}>
               {a.path.split(/[\\/]/).pop()}
             </button>
+            <span className={`op ${a.op}`}>{OP_LABEL[a.op] ?? "変更"}</span>
             {a.renamed_from && <span className="small warn">（使用中のため別名で保存）</span>}
+            <span className="spacer" />
             {a.op !== "copy" && (
-              <button className="link small" onClick={() => setDiffOf({ run_id: a.run_id, path: a.path })}>
+              <button className="ghost-btn small-btn" onClick={() => setDiffOf({ run_id: a.run_id, path: a.path })}>
+                <Icon name="diff" size={13} />
                 差分
               </button>
             )}
           </li>
         ))}
       </ul>
-      <button onClick={undo}>この作業を元に戻す</button>
-      {msg && <p className="small" role="status">{msg}</p>}
+      {canUndo && (
+        <button className="ghost-btn small-btn" onClick={() => void undo()}>
+          <Icon name="undo" size={13} />
+          この作業を元に戻す
+        </button>
+      )}
+      {msg && (
+        <p className="small" role="status">
+          {msg}
+        </p>
+      )}
       {diffOf && <DiffDialog path={diffOf.path} load={loadDiff} onClose={() => setDiffOf(null)} />}
     </section>
   );

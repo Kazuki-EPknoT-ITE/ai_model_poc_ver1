@@ -133,6 +133,35 @@ describe("runtime integration", () => {
     expect(JSON.parse(rig.store.getRun(run_id)!.final_action!).summary).toBe("終了");
   }, 90_000);
 
+  it("a write that already succeeded twice with the same args is not run again and is removed from the grammar", async () => {
+    rig = await makeRig("repeat-success.yaml");
+    const { run_id } = await start(rig);
+    await waitFor(() => runEnded(rig!, run_id), 30_000, "run end");
+    const rows = rig.store.db.prepare("SELECT seq, result FROM steps WHERE run_id = ? AND tool = 'fs.mkdir' ORDER BY seq").all(run_id) as { seq: number; result: string }[];
+    const data = rows.map((r) => (JSON.parse(r.result) as { ok: boolean; data?: { skipped?: boolean; message?: string } }));
+    expect(data.map((d) => [d.ok, Boolean(d.data?.skipped)])).toEqual([[true, false], [true, false], [true, true]]);
+    expect(data[2]!.data!.message).toContain("既に2回成功");
+    const agent = readFileSync(rig.mock.samples, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as { purpose: string; schema_tools: string[] }).filter((x) => x.purpose === "agent");
+    expect(agent[3]!.schema_tools).toContain("fs.mkdir");
+    expect(agent[4]!.schema_tools).not.toContain("fs.mkdir");
+    // 成功の繰り返しは「失敗したままの操作」には数えない
+    const done = rig.events.find((e) => e.type === "run.state" && (e.payload as { state: string }).state === "done")!;
+    expect((done.payload as { detail: { unresolved?: unknown[] } }).detail.unresolved).toBeUndefined();
+  }, 60_000);
+
+  it("done carries write operations that failed and never succeeded (reads are not listed)", async () => {
+    rig = await makeRig("unresolved.yaml");
+    const { run_id } = await start(rig);
+    await waitFor(() => runEnded(rig!, run_id), 30_000, "run end");
+    const done = rig.events.find((e) => e.type === "run.state" && (e.payload as { state: string }).state === "done")!;
+    const detail = (done.payload as { detail: { unresolved?: { tool: string; error_code: string }[] } }).detail;
+    expect(detail.unresolved?.map((u) => [u.tool, u.error_code])).toEqual([["fs.copy", "NOT_FOUND"]]);
+    // 完了報告の項目（失敗した件・人の確認が要る箇所）も画面に渡る。空の項目は付けない
+    expect(detail).toMatchObject({ failures: [{ item: "無い.txt", reason: "見つかりません" }], needs_review: [{ path: "out", reason: "中身を確認してください" }] });
+    expect(detail).not.toHaveProperty("outputs");
+    expect(validateDef("RuntimeEvent", done).errors).toEqual([]);
+  }, 60_000);
+
   it("I-09 / R10: after reading the web, outside writes require a tainted approval", async () => {
     rig = await makeRig("net-taint.yaml");
     writeFileSync(join(rig.ws, "a.txt"), "A");

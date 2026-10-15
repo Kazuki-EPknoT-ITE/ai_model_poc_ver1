@@ -1,5 +1,5 @@
 // 結合試験（I）の土台: モック Gateway（Python）を起動し、Runtime を組み立てる。
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
@@ -14,6 +14,19 @@ import type { McpToolHost } from "../../src/tools/mcp.js";
 
 export const PROJECT = resolve(dirname(fileURLToPath(import.meta.url)), "../../../..");
 export const SCENARIOS = join(PROJECT, "eval", "mock-gateway", "scenarios", "runtime");
+
+/** Windows では uv の子プロセス（Python のモック Gateway）まで止める。proc.kill() だけだと uv しか止まらず、モックが残り続ける */
+function killTree(proc: ChildProcess): void {
+  if (process.platform === "win32" && proc.pid) {
+    try {
+      execFileSync("taskkill", ["/PID", String(proc.pid), "/T", "/F"], { stdio: "ignore" });
+      return;
+    } catch {
+      /* 既に終了している */
+    }
+  }
+  proc.kill();
+}
 
 async function freePort(): Promise<number> {
   return new Promise((res) => {
@@ -60,7 +73,7 @@ export async function startMock(scenario: string, dir: string): Promise<MockGate
     record,
     samples,
     stop: async () => {
-      proc.kill();
+      killTree(proc);
       await new Promise((r) => setTimeout(r, 200));
     },
   };

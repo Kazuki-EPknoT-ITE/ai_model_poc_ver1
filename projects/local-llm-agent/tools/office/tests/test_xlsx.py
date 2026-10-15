@@ -196,6 +196,8 @@ def test_write_cells_preserves_formatting(run: Runner, book: Path) -> None:
     assert env["artifacts"] == [art]
     assert "recalc" not in env["data"]
     assert any("LibreOffice" in w for w in env["warnings"])
+    # value に "=" で始まる文字列を渡したら、文字列で書いたことと formula の使い方を知らせる
+    assert any("B8" in w and "formula に指定" in w for w in env["warnings"])
     assert _snapshot(book) == before
     wb = load_workbook(book)
     sh = wb["明細"]
